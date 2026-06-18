@@ -93,9 +93,13 @@ public static class ReconstructionPipeline
             aligned.MaskGreen,
             aligned.MaskBlue);
 
+        var sourceWidth = rgb.Width;
+        var sourceHeight = rgb.Height;
         var (cropped, cropInfo) = ApplyCrop(rgb, overlap, settings.Crop);
+        var croppedOverlap = Cropper.CropMask(overlap, sourceWidth, sourceHeight, cropInfo);
         var corrected = ColorCorrection.ApplyColorSettings(cropped, settings.Color);
         corrected = ColorCorrection.ApplyGentleLevels(corrected);
+        corrected = Cropper.EnforceGrayscaleOutsideOverlap(corrected, croppedOverlap);
 
         if (settings.OutputSize is { } size)
         {
@@ -164,7 +168,7 @@ public static class ReconstructionPipeline
             return (new RgbImageBuffer(width, height, pixels), new CropInfo(x0, y0, x1, y1, bbox.X0, bbox.Y0, bbox.X1, bbox.Y1));
         }
 
-        var result = Cropper.SquareCrop(rgb, overlap);
+        var result = Cropper.CropToContent(rgb, overlap);
         crop.AutoInfo = result.Info;
         return result;
     }
