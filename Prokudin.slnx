@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Prokudin.Cli/Prokudin.Cli.csproj" />
+    <Project Path="src/Prokudin.Core/Prokudin.Core.csproj" />
+    <Project Path="src/Prokudin.Gui/Prokudin.Gui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Prokudin.Core.Tests/Prokudin.Core.Tests.csproj" />
+  </Folder>
+</Solution>

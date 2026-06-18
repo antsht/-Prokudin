@@ -1,0 +1,111 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Prokudin.Gui.Views.MainWindow"
+        Title="Prokudin"
+        Width="1180"
+        Height="780"
+        MinWidth="880"
+        MinHeight="560">
+  <DockPanel Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="Open _Red..." Command="{Binding OpenRedCommand}" />
+        <MenuItem Header="Open _Green..." Command="{Binding OpenGreenCommand}" />
+        <MenuItem Header="Open _Blue..." Command="{Binding OpenBlueCommand}" />
+        <Separator />
+        <MenuItem Header="Open _Triptych..." Command="{Binding OpenTriptychCommand}" />
+        <Separator />
+        <MenuItem Header="_Export PNG..." Command="{Binding ExportCommand}" />
+      </MenuItem>
+      <MenuItem Header="_Process">
+        <MenuItem Header="_Auto-align" Command="{Binding AutoAlignCommand}" />
+      </MenuItem>
+    </Menu>
+
+    <Border DockPanel.Dock="Top"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="8"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,16,Auto,Auto,16,Auto,*" RowDefinitions="32">
+        <Button Grid.Column="0" Content="Open R" Command="{Binding OpenRedCommand}" Margin="0,0,6,0" />
+        <Button Grid.Column="1" Content="Open G" Command="{Binding OpenGreenCommand}" Margin="0,0,6,0" />
+        <Button Grid.Column="2" Content="Open B" Command="{Binding OpenBlueCommand}" Margin="0,0,6,0" />
+        <Button Grid.Column="3" Content="Triptych" Command="{Binding OpenTriptychCommand}" />
+        <ComboBox Grid.Column="5"
+                  Width="84"
+                  ItemsSource="{Binding TriptychOrders}"
+                  SelectedItem="{Binding SelectedTriptychOrder}" />
+        <Button Grid.Column="6" Content="Auto-align" Command="{Binding AutoAlignCommand}" Margin="6,0,0,0" />
+        <Button Grid.Column="8" Content="Export PNG" Command="{Binding ExportCommand}" />
+        <TextBlock Grid.Column="9"
+                   Text="{Binding Status}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="12,0,0,0" />
+      </Grid>
+    </Border>
+
+    <Grid ColumnDefinitions="220,*">
+      <Border Grid.Column="0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="0,0,1,0"
+              Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+        <ListBox ItemsSource="{Binding Slots}"
+                 SelectedItem="{Binding SelectedSlot}"
+                 Padding="8"
+                 Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border PointerPressed="SlotPointerPressed"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.Drop="SlotDrop"
+                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="8"
+                      Margin="0,0,0,8"
+                      Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                <Grid RowDefinitions="112,Auto,Auto">
+                  <Border Grid.Row="0"
+                          Background="#202020"
+                          ClipToBounds="True">
+                    <Image Source="{Binding DisplayBitmap}"
+                           Stretch="Uniform" />
+                  </Border>
+                  <TextBlock Grid.Row="1"
+                             Text="{Binding DisplayName}"
+                             FontWeight="SemiBold"
+                             Margin="0,6,0,0" />
+                  <TextBlock Grid.Row="2"
+                             Text="{Binding Dimensions}"
+                             FontSize="12"
+                             Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="*,28">
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      Background="#141414">
+          <Image Source="{Binding SelectedSlot.DisplayBitmap}"
+                 Stretch="None" />
+        </ScrollViewer>
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,0"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+          <TextBlock Text="{Binding SelectedSlot.Dimensions}"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Border>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>
