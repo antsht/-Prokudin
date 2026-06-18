@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool suppressUndoCapture;
     private bool exposureUndoOpen;
     private int exposureChangeVersion;
+    private int previewImageContextVersion;
 
     public MainViewModel(IFileDialogService fileDialogService)
     {
@@ -58,10 +59,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public IReadOnlyList<string> TriptychOrders { get; } = ["RGB", "BGR"];
 
+    public IReadOnlyList<RetouchTool> RetouchTools { get; } = [RetouchTool.Heal, RetouchTool.Stamp];
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
     [NotifyCanExecuteChangedFor(nameof(AutoCleanSelectedChannelCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRetouchStrokeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyStampStrokeCommand))]
+    [NotifyPropertyChangedFor(nameof(PreviewImageContextKey))]
     private ChannelSlotViewModel? selectedSlot;
 
     [ObservableProperty]
@@ -75,6 +80,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(AutoAlignCommand))]
     [NotifyCanExecuteChangedFor(nameof(AutoCleanSelectedChannelCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRetouchStrokeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyStampStrokeCommand))]
     [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
     [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
@@ -95,6 +101,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
     private bool isRetouchMode;
+
+    [ObservableProperty]
+    private RetouchTool selectedRetouchTool = RetouchTool.Heal;
 
     [ObservableProperty]
     private int brushSize = 12;
@@ -124,6 +133,8 @@ public sealed partial class MainViewModel : ObservableObject
         PreviewZoomMode == PreviewZoomMode.FitToWindow ? "1:1" : "Fit to window";
 
     public string ProcessingLogText => processingLog.ToString();
+
+    public string PreviewImageContextKey => $"{SelectedSlot?.DisplayName ?? "none"}:{previewImageContextVersion}";
 
     [RelayCommand]
     private void ToggleFitToWindow()
@@ -198,6 +209,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         SelectionRect = ImageSelectionRect.Empty;
+        RefreshPreviewImageContext();
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSelectedInputChannel))]
@@ -224,6 +236,7 @@ public sealed partial class MainViewModel : ObservableObject
             PushUndo();
             SelectedSlot.Image = result.Image;
             RefreshAlignedAfterInputEdit(channelName);
+            RefreshPreviewImageContext();
             Status = $"Auto-cleaned {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
             AppendLog($"Auto-clean {SelectedSlot.DisplayName}: {changedPixels} masked pixels, radius {settings.NormalizedInpaintRadius}, sensitivity {settings.NormalizedSensitivity}.");
         });
@@ -249,6 +262,29 @@ public sealed partial class MainViewModel : ObservableObject
         var count = mask.Count(value => value > 0);
         Status = $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
         AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {count} masked pixels, brush {stroke.BrushSize}, radius {AutoCleanRadius}.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyStampStroke))]
+    private void ApplyStampStroke(CloneStampStroke? stroke)
+    {
+        if (stroke is not { DestinationStroke.Points.Count: > 0 } ||
+            SelectedSlot is not { Image: { } image, ChannelName: { } channelName })
+        {
+            return;
+        }
+
+        var result = ChannelRetoucher.Stamp(image, stroke);
+        if (!result.Mask.Any(value => value > 0))
+        {
+            return;
+        }
+
+        PushUndo();
+        SelectedSlot.Image = result.Image;
+        RefreshAlignedAfterInputEdit(channelName);
+        var count = result.Mask.Count(value => value > 0);
+        Status = $"Stamped {SelectedSlot.DisplayName}: {count} blended pixels.";
+        AppendLog($"Clone stamp {SelectedSlot.DisplayName}: {count} blended pixels, brush {stroke.DestinationStroke.BrushSize}, blend {Math.Clamp(stroke.BlendWidth, 1, 24)}.");
     }
 
     [RelayCommand]
@@ -430,6 +466,7 @@ public sealed partial class MainViewModel : ObservableObject
         SelectedSlot = target;
         Status = $"Swapped {source.DisplayName} and {target.DisplayName}. Run Auto-align again.";
         AppendLog($"Swapped {source.DisplayName} and {target.DisplayName}.");
+        RefreshPreviewImageContext();
     }
 
     private async Task OpenChannel(ChannelName channelName)
@@ -486,6 +523,7 @@ public sealed partial class MainViewModel : ObservableObject
             CropToSelectionCommand.NotifyCanExecuteChanged();
             AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
             ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
+            ApplyStampStrokeCommand.NotifyCanExecuteChanged();
             NotifyHistoryCommands();
         }
     }
@@ -494,6 +532,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         slot.Image = image;
         slot.SourcePath = sourcePath;
+        RefreshPreviewImageContext();
     }
 
     private void SetPreparedChannels(AlignedChannels aligned)
@@ -501,6 +540,7 @@ public sealed partial class MainViewModel : ObservableObject
         RedSlot.Image = aligned.Red;
         GreenSlot.Image = aligned.Green;
         BlueSlot.Image = aligned.Blue;
+        RefreshPreviewImageContext();
     }
 
     private void CropPreparedChannelsToResultSelection(int sourceWidth, int sourceHeight, ImageSelectionRect rect)
@@ -723,6 +763,11 @@ public sealed partial class MainViewModel : ObservableObject
         return CanEditSelectedInputChannel() && stroke is { Points.Count: > 0 };
     }
 
+    private bool CanApplyStampStroke(CloneStampStroke? stroke)
+    {
+        return CanEditSelectedInputChannel() && stroke is { DestinationStroke.Points.Count: > 0 };
+    }
+
     private bool CanUndo()
     {
         return !IsBusy && undoHistory.Count > 0;
@@ -738,6 +783,7 @@ public sealed partial class MainViewModel : ObservableObject
         SelectionRect = ImageSelectionRect.Empty;
         AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
         ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
+        ApplyStampStrokeCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectionRectChanged(ImageSelectionRect value)
@@ -890,6 +936,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             isRestoringSnapshot = false;
         }
+
+        RefreshPreviewImageContext();
     }
 
     private static AlignedChannels? CloneAligned(AlignedChannels? aligned)
@@ -938,6 +986,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshPreviewImageContext()
+    {
+        previewImageContextVersion++;
+        OnPropertyChanged(nameof(PreviewImageContextKey));
     }
 
     private void AppendLog(string message)

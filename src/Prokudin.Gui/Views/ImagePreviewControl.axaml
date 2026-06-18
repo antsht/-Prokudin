@@ -27,6 +27,19 @@
       </Canvas>
       <Canvas x:Name="RetouchOverlay"
               IsHitTestVisible="False">
+        <Canvas x:Name="StampGhostClip"
+                ClipToBounds="True"
+                Opacity="0.42"
+                IsVisible="False">
+          <Image x:Name="StampGhostImage"
+                 Stretch="Fill" />
+        </Canvas>
+        <Path x:Name="StampSourcePreview"
+              Stroke="{DynamicResource RetouchCursorRadiusStrokeBrush}"
+              StrokeLineCap="Round"
+              StrokeJoin="Round"
+              StrokeDashArray="3,3"
+              IsVisible="False" />
         <Path x:Name="RetouchStrokePreview"
               Stroke="{DynamicResource RetouchStrokePreviewBrush}"
               StrokeLineCap="Round"

@@ -32,6 +32,12 @@ public sealed partial class ImagePreviewControl : UserControl
             nameof(InteractionMode),
             PreviewInteractionMode.Selection);
 
+    public static readonly StyledProperty<RetouchTool> RetouchToolProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, RetouchTool>(nameof(RetouchTool), RetouchTool.Heal);
+
+    public static readonly StyledProperty<string?> PreviewImageContextKeyProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, string?>(nameof(PreviewImageContextKey));
+
     public static readonly StyledProperty<int> BrushSizeProperty =
         AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(BrushSize), 12);
 
@@ -41,12 +47,25 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<ICommand?> RetouchStrokeCommandProperty =
         AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(RetouchStrokeCommand));
 
+    public static readonly StyledProperty<ICommand?> StampStrokeCommandProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(StampStrokeCommand));
+
     private Point? selectionStart;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
     private List<Point>? retouchPreviewPoints;
     private Point? retouchCursorImagePoint;
     private bool isRetouching;
+    private RetouchPoint? stampSourceAnchor;
+    private RetouchStroke? stampSourceMaskStroke;
+    private List<Point>? stampSourceMaskPreviewPoints;
+    private List<RetouchPoint>? stampSourcePoints;
+    private List<Point>? stampSourcePreviewPoints;
+    private bool isCapturingStampSource;
+    private List<RetouchPoint>? stampDestinationPoints;
+    private List<Point>? stampDestinationPreviewPoints;
+    private Point? stampDestinationAnchorImagePoint;
+    private bool isStamping;
 
     public ImagePreviewControl()
     {
@@ -84,6 +103,18 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(InteractionModeProperty, value);
     }
 
+    public RetouchTool RetouchTool
+    {
+        get => GetValue(RetouchToolProperty);
+        set => SetValue(RetouchToolProperty, value);
+    }
+
+    public string? PreviewImageContextKey
+    {
+        get => GetValue(PreviewImageContextKeyProperty);
+        set => SetValue(PreviewImageContextKeyProperty, value);
+    }
+
     public int BrushSize
     {
         get => GetValue(BrushSizeProperty);
@@ -102,6 +133,12 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(RetouchStrokeCommandProperty, value);
     }
 
+    public ICommand? StampStrokeCommand
+    {
+        get => GetValue(StampStrokeCommandProperty);
+        set => SetValue(StampStrokeCommandProperty, value);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -118,6 +155,16 @@ public sealed partial class ImagePreviewControl : UserControl
             change.Property == InpaintRadiusProperty)
         {
             UpdateRetouchOverlay();
+        }
+
+        if (change.Property == RetouchToolProperty ||
+            change.Property == PreviewImageContextKeyProperty)
+        {
+            ClearRetouchOverlayState();
+            if (InteractionMode == PreviewInteractionMode.Retouch)
+            {
+                UpdateRetouchOverlay();
+            }
         }
 
         if (change.Property == InteractionModeProperty)
@@ -266,6 +313,8 @@ public sealed partial class ImagePreviewControl : UserControl
 
         UpdateRetouchCursor(scale, offsetX, offsetY);
         UpdateRetouchStrokePreview(scale, offsetX, offsetY);
+        UpdateStampSourcePreview(scale, offsetX, offsetY);
+        UpdateStampGhost(scale, offsetX, offsetY);
     }
 
     private void UpdateRetouchCursor(double scale, double offsetX, double offsetY)
@@ -301,7 +350,11 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void UpdateRetouchStrokePreview(double scale, double offsetX, double offsetY)
     {
-        if (retouchPreviewPoints is not { Count: > 1 } points)
+        var points = RetouchTool == RetouchTool.Stamp
+            ? stampDestinationPreviewPoints
+            : retouchPreviewPoints;
+
+        if (points is not { Count: > 1 })
         {
             RetouchStrokePreview.IsVisible = false;
             RetouchStrokePreview.Data = null;
@@ -313,18 +366,106 @@ public sealed partial class ImagePreviewControl : UserControl
         RetouchStrokePreview.IsVisible = true;
     }
 
+    private void UpdateStampSourcePreview(double scale, double offsetX, double offsetY)
+    {
+        if (RetouchTool != RetouchTool.Stamp)
+        {
+            StampSourcePreview.IsVisible = false;
+            StampSourcePreview.Data = null;
+            return;
+        }
+
+        var points = isCapturingStampSource
+            ? stampSourcePreviewPoints
+            : TranslatedStampSourceMaskPreview();
+
+        if (points is not { Count: > 1 })
+        {
+            StampSourcePreview.IsVisible = false;
+            StampSourcePreview.Data = null;
+            return;
+        }
+
+        StampSourcePreview.Data = BuildStrokeGeometry(points, scale, offsetX, offsetY);
+        StampSourcePreview.StrokeThickness = Math.Max(1.0, Math.Clamp(BrushSize, 1, 200) * scale);
+        StampSourcePreview.IsVisible = true;
+    }
+
+    private void UpdateStampGhost(double scale, double offsetX, double offsetY)
+    {
+        if (RetouchTool != RetouchTool.Stamp ||
+            DisplayBitmap is not { } bitmap ||
+            stampSourceAnchor is null ||
+            retouchCursorImagePoint is not { } destinationCenter ||
+            TryGetStampPreviewSourceCenter() is not { } sourceCenter)
+        {
+            StampGhostClip.IsVisible = false;
+            StampGhostImage.Source = null;
+            return;
+        }
+
+        var geometry = RetouchPreviewGeometryCalculator.CalculateStampGhost(
+            HasImage,
+            InteractionMode,
+            RetouchTool,
+            sourceCenter.X,
+            sourceCenter.Y,
+            destinationCenter.X,
+            destinationCenter.Y,
+            BrushSize,
+            scale,
+            offsetX,
+            offsetY);
+
+        if (!geometry.IsVisible)
+        {
+            StampGhostClip.IsVisible = false;
+            StampGhostImage.Source = null;
+            return;
+        }
+
+        var pixelSize = bitmap.PixelSize;
+        StampGhostImage.Source = bitmap;
+        StampGhostImage.Width = pixelSize.Width * scale;
+        StampGhostImage.Height = pixelSize.Height * scale;
+        Canvas.SetLeft(StampGhostImage, offsetX - geometry.SourceLeft);
+        Canvas.SetTop(StampGhostImage, offsetY - geometry.SourceTop);
+
+        StampGhostClip.Width = geometry.Diameter;
+        StampGhostClip.Height = geometry.Diameter;
+        Canvas.SetLeft(StampGhostClip, geometry.DestinationLeft);
+        Canvas.SetTop(StampGhostClip, geometry.DestinationTop);
+        StampGhostClip.IsVisible = true;
+    }
+
     private void HideRetouchOverlay()
     {
         RetouchBrushCircle.IsVisible = false;
         RetouchRadiusCircle.IsVisible = false;
         RetouchStrokePreview.IsVisible = false;
         RetouchStrokePreview.Data = null;
+        StampSourcePreview.IsVisible = false;
+        StampSourcePreview.Data = null;
+        StampGhostClip.IsVisible = false;
+        StampGhostImage.Source = null;
     }
 
     private void ClearRetouchOverlayState()
     {
         retouchCursorImagePoint = null;
         retouchPreviewPoints = null;
+        retouchPoints = null;
+        isRetouching = false;
+        stampSourceAnchor = null;
+        stampSourceMaskStroke = null;
+        stampSourceMaskPreviewPoints = null;
+        stampSourcePoints = null;
+        stampSourcePreviewPoints = null;
+        isCapturingStampSource = false;
+        stampDestinationPoints = null;
+        stampDestinationPreviewPoints = null;
+        stampDestinationAnchorImagePoint = null;
+        isStamping = false;
         HideRetouchOverlay();
     }
 
@@ -377,6 +518,56 @@ public sealed partial class ImagePreviewControl : UserControl
         return new Point(
             offsetX + (imagePoint.X * scale),
             offsetY + (imagePoint.Y * scale));
+    }
+
+    private List<Point>? TranslatedStampSourceMaskPreview()
+    {
+        if (stampSourceMaskPreviewPoints is not { Count: > 1 } sourcePoints ||
+            retouchCursorImagePoint is not { } destinationCenter ||
+            TryGetStampPreviewSourceCenter() is not { } sourceCenter)
+        {
+            return null;
+        }
+
+        var translated = new List<Point>(sourcePoints.Count);
+        foreach (var point in sourcePoints)
+        {
+            translated.Add(new Point(
+                destinationCenter.X + point.X - sourceCenter.X,
+                destinationCenter.Y + point.Y - sourceCenter.Y));
+        }
+
+        return translated;
+    }
+
+    private Point? TryGetStampPreviewSourceCenter()
+    {
+        if (stampSourceAnchor is not { } sourceAnchor)
+        {
+            return null;
+        }
+
+        var sourceCenter = ToImagePoint(sourceAnchor);
+        if (isStamping &&
+            stampDestinationAnchorImagePoint is { } destinationAnchor &&
+            retouchCursorImagePoint is { } cursor)
+        {
+            return new Point(
+                sourceCenter.X + cursor.X - destinationAnchor.X,
+                sourceCenter.Y + cursor.Y - destinationAnchor.Y);
+        }
+
+        return sourceCenter;
+    }
+
+    private static RetouchPoint ToRetouchPoint(Point point)
+    {
+        return new RetouchPoint((float)point.X, (float)point.Y);
+    }
+
+    private static Point ToImagePoint(RetouchPoint point)
+    {
+        return new Point(point.X, point.Y);
     }
 
     private bool TryMapToImage(Point point, out Point imagePoint)
@@ -432,8 +623,14 @@ public sealed partial class ImagePreviewControl : UserControl
 
         if (InteractionMode == PreviewInteractionMode.Retouch)
         {
+            if (RetouchTool == RetouchTool.Stamp)
+            {
+                BeginStampInteraction(e, imagePoint);
+                return;
+            }
+
             isRetouching = true;
-            retouchPoints = [new RetouchPoint((float)imagePoint.X, (float)imagePoint.Y)];
+            retouchPoints = [ToRetouchPoint(imagePoint)];
             retouchPreviewPoints = [imagePoint];
             retouchCursorImagePoint = imagePoint;
             UpdateRetouchOverlay();
@@ -449,19 +646,59 @@ public sealed partial class ImagePreviewControl : UserControl
         e.Handled = true;
     }
 
+    private void BeginStampInteraction(PointerPressedEventArgs e, Point imagePoint)
+    {
+        retouchCursorImagePoint = imagePoint;
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            isCapturingStampSource = true;
+            stampSourceAnchor = ToRetouchPoint(imagePoint);
+            stampSourcePoints = [ToRetouchPoint(imagePoint)];
+            stampSourcePreviewPoints = [imagePoint];
+            stampSourceMaskStroke = null;
+            stampSourceMaskPreviewPoints = null;
+            UpdateRetouchOverlay();
+            e.Pointer.Capture(ImageHost);
+            e.Handled = true;
+            return;
+        }
+
+        if (stampSourceAnchor is null)
+        {
+            UpdateRetouchOverlay();
+            e.Handled = true;
+            return;
+        }
+
+        isStamping = true;
+        stampDestinationAnchorImagePoint = imagePoint;
+        stampDestinationPoints = [ToRetouchPoint(imagePoint)];
+        stampDestinationPreviewPoints = [imagePoint];
+        UpdateRetouchOverlay();
+        e.Pointer.Capture(ImageHost);
+        e.Handled = true;
+    }
+
     private void ImageHost_OnPointerMoved(object? sender, PointerEventArgs e)
     {
         if (InteractionMode == PreviewInteractionMode.Retouch)
         {
             var retouchPoint = e.GetPosition(ImageHost);
-            if (!TryUpdateRetouchCursor(retouchPoint, isRetouching))
+            if (!TryUpdateRetouchCursor(retouchPoint, isRetouching || isCapturingStampSource || isStamping))
             {
+                return;
+            }
+
+            if (RetouchTool == RetouchTool.Stamp)
+            {
+                UpdateStampInteraction(e);
                 return;
             }
 
             if (isRetouching && retouchPoints is not null && retouchCursorImagePoint is { } retouchImagePoint)
             {
-                retouchPoints.Add(new RetouchPoint((float)retouchImagePoint.X, (float)retouchImagePoint.Y));
+                retouchPoints.Add(ToRetouchPoint(retouchImagePoint));
                 retouchPreviewPoints ??= [];
                 retouchPreviewPoints.Add(retouchImagePoint);
                 UpdateRetouchOverlay();
@@ -487,8 +724,87 @@ public sealed partial class ImagePreviewControl : UserControl
         e.Handled = true;
     }
 
+    private void UpdateStampInteraction(PointerEventArgs e)
+    {
+        if (isCapturingStampSource && stampSourcePoints is not null && retouchCursorImagePoint is { } sourcePoint)
+        {
+            stampSourcePoints.Add(ToRetouchPoint(sourcePoint));
+            stampSourcePreviewPoints ??= [];
+            stampSourcePreviewPoints.Add(sourcePoint);
+            UpdateRetouchOverlay();
+            e.Handled = true;
+            return;
+        }
+
+        if (isStamping && stampDestinationPoints is not null && retouchCursorImagePoint is { } destinationPoint)
+        {
+            stampDestinationPoints.Add(ToRetouchPoint(destinationPoint));
+            stampDestinationPreviewPoints ??= [];
+            stampDestinationPreviewPoints.Add(destinationPoint);
+            UpdateRetouchOverlay();
+            e.Handled = true;
+        }
+    }
+
     private void ImageHost_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (isCapturingStampSource)
+        {
+            isCapturingStampSource = false;
+            var points = stampSourcePoints?.ToArray() ?? [];
+            var previewPoints = stampSourcePreviewPoints?.ToArray() ?? [];
+            stampSourcePoints = null;
+            stampSourcePreviewPoints = null;
+            e.Pointer.Capture(null);
+
+            if (points.Length > 0)
+            {
+                stampSourceAnchor = points[0];
+                if (points.Length > 1)
+                {
+                    stampSourceMaskStroke = new RetouchStroke(points, Math.Clamp(BrushSize, 1, 200));
+                    stampSourceMaskPreviewPoints = previewPoints.ToList();
+                }
+                else
+                {
+                    stampSourceMaskStroke = null;
+                    stampSourceMaskPreviewPoints = null;
+                }
+            }
+
+            UpdateRetouchOverlay();
+            e.Handled = true;
+            return;
+        }
+
+        if (isStamping)
+        {
+            isStamping = false;
+            var points = stampDestinationPoints?.ToArray() ?? [];
+            stampDestinationPoints = null;
+            stampDestinationPreviewPoints = null;
+            stampDestinationAnchorImagePoint = null;
+            e.Pointer.Capture(null);
+
+            if (stampSourceAnchor is { } sourceAnchor)
+            {
+                var stroke = new CloneStampStroke(
+                    sourceAnchor,
+                    new RetouchStroke(points, Math.Clamp(BrushSize, 1, 200)),
+                    Math.Clamp(InpaintRadius, 1, 24),
+                    stampSourceMaskStroke);
+
+                if (StampStrokeCommand?.CanExecute(stroke) == true)
+                {
+                    StampStrokeCommand.Execute(stroke);
+                }
+            }
+
+            UpdateRetouchOverlay();
+            e.Handled = true;
+            return;
+        }
+
         if (isRetouching)
         {
             isRetouching = false;
@@ -521,7 +837,7 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerExited(object? sender, PointerEventArgs e)
     {
-        if (isRetouching)
+        if (isRetouching || isCapturingStampSource || isStamping)
         {
             return;
         }

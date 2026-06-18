@@ -12,6 +12,17 @@ internal readonly record struct RetouchPreviewGeometry(
     public static RetouchPreviewGeometry Hidden => default;
 }
 
+internal readonly record struct StampPreviewGeometry(
+    bool IsVisible,
+    double SourceLeft,
+    double SourceTop,
+    double DestinationLeft,
+    double DestinationTop,
+    double Diameter)
+{
+    public static StampPreviewGeometry Hidden => default;
+}
+
 internal static class RetouchPreviewGeometryCalculator
 {
     public static RetouchPreviewGeometry CalculateCursor(
@@ -41,5 +52,35 @@ internal static class RetouchPreviewGeometryCalculator
             CenterY: offsetY + (imageY * scale),
             BrushDiameter: brushDiameter,
             OuterDiameter: outerDiameter);
+    }
+
+    public static StampPreviewGeometry CalculateStampGhost(
+        bool hasImage,
+        PreviewInteractionMode interactionMode,
+        RetouchTool retouchTool,
+        double sourceCenterX,
+        double sourceCenterY,
+        double destinationCenterX,
+        double destinationCenterY,
+        int brushSize,
+        double scale,
+        double offsetX,
+        double offsetY)
+    {
+        if (!hasImage || interactionMode != PreviewInteractionMode.Retouch || retouchTool != RetouchTool.Stamp || scale <= 0)
+        {
+            return StampPreviewGeometry.Hidden;
+        }
+
+        var diameter = Math.Clamp(brushSize, 1, 200) * scale;
+        var radius = diameter / 2.0;
+
+        return new StampPreviewGeometry(
+            IsVisible: true,
+            SourceLeft: offsetX + (sourceCenterX * scale) - radius,
+            SourceTop: offsetY + (sourceCenterY * scale) - radius,
+            DestinationLeft: offsetX + (destinationCenterX * scale) - radius,
+            DestinationTop: offsetY + (destinationCenterY * scale) - radius,
+            Diameter: diameter);
     }
 }

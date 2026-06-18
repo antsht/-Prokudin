@@ -100,6 +100,11 @@
                       IsChecked="{Binding IsRetouchMode}"
                       VerticalAlignment="Center"
                       Margin="0,0,8,0" />
+            <ComboBox Width="82"
+                      ItemsSource="{Binding RetouchTools}"
+                      SelectedItem="{Binding SelectedRetouchTool}"
+                      IsEnabled="{Binding IsRetouchMode}"
+                      Margin="0,0,8,0" />
             <TextBlock Text="Brush"
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
@@ -172,9 +177,12 @@
                                    SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
                                    HasImage="{Binding SelectedSlot.HasImage}"
                                    InteractionMode="{Binding PreviewInteractionMode}"
+                                   RetouchTool="{Binding SelectedRetouchTool}"
+                                   PreviewImageContextKey="{Binding PreviewImageContextKey}"
                                    BrushSize="{Binding BrushSize}"
                                    InpaintRadius="{Binding AutoCleanRadius}"
-                                   RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}" />
+                                   RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
+                                   StampStrokeCommand="{Binding ApplyStampStrokeCommand}" />
 
         <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
           <z:EdgePanel>

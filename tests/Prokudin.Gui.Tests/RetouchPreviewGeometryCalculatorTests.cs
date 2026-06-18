@@ -68,4 +68,52 @@ public sealed class RetouchPreviewGeometryCalculatorTests
 
         geometry.IsVisible.Should().BeFalse();
     }
+
+    [Fact]
+    public void CalculateStampGhost_MapsSourceAndDestinationAtOneToOne()
+    {
+        var geometry = RetouchPreviewGeometryCalculator.CalculateStampGhost(
+            hasImage: true,
+            interactionMode: PreviewInteractionMode.Retouch,
+            retouchTool: RetouchTool.Stamp,
+            sourceCenterX: 5,
+            sourceCenterY: 7,
+            destinationCenterX: 20,
+            destinationCenterY: 30,
+            brushSize: 12,
+            scale: 1.0,
+            offsetX: 0,
+            offsetY: 0);
+
+        geometry.IsVisible.Should().BeTrue();
+        geometry.SourceLeft.Should().Be(-1);
+        geometry.SourceTop.Should().Be(1);
+        geometry.DestinationLeft.Should().Be(14);
+        geometry.DestinationTop.Should().Be(24);
+        geometry.Diameter.Should().Be(12);
+    }
+
+    [Fact]
+    public void CalculateStampGhost_ScalesForFitToWindow()
+    {
+        var geometry = RetouchPreviewGeometryCalculator.CalculateStampGhost(
+            hasImage: true,
+            interactionMode: PreviewInteractionMode.Retouch,
+            retouchTool: RetouchTool.Stamp,
+            sourceCenterX: 5,
+            sourceCenterY: 7,
+            destinationCenterX: 20,
+            destinationCenterY: 30,
+            brushSize: 12,
+            scale: 0.5,
+            offsetX: 10,
+            offsetY: 5);
+
+        geometry.IsVisible.Should().BeTrue();
+        geometry.SourceLeft.Should().BeApproximately(9.5, 0.001);
+        geometry.SourceTop.Should().BeApproximately(5.5, 0.001);
+        geometry.DestinationLeft.Should().BeApproximately(17, 0.001);
+        geometry.DestinationTop.Should().BeApproximately(17, 0.001);
+        geometry.Diameter.Should().Be(6);
+    }
 }

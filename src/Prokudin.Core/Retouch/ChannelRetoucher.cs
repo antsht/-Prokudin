@@ -68,6 +68,62 @@ public static class ChannelRetoucher
         return MaskFromMat(mask);
     }
 
+    public static RetouchResult Stamp(ImageBuffer image, CloneStampStroke stroke)
+    {
+        if (stroke.DestinationStroke.Points.Count == 0)
+        {
+            return new RetouchResult(image.Clone(), new byte[image.Width * image.Height]);
+        }
+
+        var destinationMask = CreateBrushMask(image.Width, image.Height, [stroke.DestinationStroke]);
+        if (!destinationMask.Any(value => value > 0))
+        {
+            return new RetouchResult(image.Clone(), destinationMask);
+        }
+
+        var sourceMask = stroke.SourceMaskStroke is { Points.Count: > 0 } sourceMaskStroke
+            ? CreateBrushMask(image.Width, image.Height, [sourceMaskStroke])
+            : null;
+        var alpha = CreateFeatherAlpha(destinationMask, image.Width, image.Height, stroke.BlendWidth);
+        var destinationAnchor = stroke.DestinationStroke.Points[0];
+        var result = image.Clone();
+        var appliedMask = new byte[image.Width * image.Height];
+
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                var index = (y * image.Width) + x;
+                if (destinationMask[index] == 0 || alpha[index] <= 0)
+                {
+                    continue;
+                }
+
+                var sourceX = (int)MathF.Round(stroke.SourceAnchor.X + x - destinationAnchor.X);
+                var sourceY = (int)MathF.Round(stroke.SourceAnchor.Y + y - destinationAnchor.Y);
+                if (sourceX < 0 || sourceY < 0 || sourceX >= image.Width || sourceY >= image.Height)
+                {
+                    continue;
+                }
+
+                var sourceIndex = (sourceY * image.Width) + sourceX;
+                if (sourceMask is not null && sourceMask[sourceIndex] == 0)
+                {
+                    continue;
+                }
+
+                var amount = alpha[index];
+                result.Pixels[index] = Math.Clamp(
+                    (image.Pixels[index] * (1.0f - amount)) + (image.Pixels[sourceIndex] * amount),
+                    0.0f,
+                    1.0f);
+                appliedMask[index] = 1;
+            }
+        }
+
+        return new RetouchResult(result, appliedMask);
+    }
+
     private static Mat FilterSmallDefects(Mat rawMask, int width, int height)
     {
         var filtered = new Mat(rawMask.Rows, rawMask.Cols, MatType.CV_8UC1, Scalar.Black);
@@ -121,6 +177,35 @@ public static class ChannelRetoucher
         return new Point(
             Math.Clamp((int)MathF.Round(point.X), 0, width - 1),
             Math.Clamp((int)MathF.Round(point.Y), 0, height - 1));
+    }
+
+    private static float[] CreateFeatherAlpha(byte[] mask, int width, int height, int blendWidth)
+    {
+        var normalizedBlendWidth = Math.Clamp(blendWidth, 1, 24);
+        if (normalizedBlendWidth <= 1)
+        {
+            var solidAlpha = new float[mask.Length];
+            for (var i = 0; i < mask.Length; i++)
+            {
+                solidAlpha[i] = mask[i] > 0 ? 1.0f : 0.0f;
+            }
+
+            return solidAlpha;
+        }
+
+        using var maskMat = MaskToMat(mask, width, height);
+        using var distance = new Mat();
+        Cv2.DistanceTransform(maskMat, distance, DistanceTypes.L2, DistanceTransformMasks.Mask3);
+        var values = new float[width * height];
+        Marshal.Copy(distance.Data, values, 0, values.Length);
+        for (var i = 0; i < values.Length; i++)
+        {
+            values[i] = mask[i] > 0
+                ? Math.Clamp(values[i] / normalizedBlendWidth, 0.0f, 1.0f)
+                : 0.0f;
+        }
+
+        return values;
     }
 
     private static Mat ToU8(ImageBuffer image)

@@ -125,6 +125,32 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task StampAfterAlign_RebuildsPreparedResultWithoutChangingSize()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(12, 12, 0.1f);
+        red[2, 2] = 0.9f;
+        viewModel.RedSlot.Image = red;
+        viewModel.GreenSlot.Image = ImageBuffer.Filled(12, 12, 0.5f);
+        viewModel.BlueSlot.Image = ImageBuffer.Filled(12, 12, 0.5f);
+        viewModel.AutoWhiteBalance = false;
+        await viewModel.AutoAlignCommand.ExecuteAsync(null);
+        var width = viewModel.ResultSlot.Result!.Width;
+        var height = viewModel.ResultSlot.Result.Height;
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        viewModel.ApplyStampStrokeCommand.Execute(new CloneStampStroke(
+            SourceAnchor: new RetouchPoint(2, 2),
+            DestinationStroke: new RetouchStroke([new RetouchPoint(8, 8)], BrushSize: 1),
+            BlendWidth: 1));
+        await WaitUntil(() => viewModel.ResultSlot.Result?[8, 8, 0] > 0.75f);
+
+        viewModel.ResultSlot.Result!.Width.Should().Be(width);
+        viewModel.ResultSlot.Result.Height.Should().Be(height);
+        viewModel.RedSlot.Image![8, 8].Should().BeApproximately(0.9f, 0.001f);
+    }
+
+    [Fact]
     public async Task CropResult_CropsPreparedChannelsToSameRectangle()
     {
         var viewModel = CreateViewModel();
@@ -190,6 +216,42 @@ public sealed class MainViewModelTests
         viewModel.RedSlot.Image![4, 4].Should().BeLessThan(0.75f);
         viewModel.UndoCommand.Execute(null);
         viewModel.RedSlot.Image![4, 4].Should().BeApproximately(1.0f, 0.001f);
+    }
+
+    [Fact]
+    public void Stamp_IsUndoable()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(12, 12, 0.1f);
+        red[2, 2] = 0.9f;
+        viewModel.RedSlot.Image = red;
+        viewModel.SelectedSlot = viewModel.RedSlot;
+
+        viewModel.ApplyStampStrokeCommand.Execute(new CloneStampStroke(
+            SourceAnchor: new RetouchPoint(2, 2),
+            DestinationStroke: new RetouchStroke([new RetouchPoint(8, 8)], BrushSize: 1),
+            BlendWidth: 1));
+
+        viewModel.RedSlot.Image![8, 8].Should().BeApproximately(0.9f, 0.001f);
+        viewModel.UndoCommand.Execute(null);
+        viewModel.RedSlot.Image![8, 8].Should().BeApproximately(0.1f, 0.001f);
+    }
+
+    [Fact]
+    public void EmptyStamp_DoesNotMutateSelectedChannel()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(12, 12, 0.1f);
+        viewModel.RedSlot.Image = red;
+        viewModel.SelectedSlot = viewModel.RedSlot;
+
+        viewModel.ApplyStampStrokeCommand.Execute(new CloneStampStroke(
+            SourceAnchor: new RetouchPoint(2, 2),
+            DestinationStroke: new RetouchStroke([], BrushSize: 1),
+            BlendWidth: 1));
+
+        viewModel.RedSlot.Image.Should().BeSameAs(red);
+        viewModel.UndoCommand.CanExecute(null).Should().BeFalse();
     }
 
     private static MainViewModel CreateViewModel()
