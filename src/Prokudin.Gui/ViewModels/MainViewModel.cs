@@ -16,6 +16,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private const int UndoLimit = 20;
     private readonly IFileDialogService fileDialogService;
+    private readonly IExportSettingsStore exportSettingsStore;
     private readonly StringBuilder processingLog = new();
     private readonly List<EditorSnapshot> undoHistory = [];
     private readonly List<EditorSnapshot> redoHistory = [];
@@ -24,12 +25,19 @@ public sealed partial class MainViewModel : ObservableObject
     private bool isRestoringSnapshot;
     private bool suppressUndoCapture;
     private bool exposureUndoOpen;
+    private bool suppressExportSettingsSave;
     private int exposureChangeVersion;
     private int previewImageContextVersion;
 
     public MainViewModel(IFileDialogService fileDialogService)
+        : this(fileDialogService, new JsonExportSettingsStore())
+    {
+    }
+
+    public MainViewModel(IFileDialogService fileDialogService, IExportSettingsStore exportSettingsStore)
     {
         this.fileDialogService = fileDialogService;
+        this.exportSettingsStore = exportSettingsStore;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -44,6 +52,13 @@ public sealed partial class MainViewModel : ObservableObject
             ResultSlot,
         };
 
+        RedSlot.OpenCommand = OpenRedCommand;
+        GreenSlot.OpenCommand = OpenGreenCommand;
+        BlueSlot.OpenCommand = OpenBlueCommand;
+        ResultSlot.ExportCommand = ExportCommand;
+        ResultSlot.ToggleExportSettingsCommand = ToggleExportSettingsCommand;
+
+        LoadExportSettings(exportSettingsStore.Load());
         SelectedSlot = RedSlot;
     }
 
@@ -59,7 +74,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public IReadOnlyList<string> TriptychOrders { get; } = ["RGB", "BGR"];
 
-    public IReadOnlyList<RetouchTool> RetouchTools { get; } = [RetouchTool.Heal, RetouchTool.Stamp];
+    public IReadOnlyList<RgbExportFormat> ExportFormats { get; } =
+        [RgbExportFormat.Png, RgbExportFormat.Jpeg, RgbExportFormat.Tiff];
+
+    public IReadOnlyList<TiffExportCompression> TiffCompressions { get; } =
+        [TiffExportCompression.None, TiffExportCompression.Lzw, TiffExportCompression.Deflate];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
@@ -100,10 +119,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
-    private bool isRetouchMode;
-
-    [ObservableProperty]
-    private RetouchTool selectedRetouchTool = RetouchTool.Heal;
+    [NotifyPropertyChangedFor(nameof(SelectedRetouchTool))]
+    private EditorToolMode toolMode = EditorToolMode.Select;
 
     [ObservableProperty]
     private int brushSize = 12;
@@ -126,8 +143,90 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double blueExposureStops;
 
+    [ObservableProperty]
+    private bool isExportSettingsOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPngExport))]
+    [NotifyPropertyChangedFor(nameof(IsJpegExport))]
+    [NotifyPropertyChangedFor(nameof(IsTiffExport))]
+    [NotifyPropertyChangedFor(nameof(IsTiffDeflate))]
+    [NotifyPropertyChangedFor(nameof(ExportSettingsSummary))]
+    private RgbExportFormat exportFormat = RgbExportSettings.Default.Format;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExportSettingsSummary))]
+    private bool limitExportSize;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExportSettingsSummary))]
+    private int exportMaxSide = 2048;
+
+    [ObservableProperty]
+    private int pngCompression = RgbExportSettings.Default.PngCompression;
+
+    [ObservableProperty]
+    private int jpegQuality = RgbExportSettings.Default.JpegQuality;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTiffDeflate))]
+    private TiffExportCompression tiffCompression = RgbExportSettings.Default.TiffCompression;
+
+    [ObservableProperty]
+    private int tiffDeflateLevel = RgbExportSettings.Default.TiffDeflateLevel;
+
     public PreviewInteractionMode PreviewInteractionMode =>
-        IsRetouchMode ? PreviewInteractionMode.Retouch : PreviewInteractionMode.Selection;
+        ToolMode == EditorToolMode.Select ? PreviewInteractionMode.Selection : PreviewInteractionMode.Retouch;
+
+    public RetouchTool SelectedRetouchTool =>
+        ToolMode == EditorToolMode.Clone ? RetouchTool.Stamp : RetouchTool.Heal;
+
+    public bool IsSelectToolMode
+    {
+        get => ToolMode == EditorToolMode.Select;
+        set
+        {
+            if (value)
+            {
+                ToolMode = EditorToolMode.Select;
+            }
+        }
+    }
+
+    public bool IsHealToolMode
+    {
+        get => ToolMode == EditorToolMode.Heal;
+        set
+        {
+            if (value)
+            {
+                ToolMode = EditorToolMode.Heal;
+            }
+        }
+    }
+
+    public bool IsCloneToolMode
+    {
+        get => ToolMode == EditorToolMode.Clone;
+        set
+        {
+            if (value)
+            {
+                ToolMode = EditorToolMode.Clone;
+            }
+        }
+    }
+
+    public bool IsPngExport => ExportFormat == RgbExportFormat.Png;
+
+    public bool IsJpegExport => ExportFormat == RgbExportFormat.Jpeg;
+
+    public bool IsTiffExport => ExportFormat == RgbExportFormat.Tiff;
+
+    public bool IsTiffDeflate => IsTiffExport && TiffCompression == TiffExportCompression.Deflate;
+
+    public string ExportSettingsSummary =>
+        $"{ExportFormat} - {(LimitExportSize ? $"max {ExportMaxSide}px" : "original")}";
 
     public string FitToWindowButtonText =>
         PreviewZoomMode == PreviewZoomMode.FitToWindow ? "1:1" : "Fit to window";
@@ -314,6 +413,12 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ProcessingLogText));
     }
 
+    [RelayCommand]
+    private void ToggleExportSettings()
+    {
+        IsExportSettingsOpen = !IsExportSettingsOpen;
+    }
+
     [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private Task OpenRed()
     {
@@ -408,7 +513,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await RunOperation(async () =>
         {
-            var path = await fileDialogService.SavePng();
+            var settings = CurrentExportSettings();
+            SaveExportSettings();
+            var path = await fileDialogService.SaveExport(settings);
             var result = ResultSlot.Result;
             if (path is null || result is null)
             {
@@ -416,8 +523,8 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             Status = $"Exporting {Path.GetFileName(path)}...";
-            AppendLog($"Exporting {result.Width}x{result.Height} to {path}");
-            await Task.Run(async () => await ImageLoader.SavePngAsync(path, result));
+            AppendLog($"Exporting {result.Width}x{result.Height} as {settings.Format} to {path}");
+            await Task.Run(async () => await ImageLoader.SaveRgbAsync(path, result, settings));
             Status = $"Exported {path}.";
             AppendLog($"Export complete: {path}");
         });
@@ -778,6 +885,60 @@ public sealed partial class MainViewModel : ObservableObject
         return !IsBusy && redoHistory.Count > 0;
     }
 
+    private void LoadExportSettings(RgbExportSettings settings)
+    {
+        settings = settings.Normalize();
+        suppressExportSettingsSave = true;
+        try
+        {
+            ExportFormat = settings.Format;
+            LimitExportSize = settings.MaxSide.HasValue;
+            ExportMaxSide = settings.MaxSide ?? 2048;
+            PngCompression = settings.PngCompression;
+            JpegQuality = settings.JpegQuality;
+            TiffCompression = settings.TiffCompression;
+            TiffDeflateLevel = settings.TiffDeflateLevel;
+        }
+        finally
+        {
+            suppressExportSettingsSave = false;
+        }
+    }
+
+    private RgbExportSettings CurrentExportSettings()
+    {
+        return (RgbExportSettings.Default with
+        {
+            Format = ExportFormat,
+            MaxSide = LimitExportSize ? ExportMaxSide : null,
+            PngCompression = PngCompression,
+            JpegQuality = JpegQuality,
+            TiffCompression = TiffCompression,
+            TiffDeflateLevel = TiffDeflateLevel,
+        }).Normalize();
+    }
+
+    private void SaveExportSettings()
+    {
+        if (suppressExportSettingsSave)
+        {
+            return;
+        }
+
+        try
+        {
+            exportSettingsStore.Save(CurrentExportSettings());
+        }
+        catch (IOException ex)
+        {
+            AppendLog($"Could not save export settings: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppendLog($"Could not save export settings: {ex.Message}");
+        }
+    }
+
     partial void OnSelectedSlotChanged(ChannelSlotViewModel? value)
     {
         SelectionRect = ImageSelectionRect.Empty;
@@ -791,9 +952,48 @@ public sealed partial class MainViewModel : ObservableObject
         CropToSelectionCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnIsRetouchModeChanged(bool value)
+    partial void OnToolModeChanged(EditorToolMode value)
     {
         SelectionRect = ImageSelectionRect.Empty;
+        OnPropertyChanged(nameof(IsSelectToolMode));
+        OnPropertyChanged(nameof(IsHealToolMode));
+        OnPropertyChanged(nameof(IsCloneToolMode));
+    }
+
+    partial void OnExportFormatChanged(RgbExportFormat value)
+    {
+        SaveExportSettings();
+    }
+
+    partial void OnLimitExportSizeChanged(bool value)
+    {
+        SaveExportSettings();
+    }
+
+    partial void OnExportMaxSideChanged(int value)
+    {
+        SaveExportSettings();
+    }
+
+    partial void OnPngCompressionChanged(int value)
+    {
+        SaveExportSettings();
+    }
+
+    partial void OnJpegQualityChanged(int value)
+    {
+        SaveExportSettings();
+    }
+
+    partial void OnTiffCompressionChanged(TiffExportCompression value)
+    {
+        OnPropertyChanged(nameof(IsTiffDeflate));
+        SaveExportSettings();
+    }
+
+    partial void OnTiffDeflateLevelChanged(int value)
+    {
+        SaveExportSettings();
     }
 
     partial void OnAutoWhiteBalanceChanging(bool oldValue, bool newValue)

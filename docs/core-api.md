@@ -33,10 +33,14 @@ Key members:
 - `IsSupportedImagePath(string path)`
 - `LoadGrayscaleAsync(string path, CancellationToken cancellationToken = default)`
 - `TrimBlackBorders(ImageBuffer image, float threshold, float maxTrimFraction)`
+- `SaveRgbAsync(string path, RgbImageBuffer rgb, RgbExportSettings settings, CancellationToken cancellationToken = default)`
 - `SavePngAsync(string path, RgbImageBuffer rgb, CancellationToken cancellationToken = default)`
 
 `TrimBlackBorders` removes dark rows and columns up to 2% of width or height per
 edge (threshold about 5/255).
+
+`SaveRgbAsync` writes PNG, JPEG, or TIFF output and can optionally resize the
+result by maximum side while preserving aspect ratio.
 
 ### `TriptychSplitter`
 

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
              xmlns:input="using:Avalonia.Input"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
@@ -21,9 +22,37 @@
                  Text="{Binding DisplayName}"
                  FontWeight="SemiBold"
                  Margin="0,6,0,0" />
-      <TextBlock Grid.Row="2"
-                 Text="{Binding Dimensions}"
-                 Classes="MutedCaption" />
+      <Grid Grid.Row="2"
+            ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="4">
+        <TextBlock Text="{Binding Dimensions}"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="1"
+                Classes="IconButton SlotIconButton"
+                Command="{Binding OpenCommand}"
+                IsVisible="{Binding CanLoadImage}"
+                ToolTip.Tip="Load channel image"
+                automation:AutomationProperties.Name="Load channel image">
+          <PathIcon Data="{StaticResource IconOpenImage}" />
+        </Button>
+        <Button Grid.Column="1"
+                Classes="IconButton SlotIconButton"
+                Command="{Binding ExportCommand}"
+                IsVisible="{Binding IsResultSlot}"
+                ToolTip.Tip="Export result"
+                automation:AutomationProperties.Name="Export result">
+          <PathIcon Data="{StaticResource IconExport}" />
+        </Button>
+        <Button Grid.Column="2"
+                Classes="IconButton SlotIconButton"
+                Command="{Binding ToggleExportSettingsCommand}"
+                IsVisible="{Binding IsResultSlot}"
+                ToolTip.Tip="Export settings"
+                automation:AutomationProperties.Name="Export settings">
+          <PathIcon Data="{StaticResource IconSettings}" />
+        </Button>
+      </Grid>
     </Grid>
   </z:Card>
 </UserControl>

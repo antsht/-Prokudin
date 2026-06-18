@@ -203,6 +203,65 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task Export_UsesCurrentSettingsAndFormatAwareDialog()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"prokudin-result-{Guid.NewGuid():N}.jpg");
+        try
+        {
+            var fileDialog = new FakeFileDialogService { ExportPath = path };
+            var settingsStore = new FakeExportSettingsStore
+            {
+                Settings = RgbExportSettings.Default with
+                {
+                    Format = RgbExportFormat.Jpeg,
+                    MaxSide = 4,
+                    JpegQuality = 80,
+                },
+            };
+            var viewModel = new MainViewModel(fileDialog, settingsStore);
+            SetResultWithoutBitmapRefresh(viewModel, FilledRgb(8, 4, 0.5f));
+
+            await viewModel.ExportCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+
+            fileDialog.ExportSettings.Should().NotBeNull();
+            fileDialog.ExportSettings!.Format.Should().Be(RgbExportFormat.Jpeg);
+            fileDialog.ExportSettings.MaxSide.Should().Be(4);
+            File.Exists(path).Should().BeTrue();
+            var loaded = await ImageLoader.LoadGrayscaleAsync(path).WaitAsync(TimeSpan.FromSeconds(10));
+            loaded.Width.Should().Be(4);
+            loaded.Height.Should().Be(2);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExportSettingsChanges_ArePersisted()
+    {
+        var settingsStore = new FakeExportSettingsStore();
+        var viewModel = new MainViewModel(new FakeFileDialogService(), settingsStore);
+
+        viewModel.ExportFormat = RgbExportFormat.Tiff;
+        viewModel.LimitExportSize = true;
+        viewModel.ExportMaxSide = 1200;
+        viewModel.TiffCompression = TiffExportCompression.Deflate;
+        viewModel.TiffDeflateLevel = 8;
+
+        settingsStore.Settings.Should().Be(RgbExportSettings.Default with
+        {
+            Format = RgbExportFormat.Tiff,
+            MaxSide = 1200,
+            TiffCompression = TiffExportCompression.Deflate,
+            TiffDeflateLevel = 8,
+        });
+    }
+
+    [Fact]
     public void BrushRetouch_IsUndoable()
     {
         var viewModel = CreateViewModel();
@@ -283,6 +342,22 @@ public sealed class MainViewModelTests
         viewModel.BlueSlot.Image = ImageBuffer.Filled(8, 8, blue);
     }
 
+    private static RgbImageBuffer FilledRgb(int width, int height, float value)
+    {
+        var pixels = new float[width * height * 3];
+        Array.Fill(pixels, value);
+        return new RgbImageBuffer(width, height, pixels);
+    }
+
+    private static void SetResultWithoutBitmapRefresh(MainViewModel viewModel, RgbImageBuffer result)
+    {
+        var field = typeof(ChannelSlotViewModel).GetField(
+            "result",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.Should().NotBeNull();
+        field!.SetValue(viewModel.ResultSlot, result);
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         for (var i = 0; i < 30; i++)
@@ -302,19 +377,39 @@ public sealed class MainViewModelTests
     {
         public string? FolderPath { get; init; }
 
+        public string? ExportPath { get; init; }
+
+        public RgbExportSettings? ExportSettings { get; private set; }
+
         public Task<string?> OpenImage()
         {
             return Task.FromResult<string?>(null);
         }
 
-        public Task<string?> SavePng()
+        public Task<string?> SaveExport(RgbExportSettings settings)
         {
-            return Task.FromResult<string?>(null);
+            ExportSettings = settings;
+            return Task.FromResult(ExportPath);
         }
 
         public Task<string?> OpenFolder()
         {
             return Task.FromResult(FolderPath);
+        }
+    }
+
+    private sealed class FakeExportSettingsStore : IExportSettingsStore
+    {
+        public RgbExportSettings Settings { get; set; } = RgbExportSettings.Default;
+
+        public RgbExportSettings Load()
+        {
+            return Settings;
+        }
+
+        public void Save(RgbExportSettings settings)
+        {
+            Settings = settings;
         }
     }
 }

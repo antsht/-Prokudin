@@ -1,4 +1,9 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Compression.Zlib;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Tiff;
+using SixLabors.ImageSharp.Formats.Tiff.Constants;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace Prokudin.Core.Imaging;
@@ -123,10 +128,54 @@ public static class ImageLoader
         return width <= 0 || height <= 0 ? image : image.Crop(left, top, width, height);
     }
 
-    public static async Task SavePngAsync(string path, RgbImageBuffer rgb, CancellationToken cancellationToken = default)
+    public static Task SavePngAsync(string path, RgbImageBuffer rgb, CancellationToken cancellationToken = default)
     {
+        return SaveRgbAsync(path, rgb, RgbExportSettings.Default, cancellationToken);
+    }
+
+    public static async Task SaveRgbAsync(
+        string path,
+        RgbImageBuffer rgb,
+        RgbExportSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        settings = settings.Normalize();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
-        using var image = new Image<Rgb24>(rgb.Width, rgb.Height);
+        var output = ResizeToMaxSide(rgb, settings.MaxSide);
+        using var image = ToImage(output);
+
+        switch (settings.Format)
+        {
+            case RgbExportFormat.Png:
+                await image.SaveAsPngAsync(
+                    path,
+                    new PngEncoder { CompressionLevel = ToPngCompressionLevel(settings.PngCompression) },
+                    cancellationToken);
+                break;
+            case RgbExportFormat.Jpeg:
+                await image.SaveAsJpegAsync(
+                    path,
+                    new JpegEncoder { Quality = settings.JpegQuality },
+                    cancellationToken);
+                break;
+            case RgbExportFormat.Tiff:
+                await image.SaveAsTiffAsync(
+                    path,
+                    new TiffEncoder
+                    {
+                        Compression = ToTiffCompression(settings.TiffCompression),
+                        CompressionLevel = ToDeflateCompressionLevel(settings.TiffDeflateLevel),
+                    },
+                    cancellationToken);
+                break;
+            default:
+                throw new NotSupportedException($"Unsupported RGB export format: {settings.Format}");
+        }
+    }
+
+    private static Image<Rgb24> ToImage(RgbImageBuffer rgb)
+    {
+        var image = new Image<Rgb24>(rgb.Width, rgb.Height);
         image.ProcessPixelRows(accessor =>
         {
             for (var y = 0; y < rgb.Height; y++)
@@ -142,7 +191,7 @@ public static class ImageLoader
             }
         });
 
-        await image.SaveAsPngAsync(path, cancellationToken);
+        return image;
     }
 
     public static async Task SaveGrayscalePngAsync(string path, ImageBuffer imageBuffer, CancellationToken cancellationToken = default)
@@ -167,5 +216,77 @@ public static class ImageLoader
     private static byte ToByte(float value)
     {
         return (byte)Math.Clamp((int)MathF.Round(value * 255.0f), 0, 255);
+    }
+
+    private static RgbImageBuffer ResizeToMaxSide(RgbImageBuffer source, int? maxSide)
+    {
+        if (maxSide is not { } limit || limit <= 0)
+        {
+            return source;
+        }
+
+        var currentMax = Math.Max(source.Width, source.Height);
+        if (currentMax <= limit)
+        {
+            return source;
+        }
+
+        var scale = limit / (double)currentMax;
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        return ResizeRgb(source, width, height);
+    }
+
+    private static RgbImageBuffer ResizeRgb(RgbImageBuffer source, int width, int height)
+    {
+        var pixels = new float[width * height * 3];
+        var scaleX = source.Width / (float)width;
+        var scaleY = source.Height / (float)height;
+        for (var y = 0; y < height; y++)
+        {
+            var sourceY = Math.Min(source.Height - 1, (int)(y * scaleY));
+            for (var x = 0; x < width; x++)
+            {
+                var sourceX = Math.Min(source.Width - 1, (int)(x * scaleX));
+                for (var c = 0; c < 3; c++)
+                {
+                    pixels[(((y * width) + x) * 3) + c] = source[sourceX, sourceY, c];
+                }
+            }
+        }
+
+        return new RgbImageBuffer(width, height, pixels);
+    }
+
+    private static PngCompressionLevel ToPngCompressionLevel(int level)
+    {
+        return Math.Clamp(level, 0, 9) switch
+        {
+            0 => PngCompressionLevel.Level0,
+            1 => PngCompressionLevel.Level1,
+            2 => PngCompressionLevel.Level2,
+            3 => PngCompressionLevel.Level3,
+            4 => PngCompressionLevel.Level4,
+            5 => PngCompressionLevel.Level5,
+            6 => PngCompressionLevel.Level6,
+            7 => PngCompressionLevel.Level7,
+            8 => PngCompressionLevel.Level8,
+            _ => PngCompressionLevel.Level9,
+        };
+    }
+
+    private static TiffCompression ToTiffCompression(TiffExportCompression compression)
+    {
+        return compression switch
+        {
+            TiffExportCompression.None => TiffCompression.None,
+            TiffExportCompression.Deflate => TiffCompression.Deflate,
+            _ => TiffCompression.Lzw,
+        };
+    }
+
+    private static DeflateCompressionLevel ToDeflateCompressionLevel(int level)
+    {
+        return (DeflateCompressionLevel)Math.Clamp(level, 1, 9);
     }
 }

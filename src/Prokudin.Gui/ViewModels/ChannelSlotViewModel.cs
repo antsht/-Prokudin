@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Avalonia.Media.Imaging;
 using Prokudin.Core.Imaging;
 using Prokudin.Gui.Imaging;
+using System.Windows.Input;
 
 namespace Prokudin.Gui.ViewModels;
 
@@ -18,6 +19,16 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
     public ChannelName? ChannelName { get; }
 
     public bool CanSwap => ChannelName.HasValue;
+
+    public bool CanLoadImage => ChannelName.HasValue;
+
+    public bool IsResultSlot => ChannelName is null;
+
+    public ICommand? OpenCommand { get; set; }
+
+    public ICommand? ExportCommand { get; set; }
+
+    public ICommand? ToggleExportSettingsCommand { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasImage))]

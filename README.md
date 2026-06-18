@@ -4,7 +4,7 @@ Native .NET 10 tool for reconstructing a color image from three grayscale
 red, green, and blue channel photographs in the Prokudin-Gorskii workflow.
 
 The project does not use neural restoration. It performs image loading,
-geometric alignment, channel merging, crop, color correction, and PNG export.
+geometric alignment, channel merging, crop, color correction, and image export.
 
 ## Historical Source
 
@@ -61,7 +61,7 @@ The desktop app supports:
 - opening a stacked triptych with RGB or BGR order (BGR for Library of Congress scans)
 - drag/drop swap between R, G, B thumbnails
 - auto-align with alignment metadata in the status bar
-- result preview and PNG export
+- result preview and PNG/JPEG/TIFF export with saved export settings
 
 For vertical LoC TIFF triptychs, use **BGR** order.
 

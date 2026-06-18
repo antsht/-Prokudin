@@ -48,7 +48,7 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 4. Run **Auto-align**.
 5. Read the status bar for alignment details (transform type, inliers, shifts).
 6. Inspect the result preview.
-7. Export PNG.
+7. Export the result as PNG, JPEG, or TIFF.
 
 ### Status bar after auto-align
 
@@ -80,7 +80,7 @@ for auto-scale (GUI uses the default 128).
 - thumbnail swap
 - auto-align with status metadata
 - result preview
-- PNG export
+- PNG, JPEG, and TIFF result export with saved export settings
 
 Manual nudge, crop overlay, loupe, alignment limit control, and full color
 controls are not yet exposed in the Avalonia UI.

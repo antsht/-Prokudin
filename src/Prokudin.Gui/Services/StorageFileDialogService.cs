@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Prokudin.Core.Imaging;
 
 namespace Prokudin.Gui.Services;
 
@@ -17,6 +18,20 @@ public sealed class StorageFileDialogService : IFileDialogService
     {
         Patterns = ["*.png"],
         MimeTypes = ["image/png"],
+    };
+
+    private static readonly FilePickerFileType JpegFiles = new(
+        "JPEG")
+    {
+        Patterns = ["*.jpg", "*.jpeg"],
+        MimeTypes = ["image/jpeg"],
+    };
+
+    private static readonly FilePickerFileType TiffFiles = new(
+        "TIFF")
+    {
+        Patterns = ["*.tif", "*.tiff"],
+        MimeTypes = ["image/tiff"],
     };
 
     private readonly Window owner;
@@ -51,15 +66,22 @@ public sealed class StorageFileDialogService : IFileDialogService
         return folders.Count == 0 ? null : folders[0].Path.LocalPath;
     }
 
-    public async Task<string?> SavePng()
+    public async Task<string?> SaveExport(RgbExportSettings settings)
     {
+        settings = settings.Normalize();
+        var fileType = settings.Format switch
+        {
+            RgbExportFormat.Jpeg => JpegFiles,
+            RgbExportFormat.Tiff => TiffFiles,
+            _ => PngFiles,
+        };
         var file = await owner.StorageProvider.SaveFilePickerAsync(
             new FilePickerSaveOptions
             {
                 Title = "Export result",
-                DefaultExtension = "png",
-                SuggestedFileName = "prokudin-result.png",
-                FileTypeChoices = [PngFiles],
+                DefaultExtension = settings.DefaultExtension,
+                SuggestedFileName = $"prokudin-result.{settings.DefaultExtension}",
+                FileTypeChoices = [fileType, PngFiles, JpegFiles, TiffFiles],
             });
 
         return file?.Path.LocalPath;

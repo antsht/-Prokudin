@@ -1,3 +1,5 @@
+using Prokudin.Core.Imaging;
+
 namespace Prokudin.Gui.Services;
 
 public interface IFileDialogService
@@ -6,5 +8,5 @@ public interface IFileDialogService
 
     Task<string?> OpenFolder();
 
-    Task<string?> SavePng();
+    Task<string?> SaveExport(RgbExportSettings settings);
 }

@@ -1,7 +1,9 @@
 <controls:Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:automation="using:Avalonia.Automation"
                  xmlns:controls="using:Avalonia.Controls"
                  xmlns:input="using:Avalonia.Input"
+                 xmlns:primitives="using:Avalonia.Controls.Primitives"
                  xmlns:views="using:Prokudin.Gui.Views"
                  xmlns:vm="using:Prokudin.Gui.ViewModels"
                  xmlns:z="using:Zafiro.Avalonia.Controls"
@@ -10,7 +12,7 @@
                  Title="Prokudin"
                  Width="1180"
                  Height="780"
-                 MinWidth="880"
+                 MinWidth="920"
                  MinHeight="560">
   <controls:Window.KeyBindings>
     <input:KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
@@ -26,7 +28,7 @@
         <Separator />
         <MenuItem Header="Open _Triptych..." Command="{Binding OpenTriptychCommand}" />
         <Separator />
-        <MenuItem Header="_Export PNG..." Command="{Binding ExportCommand}" />
+        <MenuItem Header="_Export result..." Command="{Binding ExportCommand}" />
         <MenuItem Header="Export _Channels..." Command="{Binding ExportChannelsCommand}" />
       </MenuItem>
       <MenuItem Header="_Edit">
@@ -39,72 +41,197 @@
       </MenuItem>
     </Menu>
 
-    <Border DockPanel.Dock="Top" Classes="ChromeBar top">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Open R" Command="{Binding OpenRedCommand}" />
-          <Button Content="Open G" Command="{Binding OpenGreenCommand}" />
-          <Button Content="Open B" Command="{Binding OpenBlueCommand}" />
-          <Button Content="Triptych" Command="{Binding OpenTriptychCommand}" />
-          <ComboBox Width="84"
-                    ItemsSource="{Binding TriptychOrders}"
-                    SelectedItem="{Binding SelectedTriptychOrder}" />
-          <Button Content="Auto-align" Command="{Binding AutoAlignCommand}" />
-          <Button Content="Export PNG" Command="{Binding ExportCommand}" />
-          <Button Content="Export channels" Command="{Binding ExportChannelsCommand}" />
-        </StackPanel>
-        <z:EdgePanel Grid.Column="1">
-          <z:EdgePanel.EndContent>
-            <TextBlock Text="{Binding Status}" Classes="StatusText" />
-          </z:EdgePanel.EndContent>
-        </z:EdgePanel>
-      </Grid>
+    <Border DockPanel.Dock="Top" Classes="ChromeBar top" Padding="8,5">
+      <z:EdgePanel>
+        <z:EdgePanel.StartContent>
+          <TextBlock Text="Prokudin" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </z:EdgePanel.StartContent>
+        <z:EdgePanel.EndContent>
+          <TextBlock Text="{Binding Status}" Classes="StatusText" />
+        </z:EdgePanel.EndContent>
+      </z:EdgePanel>
     </Border>
 
-    <Grid ColumnDefinitions="220,*">
-      <z:HeaderedContainer Grid.Column="0"
-                           Header="Channels"
-                           Classes="Sidebar">
-        <ListBox ItemsSource="{Binding Slots}"
-                 SelectedItem="{Binding SelectedSlot}"
-                 Padding="8"
-                 Background="Transparent">
-          <ListBox.ItemTemplate>
-            <DataTemplate DataType="vm:ChannelSlotViewModel">
-              <views:ChannelSlotCard />
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </z:HeaderedContainer>
+    <Grid ColumnDefinitions="260,*">
+      <Grid x:Name="SidebarHost" Grid.Column="0">
+        <z:HeaderedContainer Header="Channels" Classes="Sidebar">
+          <Grid RowDefinitions="Auto,*">
+            <Border Grid.Row="0" Classes="SidebarToolbar">
+              <Grid ColumnDefinitions="Auto,*,Auto"
+                    ColumnSpacing="6">
+                <Button Classes="IconButton"
+                        Command="{Binding OpenTriptychCommand}"
+                        ToolTip.Tip="Load triptych"
+                        automation:AutomationProperties.Name="Load triptych">
+                  <PathIcon Data="{StaticResource IconTriptych}" />
+                </Button>
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding TriptychOrders}"
+                          SelectedItem="{Binding SelectedTriptychOrder}"
+                          MinWidth="86"
+                          HorizontalAlignment="Stretch"
+                          ToolTip.Tip="Triptych channel order" />
+                <Button Grid.Column="2"
+                        Classes="IconButton"
+                        Command="{Binding ExportChannelsCommand}"
+                        ToolTip.Tip="Export working channels"
+                        automation:AutomationProperties.Name="Export working channels">
+                  <PathIcon Data="{StaticResource IconExport}" />
+                </Button>
+              </Grid>
+            </Border>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Slots}"
+                     SelectedItem="{Binding SelectedSlot}"
+                     Padding="8"
+                     Background="Transparent">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:ChannelSlotViewModel">
+                  <views:ChannelSlotCard />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </z:HeaderedContainer>
+
+        <Popup IsOpen="{Binding IsExportSettingsOpen}"
+               PlacementTarget="{Binding #SidebarHost}"
+               Placement="Right"
+               HorizontalOffset="8"
+               VerticalOffset="48"
+               IsLightDismissEnabled="True">
+          <Border Classes="ExportSettingsPopup" Width="280">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Export settings" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ExportSettingsSummary}" Classes="MutedCaption" />
+
+              <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                <TextBlock Text="Format" Classes="MutedCaption" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding ExportFormats}"
+                          SelectedItem="{Binding ExportFormat}" />
+
+                <CheckBox Grid.Row="1"
+                          Grid.ColumnSpan="2"
+                          Content="Limit max side"
+                          IsChecked="{Binding LimitExportSize}" />
+
+                <TextBlock Grid.Row="2"
+                           Text="Max side"
+                           Classes="MutedCaption"
+                           VerticalAlignment="Center" />
+                <NumericUpDown Grid.Row="2"
+                               Grid.Column="1"
+                               Minimum="1"
+                               Maximum="20000"
+                               Increment="100"
+                               Value="{Binding ExportMaxSide}"
+                               IsEnabled="{Binding LimitExportSize}" />
+              </Grid>
+
+              <StackPanel Spacing="4" IsVisible="{Binding IsPngExport}">
+                <TextBlock Text="PNG compression" Classes="MutedCaption" />
+                <NumericUpDown Minimum="0"
+                               Maximum="9"
+                               Increment="1"
+                               Value="{Binding PngCompression}" />
+              </StackPanel>
+
+              <StackPanel Spacing="4" IsVisible="{Binding IsJpegExport}">
+                <TextBlock Text="JPEG quality" Classes="MutedCaption" />
+                <NumericUpDown Minimum="1"
+                               Maximum="100"
+                               Increment="1"
+                               Value="{Binding JpegQuality}" />
+              </StackPanel>
+
+              <StackPanel Spacing="6" IsVisible="{Binding IsTiffExport}">
+                <TextBlock Text="TIFF compression" Classes="MutedCaption" />
+                <ComboBox ItemsSource="{Binding TiffCompressions}"
+                          SelectedItem="{Binding TiffCompression}" />
+                <StackPanel Spacing="4" IsVisible="{Binding IsTiffDeflate}">
+                  <TextBlock Text="Deflate level" Classes="MutedCaption" />
+                  <NumericUpDown Minimum="1"
+                                 Maximum="9"
+                                 Increment="1"
+                                 Value="{Binding TiffDeflateLevel}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Popup>
+      </Grid>
 
       <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,120">
         <Border Grid.Row="0" Classes="ChromeBar top" Padding="8,6">
           <WrapPanel Orientation="Horizontal"
                      VerticalAlignment="Center">
-            <Button Content="{Binding FitToWindowButtonText}"
+            <Button Classes="IconButton"
                     Command="{Binding ToggleFitToWindowCommand}"
-                    Margin="0,0,8,0" />
-            <Button Content="Crop to selection"
+                    ToolTip.Tip="{Binding FitToWindowButtonText}"
+                    automation:AutomationProperties.Name="Toggle preview zoom"
+                    Margin="0,0,6,0">
+              <PathIcon Data="{StaticResource IconZoomFit}" />
+            </Button>
+            <Button Classes="IconButton"
                     Command="{Binding CropToSelectionCommand}"
-                    Margin="0,0,8,0" />
-            <Button Content="Undo"
+                    ToolTip.Tip="Crop to selection"
+                    automation:AutomationProperties.Name="Crop to selection"
+                    Margin="0,0,6,0">
+              <PathIcon Data="{StaticResource IconCrop}" />
+            </Button>
+            <Button Classes="IconButton"
                     Command="{Binding UndoCommand}"
-                    Margin="0,0,4,0" />
-            <Button Content="Redo"
+                    ToolTip.Tip="Undo"
+                    automation:AutomationProperties.Name="Undo"
+                    Margin="0,0,4,0">
+              <PathIcon Data="{StaticResource IconUndo}" />
+            </Button>
+            <Button Classes="IconButton"
                     Command="{Binding RedoCommand}"
-                    Margin="0,0,8,0" />
-            <Button Content="Auto-clean"
+                    ToolTip.Tip="Redo"
+                    automation:AutomationProperties.Name="Redo"
+                    Margin="0,0,6,0">
+              <PathIcon Data="{StaticResource IconRedo}" />
+            </Button>
+            <Button Classes="IconButton"
+                    Command="{Binding AutoAlignCommand}"
+                    ToolTip.Tip="Auto-align"
+                    automation:AutomationProperties.Name="Auto-align"
+                    Margin="0,0,6,0">
+              <PathIcon Data="{StaticResource IconAlign}" />
+            </Button>
+            <Button Classes="IconButton"
                     Command="{Binding AutoCleanSelectedChannelCommand}"
-                    Margin="0,0,8,0" />
-            <CheckBox Content="Retouch"
-                      IsChecked="{Binding IsRetouchMode}"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
-            <ComboBox Width="82"
-                      ItemsSource="{Binding RetouchTools}"
-                      SelectedItem="{Binding SelectedRetouchTool}"
-                      IsEnabled="{Binding IsRetouchMode}"
-                      Margin="0,0,8,0" />
+                    ToolTip.Tip="Auto-clean selected channel"
+                    automation:AutomationProperties.Name="Auto-clean selected channel"
+                    Margin="0,0,10,0">
+              <PathIcon Data="{StaticResource IconClean}" />
+            </Button>
+
+            <primitives:ToggleButton Classes="IconButton"
+                                      IsChecked="{Binding IsSelectToolMode}"
+                                      ToolTip.Tip="Selection mode"
+                                      automation:AutomationProperties.Name="Selection mode"
+                                      Margin="0,0,4,0">
+              <PathIcon Data="{StaticResource IconPointer}" />
+            </primitives:ToggleButton>
+            <primitives:ToggleButton Classes="IconButton"
+                                      IsChecked="{Binding IsHealToolMode}"
+                                      ToolTip.Tip="Heal retouch mode"
+                                      automation:AutomationProperties.Name="Heal retouch mode"
+                                      Margin="0,0,4,0">
+              <PathIcon Data="{StaticResource IconHeal}" />
+            </primitives:ToggleButton>
+            <primitives:ToggleButton Classes="IconButton"
+                                      IsChecked="{Binding IsCloneToolMode}"
+                                      ToolTip.Tip="Clone stamp mode"
+                                      automation:AutomationProperties.Name="Clone stamp mode"
+                                      Margin="0,0,10,0">
+              <PathIcon Data="{StaticResource IconClone}" />
+            </primitives:ToggleButton>
+
             <TextBlock Text="Brush"
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
@@ -163,11 +290,19 @@
                     Maximum="2"
                     Value="{Binding BlueExposureStops}"
                     Margin="0,0,8,0" />
-            <Button Content="Reset exp"
+            <Button Classes="IconButton"
                     Command="{Binding ResetExposureCommand}"
-                    Margin="0,0,8,0" />
-            <Button Content="Clear log"
-                    Command="{Binding ClearLogCommand}" />
+                    ToolTip.Tip="Reset exposure"
+                    automation:AutomationProperties.Name="Reset exposure"
+                    Margin="0,0,6,0">
+              <PathIcon Data="{StaticResource IconWhiteBalance}" />
+            </Button>
+            <Button Classes="IconButton"
+                    Command="{Binding ClearLogCommand}"
+                    ToolTip.Tip="Clear log"
+                    automation:AutomationProperties.Name="Clear log">
+              <PathIcon Data="{StaticResource IconClear}" />
+            </Button>
           </WrapPanel>
         </Border>
 
