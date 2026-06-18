@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Prokudin.Core.Alignment;
+using Prokudin.Core.Crop;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 using Prokudin.Gui.Services;
@@ -11,6 +13,7 @@ namespace Prokudin.Gui.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IFileDialogService fileDialogService;
+    private readonly StringBuilder processingLog = new();
 
     public MainViewModel(IFileDialogService fileDialogService)
     {
@@ -45,6 +48,7 @@ public sealed partial class MainViewModel : ObservableObject
     public IReadOnlyList<string> TriptychOrders { get; } = ["RGB", "BGR"];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
     private ChannelSlotViewModel? selectedSlot;
 
     [ObservableProperty]
@@ -61,6 +65,62 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string status = "Open three channels or a triptych to begin.";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FitToWindowButtonText))]
+    private PreviewZoomMode previewZoomMode = PreviewZoomMode.OneToOne;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
+    private ImageSelectionRect selectionRect;
+
+    public string FitToWindowButtonText =>
+        PreviewZoomMode == PreviewZoomMode.FitToWindow ? "1:1" : "Fit to window";
+
+    public string ProcessingLogText => processingLog.ToString();
+
+    [RelayCommand]
+    private void ToggleFitToWindow()
+    {
+        PreviewZoomMode = PreviewZoomMode == PreviewZoomMode.OneToOne
+            ? PreviewZoomMode.FitToWindow
+            : PreviewZoomMode.OneToOne;
+        AppendLog($"Preview zoom: {PreviewZoomMode}.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCropToSelection))]
+    private void CropToSelection()
+    {
+        if (SelectedSlot is null || SelectionRect.IsEmpty)
+        {
+            return;
+        }
+
+        var rect = SelectionRect;
+
+        if (SelectedSlot.Result is { } rgb)
+        {
+            ResultSlot.Result = rgb.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+            AppendLog($"Cropped result to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {ResultSlot.Result.Width}x{ResultSlot.Result.Height}.");
+            Status = $"Cropped result to {ResultSlot.Result.Width} x {ResultSlot.Result.Height}.";
+        }
+        else if (SelectedSlot.Image is { } image)
+        {
+            SelectedSlot.Image = image.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+            ResultSlot.Result = null;
+            AppendLog($"Cropped {SelectedSlot.DisplayName} to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {SelectedSlot.Image.Width}x{SelectedSlot.Image.Height}.");
+            Status = $"Cropped {SelectedSlot.DisplayName} to {SelectedSlot.Image.Width} x {SelectedSlot.Image.Height}.";
+        }
+
+        SelectionRect = ImageSelectionRect.Empty;
+    }
+
+    [RelayCommand]
+    private void ClearLog()
+    {
+        processingLog.Clear();
+        OnPropertyChanged(nameof(ProcessingLogText));
+    }
 
     [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private Task OpenRed()
@@ -92,6 +152,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             Status = $"Loading triptych {Path.GetFileName(path)}...";
+            AppendLog($"Loading triptych: {path}");
             var order = SelectedTriptychOrder.Equals("RGB", StringComparison.OrdinalIgnoreCase)
                 ? TriptychOrder.Rgb
                 : TriptychOrder.Bgr;
@@ -106,6 +167,7 @@ public sealed partial class MainViewModel : ObservableObject
             ResultSlot.Result = null;
             SelectedSlot = RedSlot;
             Status = $"Loaded triptych as {SelectedTriptychOrder}.";
+            AppendLog($"Triptych split ({SelectedTriptychOrder}): R {RedSlot.Image!.Width}x{RedSlot.Image.Height}, G {GreenSlot.Image!.Width}x{GreenSlot.Image.Height}, B {BlueSlot.Image!.Width}x{BlueSlot.Image.Height}.");
         });
     }
 
@@ -115,12 +177,15 @@ public sealed partial class MainViewModel : ObservableObject
         await RunOperation(async () =>
         {
             Status = "Running auto-align...";
+            AppendLog("Auto-align started.");
             var channels = new Dictionary<ChannelName, ImageBuffer>
             {
                 [ChannelName.Red] = RedSlot.Image!,
                 [ChannelName.Green] = GreenSlot.Image!,
                 [ChannelName.Blue] = BlueSlot.Image!,
             };
+
+            AppendLog($"Input channels: R {channels[ChannelName.Red].Width}x{channels[ChannelName.Red].Height}, G {channels[ChannelName.Green].Width}x{channels[ChannelName.Green].Height}, B {channels[ChannelName.Blue].Width}x{channels[ChannelName.Blue].Height}.");
 
             var result = await Task.Run(() =>
             {
@@ -130,12 +195,15 @@ public sealed partial class MainViewModel : ObservableObject
                 };
                 var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
                 var built = ReconstructionPipeline.BuildRgb(aligned, settings);
-                return (built.Rgb, aligned.AlignMetadata);
+                return (built.Rgb, built.CropInfo, aligned.AlignMetadata);
             });
 
             ResultSlot.Result = result.Rgb;
             SelectedSlot = ResultSlot;
             Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.AlignMetadata)}";
+            AppendLog(AlignChannelMetadata.FormatStatus(result.AlignMetadata));
+            AppendLog(FormatCropInfo(result.CropInfo));
+            AppendLog($"Result: {result.Rgb.Width}x{result.Rgb.Height}.");
         });
     }
 
@@ -152,8 +220,10 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             Status = $"Exporting {Path.GetFileName(path)}...";
+            AppendLog($"Exporting {result.Width}x{result.Height} to {path}");
             await Task.Run(async () => await ImageLoader.SavePngAsync(path, result));
             Status = $"Exported {path}.";
+            AppendLog($"Export complete: {path}");
         });
     }
 
@@ -169,6 +239,7 @@ public sealed partial class MainViewModel : ObservableObject
         ResultSlot.Result = null;
         SelectedSlot = target;
         Status = $"Swapped {source.DisplayName} and {target.DisplayName}.";
+        AppendLog($"Swapped {source.DisplayName} and {target.DisplayName}.");
     }
 
     private async Task OpenChannel(ChannelName channelName)
@@ -182,6 +253,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             Status = $"Loading {channelName} channel...";
+            AppendLog($"Loading {channelName} channel: {path}");
             var image = await Task.Run(async () =>
             {
                 var loaded = await ImageLoader.LoadGrayscaleAsync(path);
@@ -192,6 +264,7 @@ public sealed partial class MainViewModel : ObservableObject
             ResultSlot.Result = null;
             SelectedSlot = slot;
             Status = $"Loaded {channelName} from {Path.GetFileName(path)}.";
+            AppendLog($"{channelName} loaded: {image.Width}x{image.Height} (trimmed).");
         });
     }
 
@@ -210,12 +283,14 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             Status = ex.Message;
+            AppendLog($"Error: {ex.Message}");
         }
         finally
         {
             IsBusy = false;
             AutoAlignCommand.NotifyCanExecuteChanged();
             ExportCommand.NotifyCanExecuteChanged();
+            CropToSelectionCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -249,5 +324,35 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanExport()
     {
         return !IsBusy && ResultSlot.Result is not null;
+    }
+
+    private bool CanCropToSelection()
+    {
+        return !IsBusy &&
+               SelectedSlot is { HasImage: true } &&
+               !SelectionRect.IsEmpty;
+    }
+
+    partial void OnSelectedSlotChanged(ChannelSlotViewModel? value)
+    {
+        SelectionRect = ImageSelectionRect.Empty;
+    }
+
+    partial void OnSelectionRectChanged(ImageSelectionRect value)
+    {
+        CropToSelectionCommand.NotifyCanExecuteChanged();
+    }
+
+    private void AppendLog(string message)
+    {
+        processingLog.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+        OnPropertyChanged(nameof(ProcessingLogText));
+    }
+
+    private static string FormatCropInfo(CropInfo cropInfo)
+    {
+        var cropWidth = cropInfo.X1 - cropInfo.X0;
+        var cropHeight = cropInfo.Y1 - cropInfo.Y0;
+        return $"Auto-crop: ({cropInfo.X0},{cropInfo.Y0})-({cropInfo.X1},{cropInfo.Y1}) => {cropWidth}x{cropHeight}; overlap ({cropInfo.OverlapX0},{cropInfo.OverlapY0})-({cropInfo.OverlapX1},{cropInfo.OverlapY1}).";
     }
 }

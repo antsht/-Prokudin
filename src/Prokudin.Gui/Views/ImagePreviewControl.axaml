@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Prokudin.Gui.Views.ImagePreviewControl"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             Background="#141414">
+  <ScrollViewer x:Name="ScrollViewer"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Auto"
+                Background="#141414">
+    <Grid x:Name="ImageHost"
+          Background="Transparent"
+          PointerPressed="ImageHost_OnPointerPressed"
+          PointerMoved="ImageHost_OnPointerMoved"
+          PointerReleased="ImageHost_OnPointerReleased">
+      <Image x:Name="PreviewImage"
+             Stretch="None"
+             HorizontalAlignment="Left"
+             VerticalAlignment="Top" />
+      <Canvas x:Name="SelectionOverlay"
+              IsHitTestVisible="False">
+        <Rectangle x:Name="SelectionRectangle"
+                   Stroke="#4FC3F7"
+                   StrokeThickness="1"
+                   Fill="#334FC3F7"
+                   IsVisible="False" />
+      </Canvas>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

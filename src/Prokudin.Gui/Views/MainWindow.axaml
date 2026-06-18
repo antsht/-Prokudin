@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Prokudin.Gui.Views"
         x:Class="Prokudin.Gui.Views.MainWindow"
         Title="Prokudin"
         Width="1180"
@@ -88,15 +89,29 @@
         </ListBox>
       </Border>
 
-      <Grid Grid.Column="1" RowDefinitions="*,28">
-        <ScrollViewer Grid.Row="0"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      Background="#141414">
-          <Image Source="{Binding SelectedSlot.DisplayBitmap}"
-                 Stretch="None" />
-        </ScrollViewer>
-        <Border Grid.Row="1"
+      <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,120">
+        <Border Grid.Row="0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,6"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="{Binding FitToWindowButtonText}"
+                    Command="{Binding ToggleFitToWindowCommand}" />
+            <Button Content="Crop to selection"
+                    Command="{Binding CropToSelectionCommand}" />
+            <Button Content="Clear log"
+                    Command="{Binding ClearLogCommand}" />
+          </StackPanel>
+        </Border>
+
+        <views:ImagePreviewControl Grid.Row="1"
+                                   DisplayBitmap="{Binding SelectedSlot.DisplayBitmap}"
+                                   ZoomMode="{Binding PreviewZoomMode}"
+                                   SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
+                                   HasImage="{Binding SelectedSlot.HasImage}" />
+
+        <Border Grid.Row="2"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="8,0"
@@ -104,6 +119,25 @@
           <TextBlock Text="{Binding SelectedSlot.Dimensions}"
                      VerticalAlignment="Center"
                      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Border>
+
+        <Border Grid.Row="3"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Auto">
+            <TextBox Text="{Binding ProcessingLogText}"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas,Courier New,monospace"
+                     FontSize="12"
+                     MinHeight="100"
+                     BorderThickness="0"
+                     Background="Transparent" />
+          </ScrollViewer>
         </Border>
       </Grid>
     </Grid>
