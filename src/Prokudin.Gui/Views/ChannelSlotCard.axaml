@@ -1,11 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:input="using:Avalonia.Input"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              x:Class="Prokudin.Gui.Views.ChannelSlotCard"
              x:DataType="vm:ChannelSlotViewModel"
-             DragDrop.AllowDrop="True"
-             DragDrop.Drop="OnDrop"
+             input:DragDrop.AllowDrop="True"
+             input:DragDrop.Drop="OnDrop"
              PointerPressed="OnPointerPressed"
              Margin="0,0,0,8">
   <z:Card Classes="SlotCard">

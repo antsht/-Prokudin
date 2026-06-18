@@ -85,10 +85,10 @@ Supported options:
 | --- | --- |
 | `-o`, `--output` | Output PNG path. Required. |
 | `--triptych PATH` | Load one stacked triptych instead of three channel files. |
-| `--triptych-order rgb|bgr` | Segment order for triptych input. Requires `--triptych`. |
+| `--triptych-order rgb\|bgr` | Segment order for triptych input. Requires `--triptych`. |
 | `--size N` | Resize output to `N x N`. |
-| `--reference red|green|blue` | Alignment reference channel. Default: `green`. |
-| `--detector sift|orb` | Feature detector. Default: `sift`. |
+| `--reference red\|green\|blue` | Alignment reference channel. Default: `green`. |
+| `--detector sift\|orb` | Feature detector. Default: `sift`. |
 | `--max-align-iter N` | Fine alignment iterations. Default: `3`. |
 | `--max-translation N` | Per-axis alignment shift limit in pixels. Default: `128`. Use `0` for auto-scale. |
 | `--no-trim-borders` | Disable black border trim. |
