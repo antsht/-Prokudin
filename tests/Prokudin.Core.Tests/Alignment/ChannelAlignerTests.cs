@@ -36,6 +36,47 @@ public sealed class ChannelAlignerTests
     }
 
     [Fact]
+    public void AlignChannel_AlignsLargeArchivalShift_WhenMaxTranslationAllows()
+    {
+        var reference = SyntheticFeatureChannel();
+        var moving = ChannelAligner.WarpTranslation(reference, reference.Width, reference.Height, dx: 18, dy: -78).Image;
+
+        var result = ChannelAligner.AlignChannel(
+            reference,
+            moving,
+            new AlignOptions(Detector: "sift", MaxFineIterations: 3, MaxTranslation: 128));
+
+        result.Image.Width.Should().Be(reference.Width);
+        result.Image.Height.Should().Be(reference.Height);
+        result.Mask.Count(value => value > 0).Should().BeGreaterThan(reference.Width * reference.Height / 2);
+        MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeLessThan(0.08f);
+        result.SubpixelShifts.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void AlignChannel_RejectsLargeArchivalShift_WhenMaxTranslationTooSmall()
+    {
+        var reference = SyntheticFeatureChannel();
+        var moving = ChannelAligner.WarpTranslation(reference, reference.Width, reference.Height, dx: 18, dy: -78).Image;
+
+        var result = ChannelAligner.AlignChannel(
+            reference,
+            moving,
+            new AlignOptions(Detector: "sift", MaxFineIterations: 3, MaxTranslation: 48));
+
+        MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeGreaterThan(0.08f);
+    }
+
+    [Theory]
+    [InlineData(160, 144, 96)]
+    [InlineData(3228, 3741, 129)]
+    public void ResolveMaxTranslation_UsesDefaultOrAutoScale(int width, int height, int expected)
+    {
+        new AlignOptions(MaxTranslation: 128).ResolveMaxTranslation(width, height).Should().Be(128);
+        new AlignOptions(MaxTranslation: 0).ResolveMaxTranslation(width, height).Should().Be(expected);
+    }
+
+    [Fact]
     public void AlignChannel_DoesNotApplyShiftsBeyondMaxTranslation()
     {
         var reference = SyntheticFeatureChannel();

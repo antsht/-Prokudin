@@ -58,10 +58,12 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 The desktop app supports:
 
 - opening separate R, G, B channel images
-- opening a stacked triptych with RGB or BGR order
+- opening a stacked triptych with RGB or BGR order (BGR for Library of Congress scans)
 - drag/drop swap between R, G, B thumbnails
-- auto-align and preview
-- PNG export
+- auto-align with alignment metadata in the status bar
+- result preview and PNG export
+
+For vertical LoC TIFF triptychs, use **BGR** order.
 
 ## CLI
 
@@ -88,6 +90,7 @@ Supported options:
 | `--reference red|green|blue` | Alignment reference channel. Default: `green`. |
 | `--detector sift|orb` | Feature detector. Default: `sift`. |
 | `--max-align-iter N` | Fine alignment iterations. Default: `3`. |
+| `--max-translation N` | Per-axis alignment shift limit in pixels. Default: `128`. Use `0` for auto-scale. |
 | `--no-trim-borders` | Disable black border trim. |
 | `--no-sharpen` | Disable unsharp mask. |
 

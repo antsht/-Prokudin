@@ -63,7 +63,7 @@ public static class TriptychSplitter
             }
         }
 
-        return order switch
+        var mapped = order switch
         {
             TriptychOrder.Rgb => new Dictionary<ChannelName, ImageBuffer>
             {
@@ -79,5 +79,23 @@ public static class TriptychSplitter
             },
             _ => throw new ArgumentOutOfRangeException(nameof(order), order, null),
         };
+
+        return NormalizeSegmentSizes(mapped);
+    }
+
+    private static IReadOnlyDictionary<ChannelName, ImageBuffer> NormalizeSegmentSizes(
+        IReadOnlyDictionary<ChannelName, ImageBuffer> channels)
+    {
+        var minWidth = channels.Values.Min(channel => channel.Width);
+        var minHeight = channels.Values.Min(channel => channel.Height);
+        var normalized = new Dictionary<ChannelName, ImageBuffer>();
+        foreach (var (name, channel) in channels)
+        {
+            normalized[name] = channel.Width == minWidth && channel.Height == minHeight
+                ? channel
+                : channel.Crop(0, 0, minWidth, minHeight);
+        }
+
+        return normalized;
     }
 }

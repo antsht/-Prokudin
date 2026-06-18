@@ -31,7 +31,7 @@ public static class ReconstructionPipeline
         }
 
         var aligned = new Dictionary<ChannelName, (ImageBuffer Image, byte[] Mask)>();
-        var metadata = new Dictionary<ChannelName, object>();
+        var metadata = new Dictionary<ChannelName, AlignChannelMetadata>();
         var referenceMask = Ones(reference.Width * reference.Height);
 
         foreach (var name in new[] { ChannelName.Red, ChannelName.Green, ChannelName.Blue })
@@ -39,13 +39,13 @@ public static class ReconstructionPipeline
             if (name == settings.Reference)
             {
                 aligned[name] = (reference.Clone(), (byte[])referenceMask.Clone());
-                metadata[name] = new { kind = "reference", inliers = 0 };
+                metadata[name] = new AlignChannelMetadata("reference", 0);
                 continue;
             }
 
             var result = ChannelAligner.AlignChannel(reference, channels[name], settings);
             aligned[name] = (result.Image, result.Mask);
-            metadata[name] = new { kind = result.TransformKind, inliers = result.InlierCount, shifts = result.SubpixelShifts };
+            metadata[name] = new AlignChannelMetadata(result.TransformKind, result.InlierCount, result.SubpixelShifts);
         }
 
         return new AlignedChannels(

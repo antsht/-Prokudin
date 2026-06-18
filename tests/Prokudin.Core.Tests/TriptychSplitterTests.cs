@@ -34,7 +34,7 @@ public sealed class TriptychSplitterTests
     }
 
     [Fact]
-    public void SplitTriptych_LastSegmentKeepsRemainderPixels()
+    public void SplitTriptych_NormalizesSegmentsToCommonSize()
     {
         var image = HorizontalTriptych(302, 20, 0.1f, 0.4f, 0.7f);
 
@@ -42,7 +42,8 @@ public sealed class TriptychSplitterTests
 
         channels[ChannelName.Red].Width.Should().Be(100);
         channels[ChannelName.Green].Width.Should().Be(100);
-        channels[ChannelName.Blue].Width.Should().Be(102);
+        channels[ChannelName.Blue].Width.Should().Be(100);
+        Mean(channels[ChannelName.Blue]).Should().BeApproximately(0.7f, 0.001f);
     }
 
     private static ImageBuffer HorizontalTriptych(int width, int height, params float[] values)

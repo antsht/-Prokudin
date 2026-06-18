@@ -1,3 +1,4 @@
+using Prokudin.Core.Alignment;
 using Prokudin.Core.Imaging;
 
 namespace Prokudin.Core.Pipeline;
@@ -9,4 +10,4 @@ public sealed record AlignedChannels(
     byte[] MaskRed,
     byte[] MaskGreen,
     byte[] MaskBlue,
-    IReadOnlyDictionary<ChannelName, object> AlignMetadata);
+    IReadOnlyDictionary<ChannelName, AlignChannelMetadata> AlignMetadata);

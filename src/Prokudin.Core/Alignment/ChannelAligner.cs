@@ -14,6 +14,7 @@ public static class ChannelAligner
     public static AlignResult AlignChannel(ImageBuffer reference, ImageBuffer moving, AlignOptions? options = null)
     {
         options ??= new AlignOptions();
+        var maxTranslation = options.ResolveMaxTranslation(reference.Width, reference.Height);
 
         using var refMat = ToMat(reference);
         using var movMat = moving.Width == reference.Width && moving.Height == reference.Height
@@ -25,7 +26,7 @@ public static class ChannelAligner
             movMat,
             options.Detector,
             Math.Max(0, options.MaxFineIterations),
-            Math.Max(0, options.MaxTranslation),
+            maxTranslation,
             allowOrbRetry: true);
     }
 

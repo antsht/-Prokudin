@@ -30,18 +30,35 @@ dotnet build Prokudin.slnx
 dotnet test Prokudin.slnx
 ```
 
-The test suite currently covers:
+The test suite covers:
 
-- triptych split
+- triptych split and segment size normalization
 - color correction
 - crop
 - synthetic reconstruction pipeline
-- OpenCvSharp alignment behavior
+- OpenCvSharp alignment (small and large synthetic shifts)
+- `MaxTranslation` clamping and `ResolveMaxTranslation` auto-scale
+
+Alignment regression highlights in `ChannelAlignerTests`:
+
+- `AlignChannel_AlignsShiftedSyntheticChannel` — 7×-5 px shift
+- `AlignChannel_AlignsLargeArchivalShift_WhenMaxTranslationAllows` — ~18×-78 px
+- `AlignChannel_RejectsLargeArchivalShift_WhenMaxTranslationTooSmall` — 48 px cap
+- `ResolveMaxTranslation_UsesDefaultOrAutoScale` — formula verification
+
+Manual validation for archival scans: use a local LoC TIFF (not committed) with
+CLI `--triptych-order bgr` and compare channel shifts before/after reconstruction.
 
 ## Run CLI
 
 ```powershell
 dotnet run --project src\Prokudin.Cli\Prokudin.Cli.csproj -- reconstruct red.png green.png blue.png -o output.png
+```
+
+Archival triptych:
+
+```powershell
+dotnet run --project src\Prokudin.Cli\Prokudin.Cli.csproj -- reconstruct --triptych scan.tif --triptych-order bgr -o output.png --max-translation 128
 ```
 
 ## Run GUI
@@ -78,6 +95,7 @@ The app builds and runs; modern `DataTransfer` drag/drop can be adopted later.
 
 - Add GUI/viewmodel tests for slot swap, async load, and export behavior.
 - Add golden comparison tests using archived sample channels.
+- Expose `MaxTranslation` and manual nudge in the Avalonia UI.
 - Validate OpenCvSharp native runtime packages for Linux and macOS.
 - Add publish profiles or CI jobs for Windows first.
-- Expose manual nudge, crop overlay, loupe, and color controls in Avalonia.
+- Expose crop overlay, loupe, and color controls in Avalonia.

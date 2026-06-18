@@ -129,12 +129,13 @@ public sealed partial class MainViewModel : ObservableObject
                     Align = new AlignOptions(TrimBorders: false),
                 };
                 var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
-                return ReconstructionPipeline.BuildRgb(aligned, settings).Rgb;
+                var built = ReconstructionPipeline.BuildRgb(aligned, settings);
+                return (built.Rgb, aligned.AlignMetadata);
             });
 
-            ResultSlot.Result = result;
+            ResultSlot.Result = result.Rgb;
             SelectedSlot = ResultSlot;
-            Status = $"Auto-align complete. Result is {result.Width} x {result.Height}.";
+            Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.AlignMetadata)}";
         });
     }
 

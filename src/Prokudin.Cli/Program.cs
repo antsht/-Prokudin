@@ -21,6 +21,7 @@ static async Task<int> RunAsync(string[] args)
     var reference = ChannelName.Green;
     var detector = "sift";
     var maxAlignIter = 3;
+    int? maxTranslation = null;
     var trimBorders = true;
     var sharpen = true;
 
@@ -50,6 +51,9 @@ static async Task<int> RunAsync(string[] args)
                 break;
             case "--max-align-iter":
                 maxAlignIter = int.Parse(RequireValue(args, ref i));
+                break;
+            case "--max-translation":
+                maxTranslation = int.Parse(RequireValue(args, ref i));
                 break;
             case "--no-trim-borders":
                 trimBorders = false;
@@ -91,7 +95,7 @@ static async Task<int> RunAsync(string[] args)
 
     var settings = new PipelineSettings
     {
-        Align = new AlignOptions(reference, detector, maxAlignIter, trimBorders),
+        Align = new AlignOptions(reference, detector, maxAlignIter, trimBorders, maxTranslation ?? 128),
         OutputSize = size,
         Sharpen = sharpen,
     };
@@ -164,6 +168,6 @@ static void ValidateInput(string path)
 static void PrintUsage()
 {
     Console.WriteLine("Usage:");
-    Console.WriteLine("  Prokudin.Cli reconstruct red.png green.png blue.png -o output.png [--size N] [--reference green] [--detector sift|orb]");
-    Console.WriteLine("  Prokudin.Cli reconstruct --triptych scan.tif --triptych-order rgb|bgr -o output.png");
+    Console.WriteLine("  Prokudin.Cli reconstruct red.png green.png blue.png -o output.png [--size N] [--reference green] [--detector sift|orb] [--max-translation N]");
+    Console.WriteLine("  Prokudin.Cli reconstruct --triptych scan.tif --triptych-order rgb|bgr -o output.png [--max-translation N]");
 }
