@@ -24,10 +24,45 @@ public static class ChannelAligner
         return AlignChannel(
             refMat,
             movMat,
+            moving.Width,
+            moving.Height,
             options.Detector,
             Math.Max(0, options.MaxFineIterations),
             maxTranslation,
             allowOrbRetry: true);
+    }
+
+    public static (ImageBuffer Image, byte[] Mask) ApplyTransform(ImageBuffer moving, ChannelAlignmentTransform transform)
+    {
+        if (!transform.CanApplyTo(moving))
+        {
+            throw new ArgumentException("Transform source dimensions must match the image.", nameof(transform));
+        }
+
+        using var movingMat = moving.Width == transform.OutputWidth && moving.Height == transform.OutputHeight
+            ? ToMat(moving)
+            : Resize(ToMat(moving), transform.OutputWidth, transform.OutputHeight);
+        using var matrix = MatrixFromTransform(transform);
+        using var warped = new Mat();
+        using var mask = new Mat();
+        WarpChannel(movingMat, matrix, new Size(transform.OutputWidth, transform.OutputHeight), transform.TransformKind, warped, mask);
+
+        var aligned = warped.Clone();
+        var alignedMask = mask.Clone();
+        foreach (var (dx, dy) in transform.Shifts)
+        {
+            var translated = ApplyTranslation(aligned, alignedMask, dx, dy);
+            aligned.Dispose();
+            alignedMask.Dispose();
+            aligned = translated.Image;
+            alignedMask = translated.Mask;
+        }
+
+        using (aligned)
+        using (alignedMask)
+        {
+            return (FromMat(aligned), MaskFromMat(alignedMask));
+        }
     }
 
     public static (ImageBuffer Image, byte[] Mask) WarpTranslation(ImageBuffer moving, int width, int height, int dx, int dy)
@@ -69,6 +104,8 @@ public static class ChannelAligner
     private static AlignResult AlignChannel(
         Mat reference,
         Mat moving,
+        int sourceWidth,
+        int sourceHeight,
         string detector,
         int maxFineIterations,
         int maxTranslation,
@@ -79,12 +116,15 @@ public static class ChannelAligner
 
         using var warped = new Mat();
         using var mask = new Mat();
-        string kind;
-        int inliers;
+        string kind = "identity";
+        int inliers = 0;
+
+        using var matrix = src.Length >= 4
+            ? EstimateTransform(src, dst, maxTranslation, out kind, out inliers)
+            : HomogeneousTranslationMatrix(0, 0);
 
         if (src.Length >= 4)
         {
-            using var matrix = EstimateTransform(src, dst, maxTranslation, out kind, out inliers);
             WarpChannel(moving, matrix, reference.Size(), kind, warped, mask);
         }
         else
@@ -98,14 +138,15 @@ public static class ChannelAligner
 
         if (allowOrbRetry && detector == "sift" && matchCount > 0 && inliers / (double)matchCount < LowInlierRatio)
         {
-            return AlignChannel(reference, moving, "orb", maxFineIterations, maxTranslation, allowOrbRetry: false);
+            return AlignChannel(reference, moving, sourceWidth, sourceHeight, "orb", maxFineIterations, maxTranslation, allowOrbRetry: false);
         }
 
         var (fineImage, fineMask, shifts) = FineAlign(reference, warped, mask, maxFineIterations, maxTranslation);
+        var transform = TransformFromMatrix(sourceWidth, sourceHeight, reference.Cols, reference.Rows, kind, matrix, shifts);
         using (fineImage)
         using (fineMask)
         {
-            return new AlignResult(FromMat(fineImage), MaskFromMat(fineMask), kind, inliers, shifts);
+            return new AlignResult(FromMat(fineImage), MaskFromMat(fineMask), kind, inliers, shifts, transform);
         }
     }
 
@@ -504,6 +545,43 @@ public static class ChannelAligner
         Cv2.Resize(source, resized, new Size(width, height), interpolation: InterpolationFlags.Linear);
         source.Dispose();
         return resized;
+    }
+
+    private static ChannelAlignmentTransform TransformFromMatrix(
+        int sourceWidth,
+        int sourceHeight,
+        int outputWidth,
+        int outputHeight,
+        string kind,
+        Mat matrix,
+        IReadOnlyList<(float Dx, float Dy)> shifts)
+    {
+        using var doubleMatrix = new Mat();
+        matrix.ConvertTo(doubleMatrix, MatType.CV_64FC1);
+        var values = new double[doubleMatrix.Rows * doubleMatrix.Cols];
+        Marshal.Copy(doubleMatrix.Data, values, 0, values.Length);
+        return new ChannelAlignmentTransform(
+            sourceWidth,
+            sourceHeight,
+            outputWidth,
+            outputHeight,
+            kind,
+            doubleMatrix.Rows,
+            doubleMatrix.Cols,
+            values,
+            shifts.ToArray());
+    }
+
+    private static Mat MatrixFromTransform(ChannelAlignmentTransform transform)
+    {
+        if (transform.Matrix.Length != transform.MatrixRows * transform.MatrixColumns)
+        {
+            throw new ArgumentException("Transform matrix dimensions do not match its values.", nameof(transform));
+        }
+
+        var matrix = new Mat(transform.MatrixRows, transform.MatrixColumns, MatType.CV_64FC1);
+        Marshal.Copy(transform.Matrix, 0, matrix.Data, transform.Matrix.Length);
+        return matrix;
     }
 
     private static Mat ToMat(ImageBuffer image)

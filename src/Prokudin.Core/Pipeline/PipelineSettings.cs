@@ -9,6 +9,8 @@ public sealed record PipelineSettings
 
     public ColorSettings Color { get; init; } = new();
 
+    public ChannelExposureSettings Exposure { get; init; } = new();
+
     public CropSettings Crop { get; init; } = new();
 
     public bool Sharpen { get; init; } = true;

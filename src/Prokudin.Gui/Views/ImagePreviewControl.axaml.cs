@@ -5,6 +5,8 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using System.Windows.Input;
+using Prokudin.Core.Retouch;
 using Prokudin.Gui.ViewModels;
 
 namespace Prokudin.Gui.Views;
@@ -25,8 +27,21 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<bool> HasImageProperty =
         AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(HasImage));
 
+    public static readonly StyledProperty<PreviewInteractionMode> InteractionModeProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, PreviewInteractionMode>(
+            nameof(InteractionMode),
+            PreviewInteractionMode.Selection);
+
+    public static readonly StyledProperty<int> BrushSizeProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(BrushSize), 12);
+
+    public static readonly StyledProperty<ICommand?> RetouchStrokeCommandProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(RetouchStrokeCommand));
+
     private Point? selectionStart;
     private bool isSelecting;
+    private List<RetouchPoint>? retouchPoints;
+    private bool isRetouching;
 
     public ImagePreviewControl()
     {
@@ -56,6 +71,24 @@ public sealed partial class ImagePreviewControl : UserControl
     {
         get => GetValue(HasImageProperty);
         set => SetValue(HasImageProperty, value);
+    }
+
+    public PreviewInteractionMode InteractionMode
+    {
+        get => GetValue(InteractionModeProperty);
+        set => SetValue(InteractionModeProperty, value);
+    }
+
+    public int BrushSize
+    {
+        get => GetValue(BrushSizeProperty);
+        set => SetValue(BrushSizeProperty, value);
+    }
+
+    public ICommand? RetouchStrokeCommand
+    {
+        get => GetValue(RetouchStrokeCommandProperty);
+        set => SetValue(RetouchStrokeCommandProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -215,6 +248,15 @@ public sealed partial class ImagePreviewControl : UserControl
             return;
         }
 
+        if (InteractionMode == PreviewInteractionMode.Retouch)
+        {
+            isRetouching = true;
+            retouchPoints = [new RetouchPoint((float)imagePoint.X, (float)imagePoint.Y)];
+            e.Pointer.Capture(ImageHost);
+            e.Handled = true;
+            return;
+        }
+
         isSelecting = true;
         selectionStart = imagePoint;
         SelectionRect = ImageSelectionRect.FromPoints(imagePoint.X, imagePoint.Y, imagePoint.X, imagePoint.Y);
@@ -224,6 +266,19 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (isRetouching && retouchPoints is not null)
+        {
+            var retouchPoint = e.GetPosition(ImageHost);
+            if (!TryMapToImage(retouchPoint, out var retouchImagePoint))
+            {
+                retouchImagePoint = ClampPointToImage(retouchPoint);
+            }
+
+            retouchPoints.Add(new RetouchPoint((float)retouchImagePoint.X, (float)retouchImagePoint.Y));
+            e.Handled = true;
+            return;
+        }
+
         if (!isSelecting || selectionStart is not { } start)
         {
             return;
@@ -242,6 +297,23 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (isRetouching)
+        {
+            isRetouching = false;
+            var points = retouchPoints?.ToArray() ?? [];
+            retouchPoints = null;
+            e.Pointer.Capture(null);
+
+            var stroke = new RetouchStroke(points, Math.Clamp(BrushSize, 1, 200));
+            if (RetouchStrokeCommand?.CanExecute(stroke) == true)
+            {
+                RetouchStrokeCommand.Execute(stroke);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (!isSelecting)
         {
             return;

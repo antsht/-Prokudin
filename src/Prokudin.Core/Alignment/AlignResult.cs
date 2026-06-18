@@ -7,4 +7,5 @@ public sealed record AlignResult(
     byte[] Mask,
     string TransformKind,
     int InlierCount,
-    IReadOnlyList<(float Dx, float Dy)> SubpixelShifts);
+    IReadOnlyList<(float Dx, float Dy)> SubpixelShifts,
+    ChannelAlignmentTransform? Transform = null);

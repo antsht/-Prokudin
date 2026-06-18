@@ -10,4 +10,5 @@ public sealed record AlignedChannels(
     byte[] MaskRed,
     byte[] MaskGreen,
     byte[] MaskBlue,
-    IReadOnlyDictionary<ChannelName, AlignChannelMetadata> AlignMetadata);
+    IReadOnlyDictionary<ChannelName, AlignChannelMetadata> AlignMetadata,
+    IReadOnlyDictionary<ChannelName, ChannelAlignmentTransform>? AlignTransforms = null);

@@ -1,6 +1,7 @@
 <controls:Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:controls="using:Avalonia.Controls"
+                 xmlns:input="using:Avalonia.Input"
                  xmlns:views="using:Prokudin.Gui.Views"
                  xmlns:vm="using:Prokudin.Gui.ViewModels"
                  xmlns:z="using:Zafiro.Avalonia.Controls"
@@ -11,6 +12,11 @@
                  Height="780"
                  MinWidth="880"
                  MinHeight="560">
+  <controls:Window.KeyBindings>
+    <input:KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+    <input:KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
+  </controls:Window.KeyBindings>
+
   <DockPanel Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
@@ -22,8 +28,13 @@
         <Separator />
         <MenuItem Header="_Export PNG..." Command="{Binding ExportCommand}" />
       </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
+        <MenuItem Header="_Redo" Command="{Binding RedoCommand}" />
+      </MenuItem>
       <MenuItem Header="_Process">
         <MenuItem Header="_Auto-align" Command="{Binding AutoAlignCommand}" />
+        <MenuItem Header="Auto-clean selected channel" Command="{Binding AutoCleanSelectedChannelCommand}" />
       </MenuItem>
     </Menu>
 
@@ -66,21 +77,101 @@
 
       <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,120">
         <Border Grid.Row="0" Classes="ChromeBar top" Padding="8,6">
-          <StackPanel Orientation="Horizontal" Spacing="8">
+          <WrapPanel Orientation="Horizontal"
+                     VerticalAlignment="Center">
             <Button Content="{Binding FitToWindowButtonText}"
-                    Command="{Binding ToggleFitToWindowCommand}" />
+                    Command="{Binding ToggleFitToWindowCommand}"
+                    Margin="0,0,8,0" />
             <Button Content="Crop to selection"
-                    Command="{Binding CropToSelectionCommand}" />
+                    Command="{Binding CropToSelectionCommand}"
+                    Margin="0,0,8,0" />
+            <Button Content="Undo"
+                    Command="{Binding UndoCommand}"
+                    Margin="0,0,4,0" />
+            <Button Content="Redo"
+                    Command="{Binding RedoCommand}"
+                    Margin="0,0,8,0" />
+            <Button Content="Auto-clean"
+                    Command="{Binding AutoCleanSelectedChannelCommand}"
+                    Margin="0,0,8,0" />
+            <CheckBox Content="Retouch"
+                      IsChecked="{Binding IsRetouchMode}"
+                      VerticalAlignment="Center"
+                      Margin="0,0,8,0" />
+            <TextBlock Text="Brush"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="80"
+                    Minimum="1"
+                    Maximum="64"
+                    Value="{Binding BrushSize}"
+                    Margin="0,0,8,0" />
+            <TextBlock Text="Sens"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="80"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{Binding AutoCleanSensitivity}"
+                    Margin="0,0,8,0" />
+            <TextBlock Text="Radius"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="64"
+                    Minimum="1"
+                    Maximum="12"
+                    Value="{Binding AutoCleanRadius}"
+                    Margin="0,0,8,0" />
+            <CheckBox Content="Auto WB"
+                      IsChecked="{Binding AutoWhiteBalance}"
+                      VerticalAlignment="Center"
+                      Margin="0,0,8,0" />
+            <TextBlock Text="R"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="72"
+                    Minimum="-2"
+                    Maximum="2"
+                    Value="{Binding RedExposureStops}"
+                    Margin="0,0,8,0" />
+            <TextBlock Text="G"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="72"
+                    Minimum="-2"
+                    Maximum="2"
+                    Value="{Binding GreenExposureStops}"
+                    Margin="0,0,8,0" />
+            <TextBlock Text="B"
+                       Classes="MutedCaption"
+                       VerticalAlignment="Center"
+                       Margin="0,0,4,0" />
+            <Slider Width="72"
+                    Minimum="-2"
+                    Maximum="2"
+                    Value="{Binding BlueExposureStops}"
+                    Margin="0,0,8,0" />
+            <Button Content="Reset exp"
+                    Command="{Binding ResetExposureCommand}"
+                    Margin="0,0,8,0" />
             <Button Content="Clear log"
                     Command="{Binding ClearLogCommand}" />
-          </StackPanel>
+          </WrapPanel>
         </Border>
 
         <views:ImagePreviewControl Grid.Row="1"
                                    DisplayBitmap="{Binding SelectedSlot.DisplayBitmap}"
                                    ZoomMode="{Binding PreviewZoomMode}"
                                    SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
-                                   HasImage="{Binding SelectedSlot.HasImage}" />
+                                   HasImage="{Binding SelectedSlot.HasImage}"
+                                   InteractionMode="{Binding PreviewInteractionMode}"
+                                   BrushSize="{Binding BrushSize}"
+                                   RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}" />
 
         <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
           <z:EdgePanel>

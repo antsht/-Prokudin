@@ -32,6 +32,7 @@ public static class ReconstructionPipeline
 
         var aligned = new Dictionary<ChannelName, (ImageBuffer Image, byte[] Mask)>();
         var metadata = new Dictionary<ChannelName, AlignChannelMetadata>();
+        var transforms = new Dictionary<ChannelName, ChannelAlignmentTransform>();
         var referenceMask = Ones(reference.Width * reference.Height);
 
         foreach (var name in new[] { ChannelName.Red, ChannelName.Green, ChannelName.Blue })
@@ -40,12 +41,17 @@ public static class ReconstructionPipeline
             {
                 aligned[name] = (reference.Clone(), (byte[])referenceMask.Clone());
                 metadata[name] = new AlignChannelMetadata("reference", 0);
+                transforms[name] = ChannelAlignmentTransform.Identity(reference.Width, reference.Height, "reference");
                 continue;
             }
 
             var result = ChannelAligner.AlignChannel(reference, channels[name], settings);
             aligned[name] = (result.Image, result.Mask);
             metadata[name] = new AlignChannelMetadata(result.TransformKind, result.InlierCount, result.SubpixelShifts);
+            if (result.Transform is not null)
+            {
+                transforms[name] = result.Transform;
+            }
         }
 
         return new AlignedChannels(
@@ -55,7 +61,8 @@ public static class ReconstructionPipeline
             aligned[ChannelName.Red].Mask,
             aligned[ChannelName.Green].Mask,
             aligned[ChannelName.Blue].Mask,
-            metadata);
+            metadata,
+            transforms);
     }
 
     public static AlignedChannels ApplyManualToAligned(
@@ -65,7 +72,7 @@ public static class ReconstructionPipeline
         var red = Apply(ChannelName.Red, aligned.Red, aligned.MaskRed);
         var green = Apply(ChannelName.Green, aligned.Green, aligned.MaskGreen);
         var blue = Apply(ChannelName.Blue, aligned.Blue, aligned.MaskBlue);
-        return new AlignedChannels(red.Image, green.Image, blue.Image, red.Mask, green.Mask, blue.Mask, aligned.AlignMetadata);
+        return new AlignedChannels(red.Image, green.Image, blue.Image, red.Mask, green.Mask, blue.Mask, aligned.AlignMetadata, aligned.AlignTransforms);
 
         (ImageBuffer Image, byte[] Mask) Apply(ChannelName name, ImageBuffer image, byte[] mask)
         {
@@ -85,10 +92,14 @@ public static class ReconstructionPipeline
             aligned = ApplyManualToAligned(aligned, manual);
         }
 
+        var red = ChannelExposure.Apply(aligned.Red, settings.Exposure.RedStops);
+        var green = ChannelExposure.Apply(aligned.Green, settings.Exposure.GreenStops);
+        var blue = ChannelExposure.Apply(aligned.Blue, settings.Exposure.BlueStops);
+
         var (rgb, overlap) = Cropper.MergeChannels(
-            aligned.Red,
-            aligned.Green,
-            aligned.Blue,
+            red,
+            green,
+            blue,
             aligned.MaskRed,
             aligned.MaskGreen,
             aligned.MaskBlue);
