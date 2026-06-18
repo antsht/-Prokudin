@@ -2,11 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Prokudin.Gui.Views.ImagePreviewControl"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
-             Background="#141414">
+             Background="{DynamicResource PreviewBackgroundBrush}">
   <ScrollViewer x:Name="ScrollViewer"
                 HorizontalScrollBarVisibility="Auto"
                 VerticalScrollBarVisibility="Auto"
-                Background="#141414">
+                Background="{DynamicResource PreviewBackgroundBrush}">
     <Grid x:Name="ImageHost"
           Background="Transparent"
           PointerPressed="ImageHost_OnPointerPressed"
@@ -19,9 +19,9 @@
       <Canvas x:Name="SelectionOverlay"
               IsHitTestVisible="False">
         <Rectangle x:Name="SelectionRectangle"
-                   Stroke="#4FC3F7"
+                   Stroke="{DynamicResource SelectionStrokeBrush}"
                    StrokeThickness="1"
-                   Fill="#334FC3F7"
+                   Fill="{DynamicResource SelectionFillBrush}"
                    IsVisible="False" />
       </Canvas>
     </Grid>

@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:z="using:Zafiro.Avalonia.Controls"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ChannelSlotCard"
+             x:DataType="vm:ChannelSlotViewModel"
+             DragDrop.AllowDrop="True"
+             DragDrop.Drop="OnDrop"
+             PointerPressed="OnPointerPressed"
+             Margin="0,0,0,8">
+  <z:Card Classes="SlotCard">
+    <Grid RowDefinitions="112,Auto,Auto">
+      <Border Grid.Row="0"
+              Background="{DynamicResource ThumbnailPlaceholderBrush}"
+              ClipToBounds="True">
+        <Image Source="{Binding DisplayBitmap}"
+               Stretch="Uniform" />
+      </Border>
+      <TextBlock Grid.Row="1"
+                 Text="{Binding DisplayName}"
+                 FontWeight="SemiBold"
+                 Margin="0,6,0,0" />
+      <TextBlock Grid.Row="2"
+                 Text="{Binding Dimensions}"
+                 Classes="MutedCaption" />
+    </Grid>
+  </z:Card>
+</UserControl>

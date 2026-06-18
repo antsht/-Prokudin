@@ -1,0 +1,22 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <Color x:Key="PreviewBackgroundColor">#F0F0F0</Color>
+      <Color x:Key="ThumbnailPlaceholderColor">#D8D8D8</Color>
+      <Color x:Key="SelectionStrokeColor">#0288D1</Color>
+      <Color x:Key="SelectionFillColor">#330288D1</Color>
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <Color x:Key="PreviewBackgroundColor">#141414</Color>
+      <Color x:Key="ThumbnailPlaceholderColor">#202020</Color>
+      <Color x:Key="SelectionStrokeColor">#4FC3F7</Color>
+      <Color x:Key="SelectionFillColor">#334FC3F7</Color>
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <SolidColorBrush x:Key="PreviewBackgroundBrush" Color="{DynamicResource PreviewBackgroundColor}" />
+  <SolidColorBrush x:Key="ThumbnailPlaceholderBrush" Color="{DynamicResource ThumbnailPlaceholderColor}" />
+  <SolidColorBrush x:Key="SelectionStrokeBrush" Color="{DynamicResource SelectionStrokeColor}" />
+  <SolidColorBrush x:Key="SelectionFillBrush" Color="{DynamicResource SelectionFillColor}" />
+</ResourceDictionary>

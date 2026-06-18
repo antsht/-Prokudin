@@ -1,7 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="using:Prokudin.Gui.Views"
+        xmlns:vm="using:Prokudin.Gui.ViewModels"
+        xmlns:z="using:Zafiro.Avalonia.Controls"
         x:Class="Prokudin.Gui.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
         Title="Prokudin"
         Width="1180"
         Height="780"
@@ -23,78 +26,45 @@
       </MenuItem>
     </Menu>
 
-    <Border DockPanel.Dock="Top"
-            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-            BorderThickness="0,0,0,1"
-            Padding="8"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,16,Auto,Auto,16,Auto,*" RowDefinitions="32">
-        <Button Grid.Column="0" Content="Open R" Command="{Binding OpenRedCommand}" Margin="0,0,6,0" />
-        <Button Grid.Column="1" Content="Open G" Command="{Binding OpenGreenCommand}" Margin="0,0,6,0" />
-        <Button Grid.Column="2" Content="Open B" Command="{Binding OpenBlueCommand}" Margin="0,0,6,0" />
-        <Button Grid.Column="3" Content="Triptych" Command="{Binding OpenTriptychCommand}" />
-        <ComboBox Grid.Column="5"
-                  Width="84"
-                  ItemsSource="{Binding TriptychOrders}"
-                  SelectedItem="{Binding SelectedTriptychOrder}" />
-        <Button Grid.Column="6" Content="Auto-align" Command="{Binding AutoAlignCommand}" Margin="6,0,0,0" />
-        <Button Grid.Column="8" Content="Export PNG" Command="{Binding ExportCommand}" />
-        <TextBlock Grid.Column="9"
-                   Text="{Binding Status}"
-                   VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis"
-                   Margin="12,0,0,0" />
+    <Border DockPanel.Dock="Top" Classes="ChromeBar top">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Open R" Command="{Binding OpenRedCommand}" />
+          <Button Content="Open G" Command="{Binding OpenGreenCommand}" />
+          <Button Content="Open B" Command="{Binding OpenBlueCommand}" />
+          <Button Content="Triptych" Command="{Binding OpenTriptychCommand}" />
+          <ComboBox Width="84"
+                    ItemsSource="{Binding TriptychOrders}"
+                    SelectedItem="{Binding SelectedTriptychOrder}" />
+          <Button Content="Auto-align" Command="{Binding AutoAlignCommand}" />
+          <Button Content="Export PNG" Command="{Binding ExportCommand}" />
+        </StackPanel>
+        <z:EdgePanel Grid.Column="1">
+          <z:EdgePanel.EndContent>
+            <TextBlock Text="{Binding Status}" Classes="StatusText" />
+          </z:EdgePanel.EndContent>
+        </z:EdgePanel>
       </Grid>
     </Border>
 
     <Grid ColumnDefinitions="220,*">
-      <Border Grid.Column="0"
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-              BorderThickness="0,0,1,0"
-              Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+      <z:HeaderedContainer Grid.Column="0"
+                           Header="Channels"
+                           Classes="Sidebar">
         <ListBox ItemsSource="{Binding Slots}"
                  SelectedItem="{Binding SelectedSlot}"
                  Padding="8"
                  Background="Transparent">
           <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Border PointerPressed="SlotPointerPressed"
-                      DragDrop.AllowDrop="True"
-                      DragDrop.Drop="SlotDrop"
-                      BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                      BorderThickness="1"
-                      CornerRadius="4"
-                      Padding="8"
-                      Margin="0,0,0,8"
-                      Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-                <Grid RowDefinitions="112,Auto,Auto">
-                  <Border Grid.Row="0"
-                          Background="#202020"
-                          ClipToBounds="True">
-                    <Image Source="{Binding DisplayBitmap}"
-                           Stretch="Uniform" />
-                  </Border>
-                  <TextBlock Grid.Row="1"
-                             Text="{Binding DisplayName}"
-                             FontWeight="SemiBold"
-                             Margin="0,6,0,0" />
-                  <TextBlock Grid.Row="2"
-                             Text="{Binding Dimensions}"
-                             FontSize="12"
-                             Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                </Grid>
-              </Border>
+            <DataTemplate DataType="vm:ChannelSlotViewModel">
+              <views:ChannelSlotCard />
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-      </Border>
+      </z:HeaderedContainer>
 
       <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,120">
-        <Border Grid.Row="0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="8,6"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+        <Border Grid.Row="0" Classes="ChromeBar top" Padding="8,6">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="{Binding FitToWindowButtonText}"
                     Command="{Binding ToggleFitToWindowCommand}" />
@@ -111,21 +81,20 @@
                                    SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
                                    HasImage="{Binding SelectedSlot.HasImage}" />
 
-        <Border Grid.Row="2"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="8,0"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-          <TextBlock Text="{Binding SelectedSlot.Dimensions}"
-                     VerticalAlignment="Center"
-                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
+          <z:EdgePanel>
+            <z:EdgePanel.StartContent>
+              <TextBlock Text="Dimensions" Classes="MutedCaption" />
+            </z:EdgePanel.StartContent>
+            <z:EdgePanel.EndContent>
+              <TextBlock Text="{Binding SelectedSlot.Dimensions}" Classes="MutedCaption" />
+            </z:EdgePanel.EndContent>
+          </z:EdgePanel>
         </Border>
 
-        <Border Grid.Row="3"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="8"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+        <z:HeaderedContainer Grid.Row="3"
+                             Header="Processing log"
+                             Classes="LogPanel">
           <ScrollViewer VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Auto">
             <TextBox Text="{Binding ProcessingLogText}"
@@ -138,7 +107,7 @@
                      BorderThickness="0"
                      Background="Transparent" />
           </ScrollViewer>
-        </Border>
+        </z:HeaderedContainer>
       </Grid>
     </Grid>
   </DockPanel>
