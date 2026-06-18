@@ -39,6 +39,18 @@ public sealed class StorageFileDialogService : IFileDialogService
         return files.Count == 0 ? null : files[0].Path.LocalPath;
     }
 
+    public async Task<string?> OpenFolder()
+    {
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions
+            {
+                Title = "Export channels",
+                AllowMultiple = false,
+            });
+
+        return folders.Count == 0 ? null : folders[0].Path.LocalPath;
+    }
+
     public async Task<string?> SavePng()
     {
         var file = await owner.StorageProvider.SaveFilePickerAsync(

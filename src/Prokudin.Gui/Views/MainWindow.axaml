@@ -27,6 +27,7 @@
         <MenuItem Header="Open _Triptych..." Command="{Binding OpenTriptychCommand}" />
         <Separator />
         <MenuItem Header="_Export PNG..." Command="{Binding ExportCommand}" />
+        <MenuItem Header="Export _Channels..." Command="{Binding ExportChannelsCommand}" />
       </MenuItem>
       <MenuItem Header="_Edit">
         <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
@@ -50,6 +51,7 @@
                     SelectedItem="{Binding SelectedTriptychOrder}" />
           <Button Content="Auto-align" Command="{Binding AutoAlignCommand}" />
           <Button Content="Export PNG" Command="{Binding ExportCommand}" />
+          <Button Content="Export channels" Command="{Binding ExportChannelsCommand}" />
         </StackPanel>
         <z:EdgePanel Grid.Column="1">
           <z:EdgePanel.EndContent>

@@ -116,6 +116,65 @@ public static class Cropper
         return found ? (minX, minY, maxX + 1, maxY + 1) : null;
     }
 
+    public static (int X0, int Y0, int X1, int Y1)? LargestFullOverlapRectangle(
+        byte[] maskRed,
+        byte[] maskGreen,
+        byte[] maskBlue,
+        int width,
+        int height)
+    {
+        ValidateMaskDimensions(maskRed, width, height, nameof(maskRed));
+        ValidateMaskDimensions(maskGreen, width, height, nameof(maskGreen));
+        ValidateMaskDimensions(maskBlue, width, height, nameof(maskBlue));
+
+        var heights = new int[width];
+        var stack = new List<int>(width);
+        var bestArea = 0;
+        var bestX0 = 0;
+        var bestY0 = 0;
+        var bestX1 = 0;
+        var bestY1 = 0;
+
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var index = (y * width) + x;
+                heights[x] = maskRed[index] > 0 && maskGreen[index] > 0 && maskBlue[index] > 0
+                    ? heights[x] + 1
+                    : 0;
+            }
+
+            stack.Clear();
+            for (var x = 0; x <= width; x++)
+            {
+                var currentHeight = x == width ? 0 : heights[x];
+                while (stack.Count > 0 && currentHeight < heights[stack[^1]])
+                {
+                    var heightAtColumn = heights[stack[^1]];
+                    stack.RemoveAt(stack.Count - 1);
+                    var x0 = stack.Count == 0 ? 0 : stack[^1] + 1;
+                    var rectangleWidth = x - x0;
+                    var area = heightAtColumn * rectangleWidth;
+                    if (area <= bestArea)
+                    {
+                        continue;
+                    }
+
+                    bestArea = area;
+                    bestX0 = x0;
+                    bestY0 = y - heightAtColumn + 1;
+                    bestX1 = x;
+                    bestY1 = y + 1;
+                }
+
+                stack.Add(x);
+            }
+        }
+
+        return bestArea == 0 ? null : (bestX0, bestY0, bestX1, bestY1);
+    }
+
     public static (int X0, int Y0, int X1, int Y1)? NonBlackBoundingBox(
         RgbImageBuffer rgb,
         float threshold = 5.0f / 255.0f)
@@ -195,6 +254,24 @@ public static class Cropper
         }
 
         return cropped;
+    }
+
+    private static void ValidateMaskDimensions(byte[] mask, int width, int height, string parameterName)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height));
+        }
+
+        if (mask.Length != width * height)
+        {
+            throw new ArgumentException("Mask dimensions must match the source image.", parameterName);
+        }
     }
 
     public static RgbImageBuffer EnforceGrayscaleOutsideOverlap(RgbImageBuffer rgb, byte[] overlap)

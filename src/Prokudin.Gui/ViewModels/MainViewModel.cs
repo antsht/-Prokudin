@@ -78,6 +78,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
     [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportChannelsCommand))]
     private bool isBusy;
 
     [ObservableProperty]
@@ -183,7 +184,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (SelectedSlot.Result is { } rgb)
         {
             ResultSlot.Result = rgb.Crop(rect.X, rect.Y, rect.Width, rect.Height);
-            lastAligned = null;
+            CropPreparedChannelsToResultSelection(rgb.Width, rgb.Height, rect);
             AppendLog($"Cropped result to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {ResultSlot.Result.Width}x{ResultSlot.Result.Height}.");
             Status = $"Cropped result to {ResultSlot.Result.Width} x {ResultSlot.Result.Height}.";
         }
@@ -349,10 +350,13 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 var settings = CurrentPipelineSettings();
                 var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
-                var built = ReconstructionPipeline.BuildRgb(aligned, settings);
-                return (built.Rgb, built.CropInfo, Aligned: aligned);
+                var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
+                var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings with { Crop = settings.Crop with { SkipCrop = true } });
+                return (built.Rgb, prepared.CropInfo, Aligned: prepared.Channels);
             });
 
+            PushUndo();
+            SetPreparedChannels(result.Aligned);
             lastAligned = result.Aligned;
             ResultSlot.Result = result.Rgb;
             SelectedSlot = ResultSlot;
@@ -380,6 +384,34 @@ public sealed partial class MainViewModel : ObservableObject
             await Task.Run(async () => await ImageLoader.SavePngAsync(path, result));
             Status = $"Exported {path}.";
             AppendLog($"Export complete: {path}");
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExportChannels))]
+    private async Task ExportChannels()
+    {
+        await RunOperation(async () =>
+        {
+            var folder = await fileDialogService.OpenFolder();
+            if (folder is null ||
+                RedSlot.Image is not { } red ||
+                GreenSlot.Image is not { } green ||
+                BlueSlot.Image is not { } blue)
+            {
+                return;
+            }
+
+            Status = $"Exporting channels to {folder}...";
+            AppendLog($"Exporting working channels to {folder}");
+            await Task.Run(async () =>
+            {
+                await ImageLoader.SaveGrayscalePngAsync(Path.Combine(folder, "red.png"), red);
+                await ImageLoader.SaveGrayscalePngAsync(Path.Combine(folder, "green.png"), green);
+                await ImageLoader.SaveGrayscalePngAsync(Path.Combine(folder, "blue.png"), blue);
+            });
+
+            Status = $"Exported channels to {folder}.";
+            AppendLog($"Channel export complete: {folder}");
         });
     }
 
@@ -450,6 +482,7 @@ public sealed partial class MainViewModel : ObservableObject
             IsBusy = false;
             AutoAlignCommand.NotifyCanExecuteChanged();
             ExportCommand.NotifyCanExecuteChanged();
+            ExportChannelsCommand.NotifyCanExecuteChanged();
             CropToSelectionCommand.NotifyCanExecuteChanged();
             AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
             ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
@@ -463,6 +496,54 @@ public sealed partial class MainViewModel : ObservableObject
         slot.SourcePath = sourcePath;
     }
 
+    private void SetPreparedChannels(AlignedChannels aligned)
+    {
+        RedSlot.Image = aligned.Red;
+        GreenSlot.Image = aligned.Green;
+        BlueSlot.Image = aligned.Blue;
+    }
+
+    private void CropPreparedChannelsToResultSelection(int sourceWidth, int sourceHeight, ImageSelectionRect rect)
+    {
+        if (RedSlot.Image is not { } red ||
+            GreenSlot.Image is not { } green ||
+            BlueSlot.Image is not { } blue ||
+            red.Width != sourceWidth ||
+            green.Width != sourceWidth ||
+            blue.Width != sourceWidth ||
+            red.Height != sourceHeight ||
+            green.Height != sourceHeight ||
+            blue.Height != sourceHeight)
+        {
+            lastAligned = null;
+            return;
+        }
+
+        var cropInfo = new CropInfo(
+            rect.X,
+            rect.Y,
+            rect.X + rect.Width,
+            rect.Y + rect.Height,
+            rect.X,
+            rect.Y,
+            rect.X + rect.Width,
+            rect.Y + rect.Height);
+
+        RedSlot.Image = red.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+        GreenSlot.Image = green.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+        BlueSlot.Image = blue.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+        if (lastAligned is { } aligned &&
+            aligned.Red.Width == sourceWidth &&
+            aligned.Red.Height == sourceHeight)
+        {
+            lastAligned = AlignedChannelCropper.Crop(aligned, cropInfo);
+        }
+        else
+        {
+            lastAligned = null;
+        }
+    }
+
     private ChannelSlotViewModel GetSlot(ChannelName channelName)
     {
         return channelName switch
@@ -474,7 +555,32 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
-    private PipelineSettings CurrentPipelineSettings()
+    private static bool CanReplacePreparedChannel(AlignedChannels aligned, ChannelName channelName, ImageBuffer image)
+    {
+        var current = channelName switch
+        {
+            ChannelName.Red => aligned.Red,
+            ChannelName.Green => aligned.Green,
+            ChannelName.Blue => aligned.Blue,
+            _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
+        };
+
+        return current.Width == image.Width && current.Height == image.Height;
+    }
+
+    private static AlignedChannels ReplaceAlignedChannel(AlignedChannels aligned, ChannelName channelName, ImageBuffer image)
+    {
+        var mask = FullMask(image);
+        return channelName switch
+        {
+            ChannelName.Red => aligned with { Red = image, MaskRed = mask },
+            ChannelName.Green => aligned with { Green = image, MaskGreen = mask },
+            ChannelName.Blue => aligned with { Blue = image, MaskBlue = mask },
+            _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
+        };
+    }
+
+    private PipelineSettings CurrentPipelineSettings(bool skipCrop = false)
     {
         return new PipelineSettings
         {
@@ -484,20 +590,33 @@ public sealed partial class MainViewModel : ObservableObject
                 (float)RedExposureStops,
                 (float)GreenExposureStops,
                 (float)BlueExposureStops),
+            Crop = new CropSettings { SkipCrop = skipCrop },
         };
     }
 
     private void RefreshAlignedAfterInputEdit(ChannelName channelName)
     {
-        if (lastAligned is not { } aligned ||
-            aligned.AlignTransforms?.TryGetValue(channelName, out var transform) != true)
+        if (lastAligned is not { } aligned)
         {
             ClearAlignedAfterInputEdit();
             return;
         }
 
         var slot = GetSlot(channelName);
-        if (slot.Image is not { } image || !transform.CanApplyTo(image))
+        if (slot.Image is not { } image)
+        {
+            ClearAlignedAfterInputEdit();
+            return;
+        }
+
+        if (CanReplacePreparedChannel(aligned, channelName, image))
+        {
+            lastAligned = ReplaceAlignedChannel(aligned, channelName, image);
+            ScheduleResultRebuild();
+            return;
+        }
+
+        if (aligned.AlignTransforms?.TryGetValue(channelName, out var transform) != true || !transform.CanApplyTo(image))
         {
             ClearAlignedAfterInputEdit();
             return;
@@ -546,7 +665,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            var settings = CurrentPipelineSettings();
+            var settings = CurrentPipelineSettings(skipCrop: true);
             var result = await Task.Run(() => ReconstructionPipeline.BuildRgb(aligned, settings), cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
@@ -580,6 +699,11 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanExport()
     {
         return !IsBusy && ResultSlot.Result is not null;
+    }
+
+    private bool CanExportChannels()
+    {
+        return !IsBusy && RedSlot.Image is not null && GreenSlot.Image is not null && BlueSlot.Image is not null;
     }
 
     private bool CanCropToSelection()
@@ -801,6 +925,13 @@ public sealed partial class MainViewModel : ObservableObject
                 Matrix = (double[])pair.Value.Matrix.Clone(),
                 Shifts = pair.Value.Shifts.ToArray(),
             });
+    }
+
+    private static byte[] FullMask(ImageBuffer image)
+    {
+        var mask = new byte[image.Width * image.Height];
+        Array.Fill(mask, (byte)1);
+        return mask;
     }
 
     private void NotifyHistoryCommands()

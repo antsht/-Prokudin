@@ -4,6 +4,8 @@ namespace Prokudin.Core.Pipeline;
 
 public sealed record CropSettings
 {
+    public bool SkipCrop { get; init; }
+
     public bool UseManual { get; init; }
 
     public int ManualX0 { get; init; }

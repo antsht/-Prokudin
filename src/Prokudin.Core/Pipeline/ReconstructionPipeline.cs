@@ -161,6 +161,12 @@ public static class ReconstructionPipeline
 
     private static (RgbImageBuffer Rgb, CropInfo Info) ApplyCrop(RgbImageBuffer rgb, byte[] overlap, CropSettings crop)
     {
+        if (crop.SkipCrop)
+        {
+            var bbox = Cropper.OverlapBoundingBox(overlap, rgb.Width, rgb.Height) ?? (0, 0, rgb.Width, rgb.Height);
+            return (rgb, new CropInfo(0, 0, rgb.Width, rgb.Height, bbox.X0, bbox.Y0, bbox.X1, bbox.Y1));
+        }
+
         if (crop.UseManual && crop.ManualX1 > crop.ManualX0 && crop.ManualY1 > crop.ManualY0)
         {
             var x0 = Math.Clamp(crop.ManualX0, 0, rgb.Width - 1);

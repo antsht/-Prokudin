@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Prokudin.Core.Alignment;
+using Prokudin.Core.Color;
+using Prokudin.Core.Crop;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 
@@ -29,6 +31,35 @@ public sealed class ReconstructionPipelineTests
         rgb.Width.Should().BeGreaterThan(80);
     }
 
+    [Fact]
+    public void BuildRgb_WithSkipCropPreservesPreparedChannelSize()
+    {
+        const int width = 5;
+        const int height = 3;
+        var mask = Enumerable.Repeat((byte)1, width * height).ToArray();
+        var aligned = new AlignedChannels(
+            ChannelWithBlackColumns(width, height),
+            ChannelWithBlackColumns(width, height),
+            ChannelWithBlackColumns(width, height),
+            mask,
+            mask,
+            mask,
+            new Dictionary<ChannelName, AlignChannelMetadata>());
+
+        var (rgb, cropInfo) = ReconstructionPipeline.BuildRgb(
+            aligned,
+            new PipelineSettings
+            {
+                Color = new ColorSettings(AutoWhiteBalance: false),
+                Crop = new CropSettings { SkipCrop = true },
+                Sharpen = false,
+            });
+
+        rgb.Width.Should().Be(width);
+        rgb.Height.Should().Be(height);
+        cropInfo.Should().Be(new CropInfo(0, 0, width, height, 0, 0, width, height));
+    }
+
     private static ImageBuffer SyntheticChannel()
     {
         var image = ImageBuffer.Filled(128, 128, 0.0f);
@@ -45,6 +76,20 @@ public sealed class ReconstructionPipelineTests
             for (var x = 54; x < 86; x++)
             {
                 image[x, y] = 0.85f;
+            }
+        }
+
+        return image;
+    }
+
+    private static ImageBuffer ChannelWithBlackColumns(int width, int height)
+    {
+        var image = ImageBuffer.Filled(width, height, 0.0f);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 1; x < width - 1; x++)
+            {
+                image[x, y] = 0.5f;
             }
         }
 
