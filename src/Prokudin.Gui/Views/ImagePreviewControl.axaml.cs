@@ -35,12 +35,17 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<int> BrushSizeProperty =
         AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(BrushSize), 12);
 
+    public static readonly StyledProperty<int> InpaintRadiusProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(InpaintRadius), 3);
+
     public static readonly StyledProperty<ICommand?> RetouchStrokeCommandProperty =
         AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(RetouchStrokeCommand));
 
     private Point? selectionStart;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
+    private List<Point>? retouchPreviewPoints;
+    private Point? retouchCursorImagePoint;
     private bool isRetouching;
 
     public ImagePreviewControl()
@@ -85,6 +90,12 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(BrushSizeProperty, value);
     }
 
+    public int InpaintRadius
+    {
+        get => GetValue(InpaintRadiusProperty);
+        set => SetValue(InpaintRadiusProperty, value);
+    }
+
     public ICommand? RetouchStrokeCommand
     {
         get => GetValue(RetouchStrokeCommandProperty);
@@ -97,9 +108,28 @@ public sealed partial class ImagePreviewControl : UserControl
 
         if (change.Property == DisplayBitmapProperty ||
             change.Property == ZoomModeProperty ||
+            change.Property == HasImageProperty ||
             change.Property == SelectionRectProperty)
         {
             ApplyLayout();
+        }
+
+        if (change.Property == BrushSizeProperty ||
+            change.Property == InpaintRadiusProperty)
+        {
+            UpdateRetouchOverlay();
+        }
+
+        if (change.Property == InteractionModeProperty)
+        {
+            if (InteractionMode == PreviewInteractionMode.Retouch)
+            {
+                UpdateRetouchOverlay();
+            }
+            else
+            {
+                ClearRetouchOverlayState();
+            }
         }
     }
 
@@ -114,6 +144,7 @@ public sealed partial class ImagePreviewControl : UserControl
             ImageHost.MinWidth = 0;
             ImageHost.MinHeight = 0;
             SelectionRectangle.IsVisible = false;
+            ClearRetouchOverlayState();
             return;
         }
 
@@ -134,7 +165,10 @@ public sealed partial class ImagePreviewControl : UserControl
             PreviewImage.Height = pixelSize.Height;
             SelectionOverlay.Width = pixelSize.Width;
             SelectionOverlay.Height = pixelSize.Height;
+            RetouchOverlay.Width = pixelSize.Width;
+            RetouchOverlay.Height = pixelSize.Height;
             UpdateSelectionOverlay(1.0, 0, 0);
+            UpdateRetouchOverlay(1.0, 0, 0);
         }
         else
         {
@@ -157,9 +191,12 @@ public sealed partial class ImagePreviewControl : UserControl
             ImageHost.Height = viewport.Height;
             SelectionOverlay.Width = viewport.Width;
             SelectionOverlay.Height = viewport.Height;
+            RetouchOverlay.Width = viewport.Width;
+            RetouchOverlay.Height = viewport.Height;
 
             var (scale, offsetX, offsetY) = GetFitTransform(pixelSize.Width, pixelSize.Height, viewport.Width, viewport.Height);
             UpdateSelectionOverlay(scale, offsetX, offsetY);
+            UpdateRetouchOverlay(scale, offsetX, offsetY);
         }
     }
 
@@ -195,6 +232,151 @@ public sealed partial class ImagePreviewControl : UserControl
         var offsetX = (hostWidth - renderedWidth) / 2.0;
         var offsetY = (hostHeight - renderedHeight) / 2.0;
         return (scale, offsetX, offsetY);
+    }
+
+    private (double Scale, double OffsetX, double OffsetY) GetCurrentImageTransform()
+    {
+        if (DisplayBitmap is not { } bitmap)
+        {
+            return (1.0, 0, 0);
+        }
+
+        if (ZoomMode == PreviewZoomMode.OneToOne)
+        {
+            return (1.0, 0, 0);
+        }
+
+        var pixelSize = bitmap.PixelSize;
+        return GetFitTransform(pixelSize.Width, pixelSize.Height, ImageHost.Bounds.Width, ImageHost.Bounds.Height);
+    }
+
+    private void UpdateRetouchOverlay()
+    {
+        var (scale, offsetX, offsetY) = GetCurrentImageTransform();
+        UpdateRetouchOverlay(scale, offsetX, offsetY);
+    }
+
+    private void UpdateRetouchOverlay(double scale, double offsetX, double offsetY)
+    {
+        if (DisplayBitmap is null || !HasImage || InteractionMode != PreviewInteractionMode.Retouch)
+        {
+            HideRetouchOverlay();
+            return;
+        }
+
+        UpdateRetouchCursor(scale, offsetX, offsetY);
+        UpdateRetouchStrokePreview(scale, offsetX, offsetY);
+    }
+
+    private void UpdateRetouchCursor(double scale, double offsetX, double offsetY)
+    {
+        if (retouchCursorImagePoint is not { } imagePoint)
+        {
+            RetouchBrushCircle.IsVisible = false;
+            RetouchRadiusCircle.IsVisible = false;
+            return;
+        }
+
+        var geometry = RetouchPreviewGeometryCalculator.CalculateCursor(
+            HasImage,
+            InteractionMode,
+            imagePoint.X,
+            imagePoint.Y,
+            BrushSize,
+            InpaintRadius,
+            scale,
+            offsetX,
+            offsetY);
+
+        if (!geometry.IsVisible)
+        {
+            RetouchBrushCircle.IsVisible = false;
+            RetouchRadiusCircle.IsVisible = false;
+            return;
+        }
+
+        PositionCircle(RetouchBrushCircle, geometry.CenterX, geometry.CenterY, geometry.BrushDiameter);
+        PositionCircle(RetouchRadiusCircle, geometry.CenterX, geometry.CenterY, geometry.OuterDiameter);
+    }
+
+    private void UpdateRetouchStrokePreview(double scale, double offsetX, double offsetY)
+    {
+        if (retouchPreviewPoints is not { Count: > 1 } points)
+        {
+            RetouchStrokePreview.IsVisible = false;
+            RetouchStrokePreview.Data = null;
+            return;
+        }
+
+        RetouchStrokePreview.Data = BuildStrokeGeometry(points, scale, offsetX, offsetY);
+        RetouchStrokePreview.StrokeThickness = Math.Clamp(BrushSize, 1, 200) * scale;
+        RetouchStrokePreview.IsVisible = true;
+    }
+
+    private void HideRetouchOverlay()
+    {
+        RetouchBrushCircle.IsVisible = false;
+        RetouchRadiusCircle.IsVisible = false;
+        RetouchStrokePreview.IsVisible = false;
+        RetouchStrokePreview.Data = null;
+    }
+
+    private void ClearRetouchOverlayState()
+    {
+        retouchCursorImagePoint = null;
+        retouchPreviewPoints = null;
+        HideRetouchOverlay();
+    }
+
+    private bool TryUpdateRetouchCursor(Point hostPoint, bool clampToImage)
+    {
+        if (TryMapToImage(hostPoint, out var imagePoint))
+        {
+            retouchCursorImagePoint = imagePoint;
+            UpdateRetouchOverlay();
+            return true;
+        }
+
+        if (clampToImage && DisplayBitmap is not null)
+        {
+            retouchCursorImagePoint = ClampPointToImage(hostPoint);
+            UpdateRetouchOverlay();
+            return true;
+        }
+
+        retouchCursorImagePoint = null;
+        UpdateRetouchOverlay();
+        return false;
+    }
+
+    private static void PositionCircle(Ellipse circle, double centerX, double centerY, double diameter)
+    {
+        circle.Width = diameter;
+        circle.Height = diameter;
+        Canvas.SetLeft(circle, centerX - (diameter / 2.0));
+        Canvas.SetTop(circle, centerY - (diameter / 2.0));
+        circle.IsVisible = diameter > 0;
+    }
+
+    private static StreamGeometry BuildStrokeGeometry(IReadOnlyList<Point> imagePoints, double scale, double offsetX, double offsetY)
+    {
+        var geometry = new StreamGeometry();
+        using var context = geometry.Open();
+        context.BeginFigure(ToOverlayPoint(imagePoints[0], scale, offsetX, offsetY), isFilled: false);
+
+        for (var i = 1; i < imagePoints.Count; i++)
+        {
+            context.LineTo(ToOverlayPoint(imagePoints[i], scale, offsetX, offsetY));
+        }
+
+        return geometry;
+    }
+
+    private static Point ToOverlayPoint(Point imagePoint, double scale, double offsetX, double offsetY)
+    {
+        return new Point(
+            offsetX + (imagePoint.X * scale),
+            offsetY + (imagePoint.Y * scale));
     }
 
     private bool TryMapToImage(Point point, out Point imagePoint)
@@ -252,6 +434,9 @@ public sealed partial class ImagePreviewControl : UserControl
         {
             isRetouching = true;
             retouchPoints = [new RetouchPoint((float)imagePoint.X, (float)imagePoint.Y)];
+            retouchPreviewPoints = [imagePoint];
+            retouchCursorImagePoint = imagePoint;
+            UpdateRetouchOverlay();
             e.Pointer.Capture(ImageHost);
             e.Handled = true;
             return;
@@ -266,16 +451,23 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (isRetouching && retouchPoints is not null)
+        if (InteractionMode == PreviewInteractionMode.Retouch)
         {
             var retouchPoint = e.GetPosition(ImageHost);
-            if (!TryMapToImage(retouchPoint, out var retouchImagePoint))
+            if (!TryUpdateRetouchCursor(retouchPoint, isRetouching))
             {
-                retouchImagePoint = ClampPointToImage(retouchPoint);
+                return;
             }
 
-            retouchPoints.Add(new RetouchPoint((float)retouchImagePoint.X, (float)retouchImagePoint.Y));
-            e.Handled = true;
+            if (isRetouching && retouchPoints is not null && retouchCursorImagePoint is { } retouchImagePoint)
+            {
+                retouchPoints.Add(new RetouchPoint((float)retouchImagePoint.X, (float)retouchImagePoint.Y));
+                retouchPreviewPoints ??= [];
+                retouchPreviewPoints.Add(retouchImagePoint);
+                UpdateRetouchOverlay();
+                e.Handled = true;
+            }
+
             return;
         }
 
@@ -302,6 +494,7 @@ public sealed partial class ImagePreviewControl : UserControl
             isRetouching = false;
             var points = retouchPoints?.ToArray() ?? [];
             retouchPoints = null;
+            retouchPreviewPoints = null;
             e.Pointer.Capture(null);
 
             var stroke = new RetouchStroke(points, Math.Clamp(BrushSize, 1, 200));
@@ -310,6 +503,7 @@ public sealed partial class ImagePreviewControl : UserControl
                 RetouchStrokeCommand.Execute(stroke);
             }
 
+            UpdateRetouchOverlay();
             e.Handled = true;
             return;
         }
@@ -323,6 +517,17 @@ public sealed partial class ImagePreviewControl : UserControl
         selectionStart = null;
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    private void ImageHost_OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (isRetouching)
+        {
+            return;
+        }
+
+        retouchCursorImagePoint = null;
+        UpdateRetouchOverlay();
     }
 
     private Point ClampPointToImage(Point point)

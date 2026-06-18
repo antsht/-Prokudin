@@ -6,12 +6,20 @@
       <Color x:Key="ThumbnailPlaceholderColor">#D8D8D8</Color>
       <Color x:Key="SelectionStrokeColor">#0288D1</Color>
       <Color x:Key="SelectionFillColor">#330288D1</Color>
+      <Color x:Key="RetouchCursorStrokeColor">#F57C00</Color>
+      <Color x:Key="RetouchCursorRadiusStrokeColor">#CCF57C00</Color>
+      <Color x:Key="RetouchCursorFillColor">#24F57C00</Color>
+      <Color x:Key="RetouchStrokePreviewColor">#3DF57C00</Color>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <Color x:Key="PreviewBackgroundColor">#141414</Color>
       <Color x:Key="ThumbnailPlaceholderColor">#202020</Color>
       <Color x:Key="SelectionStrokeColor">#4FC3F7</Color>
       <Color x:Key="SelectionFillColor">#334FC3F7</Color>
+      <Color x:Key="RetouchCursorStrokeColor">#FFB74D</Color>
+      <Color x:Key="RetouchCursorRadiusStrokeColor">#CCFFB74D</Color>
+      <Color x:Key="RetouchCursorFillColor">#24FFB74D</Color>
+      <Color x:Key="RetouchStrokePreviewColor">#3DFFB74D</Color>
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 
@@ -19,4 +27,8 @@
   <SolidColorBrush x:Key="ThumbnailPlaceholderBrush" Color="{DynamicResource ThumbnailPlaceholderColor}" />
   <SolidColorBrush x:Key="SelectionStrokeBrush" Color="{DynamicResource SelectionStrokeColor}" />
   <SolidColorBrush x:Key="SelectionFillBrush" Color="{DynamicResource SelectionFillColor}" />
+  <SolidColorBrush x:Key="RetouchCursorStrokeBrush" Color="{DynamicResource RetouchCursorStrokeColor}" />
+  <SolidColorBrush x:Key="RetouchCursorRadiusStrokeBrush" Color="{DynamicResource RetouchCursorRadiusStrokeColor}" />
+  <SolidColorBrush x:Key="RetouchCursorFillBrush" Color="{DynamicResource RetouchCursorFillColor}" />
+  <SolidColorBrush x:Key="RetouchStrokePreviewBrush" Color="{DynamicResource RetouchStrokePreviewColor}" />
 </ResourceDictionary>

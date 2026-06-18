@@ -171,6 +171,7 @@
                                    HasImage="{Binding SelectedSlot.HasImage}"
                                    InteractionMode="{Binding PreviewInteractionMode}"
                                    BrushSize="{Binding BrushSize}"
+                                   InpaintRadius="{Binding AutoCleanRadius}"
                                    RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}" />
 
         <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">

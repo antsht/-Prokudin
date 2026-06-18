@@ -11,7 +11,8 @@
           Background="Transparent"
           PointerPressed="ImageHost_OnPointerPressed"
           PointerMoved="ImageHost_OnPointerMoved"
-          PointerReleased="ImageHost_OnPointerReleased">
+          PointerReleased="ImageHost_OnPointerReleased"
+          PointerExited="ImageHost_OnPointerExited">
       <Image x:Name="PreviewImage"
              Stretch="None"
              HorizontalAlignment="Left"
@@ -23,6 +24,24 @@
                    StrokeThickness="1"
                    Fill="{DynamicResource SelectionFillBrush}"
                    IsVisible="False" />
+      </Canvas>
+      <Canvas x:Name="RetouchOverlay"
+              IsHitTestVisible="False">
+        <Path x:Name="RetouchStrokePreview"
+              Stroke="{DynamicResource RetouchStrokePreviewBrush}"
+              StrokeLineCap="Round"
+              StrokeJoin="Round"
+              IsVisible="False" />
+        <Ellipse x:Name="RetouchRadiusCircle"
+                 Stroke="{DynamicResource RetouchCursorRadiusStrokeBrush}"
+                 StrokeThickness="1"
+                 StrokeDashArray="4,3"
+                 IsVisible="False" />
+        <Ellipse x:Name="RetouchBrushCircle"
+                 Stroke="{DynamicResource RetouchCursorStrokeBrush}"
+                 StrokeThickness="1.25"
+                 Fill="{DynamicResource RetouchCursorFillBrush}"
+                 IsVisible="False" />
       </Canvas>
     </Grid>
   </ScrollViewer>
