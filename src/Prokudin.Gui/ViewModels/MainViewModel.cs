@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Prokudin.Core.Alignment;
@@ -8,6 +9,7 @@ using Prokudin.Core.Crop;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 using Prokudin.Core.Retouch;
+using Prokudin.Gui.Imaging;
 using Prokudin.Gui.Services;
 
 namespace Prokudin.Gui.ViewModels;
@@ -28,6 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool suppressExportSettingsSave;
     private int exposureChangeVersion;
     private int previewImageContextVersion;
+    private Bitmap? autoCleanMaskOverlayBitmap;
 
     public MainViewModel(IFileDialogService fileDialogService)
         : this(fileDialogService, new JsonExportSettingsStore())
@@ -83,9 +86,14 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
     [NotifyCanExecuteChangedFor(nameof(AutoCleanSelectedChannelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyAutoCleanMaskCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelAutoCleanMaskCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EditAutoCleanMaskCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRetouchStrokeCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyStampStrokeCommand))]
     [NotifyPropertyChangedFor(nameof(PreviewImageContextKey))]
+    [NotifyPropertyChangedFor(nameof(PreviewDisplayBitmap))]
+    [NotifyPropertyChangedFor(nameof(PreviewHasImage))]
     private ChannelSlotViewModel? selectedSlot;
 
     [ObservableProperty]
@@ -98,6 +106,9 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(OpenTriptychCommand))]
     [NotifyCanExecuteChangedFor(nameof(AutoAlignCommand))]
     [NotifyCanExecuteChangedFor(nameof(AutoCleanSelectedChannelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyAutoCleanMaskCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelAutoCleanMaskCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EditAutoCleanMaskCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRetouchStrokeCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyStampStrokeCommand))]
     [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
@@ -130,6 +141,22 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int autoCleanRadius = 3;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAutoCleanMaskPending))]
+    [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
+    private byte[]? pendingAutoCleanMask;
+
+    [ObservableProperty]
+    private ChannelName? pendingAutoCleanChannel;
+
+    [ObservableProperty]
+    private int pendingAutoCleanCandidatePixels;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewDisplayBitmap))]
+    [NotifyPropertyChangedFor(nameof(PreviewHasImage))]
+    private bool showAutoCleanResultPreview;
 
     [ObservableProperty]
     private bool autoWhiteBalance = true;
@@ -176,7 +203,11 @@ public sealed partial class MainViewModel : ObservableObject
     private int tiffDeflateLevel = RgbExportSettings.Default.TiffDeflateLevel;
 
     public PreviewInteractionMode PreviewInteractionMode =>
-        ToolMode == EditorToolMode.Select ? PreviewInteractionMode.Selection : PreviewInteractionMode.Retouch;
+        IsAutoCleanMaskPending
+            ? PreviewInteractionMode.MaskReview
+            : ToolMode == EditorToolMode.Select
+                ? PreviewInteractionMode.Selection
+                : PreviewInteractionMode.Retouch;
 
     public RetouchTool SelectedRetouchTool =>
         ToolMode == EditorToolMode.Clone ? RetouchTool.Stamp : RetouchTool.Heal;
@@ -235,6 +266,37 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string PreviewImageContextKey => $"{SelectedSlot?.DisplayName ?? "none"}:{previewImageContextVersion}";
 
+    public bool IsAutoCleanMaskPending => PendingAutoCleanMask is not null && PendingAutoCleanChannel.HasValue;
+
+    public Bitmap? PreviewDisplayBitmap =>
+        IsAutoCleanMaskPending && ShowAutoCleanResultPreview && ResultSlot.DisplayBitmap is not null
+            ? ResultSlot.DisplayBitmap
+            : SelectedSlot?.DisplayBitmap;
+
+    public bool PreviewHasImage => PreviewDisplayBitmap is not null;
+
+    public Bitmap? AutoCleanMaskOverlayBitmap
+    {
+        get => autoCleanMaskOverlayBitmap;
+        private set
+        {
+            if (ReferenceEquals(autoCleanMaskOverlayBitmap, value))
+            {
+                return;
+            }
+
+            var previous = autoCleanMaskOverlayBitmap;
+            if (SetProperty(ref autoCleanMaskOverlayBitmap, value))
+            {
+                previous?.Dispose();
+            }
+            else
+            {
+                value?.Dispose();
+            }
+        }
+    }
+
     [RelayCommand]
     private void ToggleFitToWindow()
     {
@@ -252,6 +314,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        ClearPendingAutoCleanMask();
         CloseExposureUndoWindow();
         var snapshot = undoHistory[^1];
         undoHistory.RemoveAt(undoHistory.Count - 1);
@@ -270,6 +333,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        ClearPendingAutoCleanMask();
         CloseExposureUndoWindow();
         var snapshot = redoHistory[^1];
         redoHistory.RemoveAt(redoHistory.Count - 1);
@@ -311,34 +375,90 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshPreviewImageContext();
     }
 
-    [RelayCommand(CanExecute = nameof(CanEditSelectedInputChannel))]
+    [RelayCommand(CanExecute = nameof(CanDetectAutoCleanMask))]
     private async Task AutoCleanSelectedChannel()
     {
         await RunOperation(async () =>
         {
-            if (SelectedSlot is not { Image: { } image, ChannelName: { } channelName })
+            if (!TryGetSelectedAutoCleanInputs(out var channelName, out var target, out var other1, out var other2))
             {
                 return;
             }
 
-            Status = $"Auto-cleaning {SelectedSlot.DisplayName}...";
+            Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
             var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
-            var result = await Task.Run(() => ChannelRetoucher.AutoClean(image, settings));
-            var changedPixels = result.Mask.Count(value => value > 0);
-            if (changedPixels == 0)
+            var result = await Task.Run(() => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings));
+            if (result.CandidatePixels == 0)
             {
                 Status = $"No dust/scratch candidates found in {SelectedSlot.DisplayName}.";
-                AppendLog($"Auto-clean {SelectedSlot.DisplayName}: no candidates.");
+                AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: no candidates.");
                 return;
             }
 
-            PushUndo();
-            SelectedSlot.Image = result.Image;
-            RefreshAlignedAfterInputEdit(channelName);
-            RefreshPreviewImageContext();
-            Status = $"Auto-cleaned {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
-            AppendLog($"Auto-clean {SelectedSlot.DisplayName}: {changedPixels} masked pixels, radius {settings.NormalizedInpaintRadius}, sensitivity {settings.NormalizedSensitivity}.");
+            BeginAutoCleanMaskReview(channelName, result.Mask, result.CandidatePixels);
+            Status = $"Review auto-clean mask for {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels.";
+            AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels, sensitivity {settings.NormalizedSensitivity}.");
         });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyAutoCleanMask))]
+    private void ApplyAutoCleanMask()
+    {
+        if (SelectedSlot is not { Image: { } image, ChannelName: { } channelName } ||
+            PendingAutoCleanMask is not { } mask ||
+            PendingAutoCleanChannel != channelName)
+        {
+            return;
+        }
+
+        var changedPixels = mask.Count(value => value > 0);
+        if (changedPixels == 0)
+        {
+            ClearPendingAutoCleanMask();
+            Status = $"Auto-clean mask for {SelectedSlot.DisplayName} is empty.";
+            return;
+        }
+
+        PushUndo();
+        SelectedSlot.Image = ChannelRetoucher.InpaintMask(image, mask, AutoCleanRadius);
+        ClearPendingAutoCleanMask();
+        RefreshAlignedAfterInputEdit(channelName);
+        RefreshPreviewImageContext();
+        Status = $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
+        AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {changedPixels} masked pixels, radius {Math.Clamp(AutoCleanRadius, 1, 24)}.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelAutoCleanMask))]
+    private void CancelAutoCleanMask()
+    {
+        var channel = SelectedSlot?.DisplayName ?? PendingAutoCleanChannel?.ToString() ?? "channel";
+        ClearPendingAutoCleanMask();
+        Status = $"Canceled auto-clean mask for {channel}.";
+        AppendLog($"Auto-clean mask canceled for {channel}.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditAutoCleanMask))]
+    private void EditAutoCleanMask(AutoCleanMaskEditOperation? operation)
+    {
+        if (operation is null ||
+            PendingAutoCleanMask is not { } mask ||
+            SelectedSlot?.Image is not { } image)
+        {
+            return;
+        }
+
+        if (operation.IsRectangle)
+        {
+            ApplyRectangleMaskEdit(mask, image.Width, image.Height, operation);
+        }
+        else
+        {
+            ApplyBrushMaskEdit(mask, image.Width, image.Height, operation);
+        }
+
+        PendingAutoCleanCandidatePixels = mask.Count(value => value > 0);
+        RefreshAutoCleanMaskOverlay();
+        OnPropertyChanged(nameof(PendingAutoCleanMask));
     }
 
     [RelayCommand(CanExecute = nameof(CanApplyRetouchStroke))]
@@ -358,6 +478,7 @@ public sealed partial class MainViewModel : ObservableObject
         PushUndo();
         SelectedSlot.Image = ChannelRetoucher.InpaintMask(image, mask, AutoCleanRadius);
         RefreshAlignedAfterInputEdit(channelName);
+        RefreshPreviewImageContext();
         var count = mask.Count(value => value > 0);
         Status = $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
         AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {count} masked pixels, brush {stroke.BrushSize}, radius {AutoCleanRadius}.");
@@ -381,6 +502,7 @@ public sealed partial class MainViewModel : ObservableObject
         PushUndo();
         SelectedSlot.Image = result.Image;
         RefreshAlignedAfterInputEdit(channelName);
+        RefreshPreviewImageContext();
         var count = result.Mask.Count(value => value > 0);
         Status = $"Stamped {SelectedSlot.DisplayName}: {count} blended pixels.";
         AppendLog($"Clone stamp {SelectedSlot.DisplayName}: {count} blended pixels, brush {stroke.DestinationStroke.BrushSize}, blend {Math.Clamp(stroke.BlendWidth, 1, 24)}.");
@@ -476,6 +598,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await RunOperation(async () =>
         {
+            ClearPendingAutoCleanMask();
             Status = "Running auto-align...";
             AppendLog("Auto-align started.");
             var channels = new Dictionary<ChannelName, ImageBuffer>
@@ -565,6 +688,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        ClearPendingAutoCleanMask();
         PushUndo();
         (source.Image, target.Image) = (target.Image, source.Image);
         (source.SourcePath, target.SourcePath) = (target.SourcePath, source.SourcePath);
@@ -629,6 +753,9 @@ public sealed partial class MainViewModel : ObservableObject
             ExportChannelsCommand.NotifyCanExecuteChanged();
             CropToSelectionCommand.NotifyCanExecuteChanged();
             AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
+            ApplyAutoCleanMaskCommand.NotifyCanExecuteChanged();
+            CancelAutoCleanMaskCommand.NotifyCanExecuteChanged();
+            EditAutoCleanMaskCommand.NotifyCanExecuteChanged();
             ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
             ApplyStampStrokeCommand.NotifyCanExecuteChanged();
             NotifyHistoryCommands();
@@ -637,6 +764,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void SetChannel(ChannelSlotViewModel slot, ImageBuffer image, string sourcePath)
     {
+        ClearPendingAutoCleanMask();
         slot.Image = image;
         slot.SourcePath = sourcePath;
         RefreshPreviewImageContext();
@@ -644,6 +772,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void SetPreparedChannels(AlignedChannels aligned)
     {
+        ClearPendingAutoCleanMask();
         RedSlot.Image = aligned.Red;
         GreenSlot.Image = aligned.Green;
         BlueSlot.Image = aligned.Blue;
@@ -688,6 +817,154 @@ public sealed partial class MainViewModel : ObservableObject
         else
         {
             lastAligned = null;
+        }
+    }
+
+    private bool TryGetSelectedAutoCleanInputs(
+        out ChannelName channelName,
+        out ImageBuffer target,
+        out ImageBuffer other1,
+        out ImageBuffer other2)
+    {
+        channelName = default;
+        target = null!;
+        other1 = null!;
+        other2 = null!;
+
+        if (SelectedSlot is not { Image: { } selectedImage, ChannelName: { } selectedChannel } ||
+            lastAligned is null ||
+            !CanReplacePreparedChannel(lastAligned, selectedChannel, selectedImage) ||
+            !TryGetWorkingChannels(out var red, out var green, out var blue))
+        {
+            return false;
+        }
+
+        channelName = selectedChannel;
+        target = selectedChannel switch
+        {
+            ChannelName.Red => red,
+            ChannelName.Green => green,
+            ChannelName.Blue => blue,
+            _ => throw new ArgumentOutOfRangeException(nameof(selectedChannel), selectedChannel, null),
+        };
+        (other1, other2) = selectedChannel switch
+        {
+            ChannelName.Red => (green, blue),
+            ChannelName.Green => (red, blue),
+            ChannelName.Blue => (red, green),
+            _ => throw new ArgumentOutOfRangeException(nameof(selectedChannel), selectedChannel, null),
+        };
+        return true;
+    }
+
+    private bool TryGetWorkingChannels(out ImageBuffer red, out ImageBuffer green, out ImageBuffer blue)
+    {
+        red = null!;
+        green = null!;
+        blue = null!;
+
+        if (RedSlot.Image is not { } r ||
+            GreenSlot.Image is not { } g ||
+            BlueSlot.Image is not { } b ||
+            r.Width != g.Width ||
+            r.Width != b.Width ||
+            r.Height != g.Height ||
+            r.Height != b.Height)
+        {
+            return false;
+        }
+
+        red = r;
+        green = g;
+        blue = b;
+        return true;
+    }
+
+    private void BeginAutoCleanMaskReview(ChannelName channelName, byte[] mask, int candidatePixels)
+    {
+        PendingAutoCleanChannel = channelName;
+        PendingAutoCleanMask = (byte[])mask.Clone();
+        PendingAutoCleanCandidatePixels = candidatePixels;
+        ShowAutoCleanResultPreview = false;
+        SelectionRect = ImageSelectionRect.Empty;
+        RefreshAutoCleanMaskOverlay();
+        RefreshPreviewBindings();
+        NotifyAutoCleanCommands();
+    }
+
+    private void ClearPendingAutoCleanMask()
+    {
+        if (PendingAutoCleanMask is null &&
+            PendingAutoCleanChannel is null &&
+            AutoCleanMaskOverlayBitmap is null)
+        {
+            return;
+        }
+
+        PendingAutoCleanMask = null;
+        PendingAutoCleanChannel = null;
+        PendingAutoCleanCandidatePixels = 0;
+        ShowAutoCleanResultPreview = false;
+        AutoCleanMaskOverlayBitmap = null;
+        RefreshPreviewBindings();
+        NotifyAutoCleanCommands();
+    }
+
+    private void RefreshAutoCleanMaskOverlay()
+    {
+        if (PendingAutoCleanMask is not { } mask ||
+            SelectedSlot?.Image is not { } image ||
+            mask.Length != image.Width * image.Height)
+        {
+            AutoCleanMaskOverlayBitmap = null;
+            return;
+        }
+
+        AutoCleanMaskOverlayBitmap = AvaloniaBitmapFactory.FromMaskOverlay(mask, image.Width, image.Height);
+    }
+
+    private static void ApplyBrushMaskEdit(
+        byte[] mask,
+        int width,
+        int height,
+        AutoCleanMaskEditOperation operation)
+    {
+        var brush = ChannelRetoucher.CreateBrushMask(
+            width,
+            height,
+            [new RetouchStroke([operation.Start], Math.Clamp(operation.BrushSize, 1, 200))]);
+        MergeMask(mask, brush, operation.Action);
+    }
+
+    private static void ApplyRectangleMaskEdit(
+        byte[] mask,
+        int width,
+        int height,
+        AutoCleanMaskEditOperation operation)
+    {
+        var x0 = Math.Clamp((int)MathF.Round(Math.Min(operation.Start.X, operation.End.X)), 0, width - 1);
+        var y0 = Math.Clamp((int)MathF.Round(Math.Min(operation.Start.Y, operation.End.Y)), 0, height - 1);
+        var x1 = Math.Clamp((int)MathF.Round(Math.Max(operation.Start.X, operation.End.X)), 0, width - 1);
+        var y1 = Math.Clamp((int)MathF.Round(Math.Max(operation.Start.Y, operation.End.Y)), 0, height - 1);
+        var value = operation.Action == AutoCleanMaskEditAction.Add ? (byte)1 : (byte)0;
+        for (var y = y0; y <= y1; y++)
+        {
+            for (var x = x0; x <= x1; x++)
+            {
+                mask[(y * width) + x] = value;
+            }
+        }
+    }
+
+    private static void MergeMask(byte[] target, byte[] edit, AutoCleanMaskEditAction action)
+    {
+        var value = action == AutoCleanMaskEditAction.Add ? (byte)1 : (byte)0;
+        for (var i = 0; i < target.Length; i++)
+        {
+            if (edit[i] > 0)
+            {
+                target[i] = value;
+            }
         }
     }
 
@@ -763,7 +1040,9 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (aligned.AlignTransforms?.TryGetValue(channelName, out var transform) != true || !transform.CanApplyTo(image))
+        if (aligned.AlignTransforms is not { } transforms ||
+            !transforms.TryGetValue(channelName, out var transform) ||
+            !transform.CanApplyTo(image))
         {
             ClearAlignedAfterInputEdit();
             return;
@@ -820,6 +1099,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             ResultSlot.Result = result.Rgb;
+            RefreshPreviewBindings();
             Status = $"Result rebuilt: {result.Rgb.Width} x {result.Rgb.Height}.";
             AppendLog("Result rebuilt from cached alignment.");
         }
@@ -856,13 +1136,38 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanCropToSelection()
     {
         return !IsBusy &&
+               !IsAutoCleanMaskPending &&
                SelectedSlot is { HasImage: true } &&
                !SelectionRect.IsEmpty;
     }
 
     private bool CanEditSelectedInputChannel()
     {
-        return !IsBusy && SelectedSlot is { Image: not null, ChannelName: not null };
+        return !IsBusy && !IsAutoCleanMaskPending && SelectedSlot is { Image: not null, ChannelName: not null };
+    }
+
+    private bool CanDetectAutoCleanMask()
+    {
+        return !IsBusy && !IsAutoCleanMaskPending && TryGetSelectedAutoCleanInputs(out _, out _, out _, out _);
+    }
+
+    private bool CanApplyAutoCleanMask()
+    {
+        return !IsBusy &&
+               PendingAutoCleanMask is { Length: > 0 } &&
+               PendingAutoCleanChannel.HasValue &&
+               SelectedSlot is { Image: not null, ChannelName: { } channelName } &&
+               channelName == PendingAutoCleanChannel;
+    }
+
+    private bool CanCancelAutoCleanMask()
+    {
+        return !IsBusy && IsAutoCleanMaskPending;
+    }
+
+    private bool CanEditAutoCleanMask(AutoCleanMaskEditOperation? operation)
+    {
+        return !IsBusy && IsAutoCleanMaskPending && operation is not null;
     }
 
     private bool CanApplyRetouchStroke(RetouchStroke? stroke)
@@ -942,9 +1247,11 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnSelectedSlotChanged(ChannelSlotViewModel? value)
     {
         SelectionRect = ImageSelectionRect.Empty;
+        ClearPendingAutoCleanMask();
         AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
         ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
         ApplyStampStrokeCommand.NotifyCanExecuteChanged();
+        RefreshPreviewBindings();
     }
 
     partial void OnSelectionRectChanged(ImageSelectionRect value)
@@ -958,6 +1265,24 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSelectToolMode));
         OnPropertyChanged(nameof(IsHealToolMode));
         OnPropertyChanged(nameof(IsCloneToolMode));
+    }
+
+    partial void OnPendingAutoCleanMaskChanged(byte[]? value)
+    {
+        RefreshAutoCleanMaskOverlay();
+        RefreshPreviewBindings();
+        NotifyAutoCleanCommands();
+    }
+
+    partial void OnPendingAutoCleanChannelChanged(ChannelName? value)
+    {
+        RefreshPreviewBindings();
+        NotifyAutoCleanCommands();
+    }
+
+    partial void OnShowAutoCleanResultPreviewChanged(bool value)
+    {
+        RefreshPreviewBindings();
     }
 
     partial void OnExportFormatChanged(RgbExportFormat value)
@@ -1108,6 +1433,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RestoreSnapshot(EditorSnapshot snapshot)
     {
+        ClearPendingAutoCleanMask();
         isRestoringSnapshot = true;
         try
         {
@@ -1192,6 +1518,25 @@ public sealed partial class MainViewModel : ObservableObject
     {
         previewImageContextVersion++;
         OnPropertyChanged(nameof(PreviewImageContextKey));
+        RefreshPreviewBindings();
+    }
+
+    private void RefreshPreviewBindings()
+    {
+        OnPropertyChanged(nameof(PreviewDisplayBitmap));
+        OnPropertyChanged(nameof(PreviewHasImage));
+        OnPropertyChanged(nameof(PreviewInteractionMode));
+    }
+
+    private void NotifyAutoCleanCommands()
+    {
+        AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
+        ApplyAutoCleanMaskCommand.NotifyCanExecuteChanged();
+        CancelAutoCleanMaskCommand.NotifyCanExecuteChanged();
+        EditAutoCleanMaskCommand.NotifyCanExecuteChanged();
+        CropToSelectionCommand.NotifyCanExecuteChanged();
+        ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
+        ApplyStampStrokeCommand.NotifyCanExecuteChanged();
     }
 
     private void AppendLog(string message)

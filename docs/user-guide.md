@@ -47,8 +47,32 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 3. Drag one R/G/B thumbnail onto another to swap channel assignments.
 4. Run **Auto-align**.
 5. Read the status bar for alignment details (transform type, inliers, shifts).
-6. Inspect the result preview.
-7. Export the result as PNG, JPEG, or TIFF.
+6. Optionally review and apply per-channel auto-clean masks.
+7. Inspect the result preview.
+8. Export the result as PNG, JPEG, or TIFF.
+
+### Auto-clean mask review
+
+Auto-clean works on aligned working channels. Run **Auto-align** first, then
+select a Red, Green, or Blue channel and choose **Detect auto-clean mask**.
+
+The app detects dust and scratch candidates by comparing the selected channel
+against the other two aligned channels. Detection only creates a mask; it does
+not change pixels until you apply it.
+
+While a mask is pending:
+
+- Use **Apply auto-clean mask** to inpaint the selected channel.
+- Use **Cancel auto-clean mask** to discard the pending mask.
+- Toggle **Review mask on result** to view the same mask over the RGB result.
+- `Ctrl+click` adds a brush-sized spot to the mask.
+- `Alt+click` removes a brush-sized spot from the mask.
+- `Ctrl+drag` adds a rectangular mask area.
+- `Alt+drag` removes a rectangular mask area.
+
+The mask is cleared if you switch channels, undo/redo, cancel, or change the
+working image. The cleanup is intentionally conservative: it repairs only the
+selected grayscale channel and leaves the other channels untouched.
 
 ### Status bar after auto-align
 
@@ -79,11 +103,13 @@ for auto-scale (GUI uses the default 128).
 - triptych loading with RGB/BGR selector
 - thumbnail swap
 - auto-align with status metadata
+- per-channel auto-clean mask detection, review, editing, apply/cancel
+- brush heal and clone stamp retouching
 - result preview
 - PNG, JPEG, and TIFF result export with saved export settings
 
-Manual nudge, crop overlay, loupe, alignment limit control, and full color
-controls are not yet exposed in the Avalonia UI.
+Manual nudge, loupe, alignment limit control, and full color controls are not
+yet exposed in the Avalonia UI.
 
 ## Command Line
 

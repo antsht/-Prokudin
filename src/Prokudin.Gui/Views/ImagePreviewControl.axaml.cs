@@ -16,6 +16,9 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<Bitmap?> DisplayBitmapProperty =
         AvaloniaProperty.Register<ImagePreviewControl, Bitmap?>(nameof(DisplayBitmap));
 
+    public static readonly StyledProperty<Bitmap?> MaskOverlayBitmapProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, Bitmap?>(nameof(MaskOverlayBitmap));
+
     public static readonly StyledProperty<PreviewZoomMode> ZoomModeProperty =
         AvaloniaProperty.Register<ImagePreviewControl, PreviewZoomMode>(nameof(ZoomMode), PreviewZoomMode.OneToOne);
 
@@ -50,6 +53,9 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<ICommand?> StampStrokeCommandProperty =
         AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(StampStrokeCommand));
 
+    public static readonly StyledProperty<ICommand?> MaskEditCommandProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(MaskEditCommand));
+
     private Point? selectionStart;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
@@ -66,6 +72,10 @@ public sealed partial class ImagePreviewControl : UserControl
     private List<Point>? stampDestinationPreviewPoints;
     private Point? stampDestinationAnchorImagePoint;
     private bool isStamping;
+    private Point? maskEditStart;
+    private Point? maskEditCurrent;
+    private AutoCleanMaskEditAction? maskEditAction;
+    private bool isEditingMask;
 
     public ImagePreviewControl()
     {
@@ -77,6 +87,12 @@ public sealed partial class ImagePreviewControl : UserControl
     {
         get => GetValue(DisplayBitmapProperty);
         set => SetValue(DisplayBitmapProperty, value);
+    }
+
+    public Bitmap? MaskOverlayBitmap
+    {
+        get => GetValue(MaskOverlayBitmapProperty);
+        set => SetValue(MaskOverlayBitmapProperty, value);
     }
 
     public PreviewZoomMode ZoomMode
@@ -139,11 +155,18 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(StampStrokeCommandProperty, value);
     }
 
+    public ICommand? MaskEditCommand
+    {
+        get => GetValue(MaskEditCommandProperty);
+        set => SetValue(MaskEditCommandProperty, value);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
 
         if (change.Property == DisplayBitmapProperty ||
+            change.Property == MaskOverlayBitmapProperty ||
             change.Property == ZoomModeProperty ||
             change.Property == HasImageProperty ||
             change.Property == SelectionRectProperty)
@@ -171,11 +194,16 @@ public sealed partial class ImagePreviewControl : UserControl
         {
             if (InteractionMode == PreviewInteractionMode.Retouch)
             {
+                ClearMaskEditState();
                 UpdateRetouchOverlay();
             }
             else
             {
                 ClearRetouchOverlayState();
+                if (InteractionMode != PreviewInteractionMode.MaskReview)
+                {
+                    ClearMaskEditState();
+                }
             }
         }
     }
@@ -183,6 +211,8 @@ public sealed partial class ImagePreviewControl : UserControl
     private void ApplyLayout()
     {
         PreviewImage.Source = DisplayBitmap;
+        MaskOverlayImage.Source = MaskOverlayBitmap;
+        MaskOverlayImage.IsVisible = MaskOverlayBitmap is not null && DisplayBitmap is not null;
 
         if (DisplayBitmap is null)
         {
@@ -191,6 +221,8 @@ public sealed partial class ImagePreviewControl : UserControl
             ImageHost.MinWidth = 0;
             ImageHost.MinHeight = 0;
             SelectionRectangle.IsVisible = false;
+            MaskEditRectangle.IsVisible = false;
+            MaskOverlayImage.IsVisible = false;
             ClearRetouchOverlayState();
             return;
         }
@@ -204,17 +236,23 @@ public sealed partial class ImagePreviewControl : UserControl
             PreviewImage.Stretch = Stretch.None;
             PreviewImage.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
             PreviewImage.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
+            MaskOverlayImage.Stretch = Stretch.None;
+            MaskOverlayImage.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+            MaskOverlayImage.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
             ImageHost.Width = pixelSize.Width;
             ImageHost.Height = pixelSize.Height;
             ImageHost.MinWidth = pixelSize.Width;
             ImageHost.MinHeight = pixelSize.Height;
             PreviewImage.Width = pixelSize.Width;
             PreviewImage.Height = pixelSize.Height;
+            MaskOverlayImage.Width = pixelSize.Width;
+            MaskOverlayImage.Height = pixelSize.Height;
             SelectionOverlay.Width = pixelSize.Width;
             SelectionOverlay.Height = pixelSize.Height;
             RetouchOverlay.Width = pixelSize.Width;
             RetouchOverlay.Height = pixelSize.Height;
             UpdateSelectionOverlay(1.0, 0, 0);
+            UpdateMaskEditPreview(1.0, 0, 0);
             UpdateRetouchOverlay(1.0, 0, 0);
         }
         else
@@ -224,12 +262,17 @@ public sealed partial class ImagePreviewControl : UserControl
             PreviewImage.Stretch = Stretch.Uniform;
             PreviewImage.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
             PreviewImage.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
+            MaskOverlayImage.Stretch = Stretch.Uniform;
+            MaskOverlayImage.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+            MaskOverlayImage.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
             ImageHost.Width = double.NaN;
             ImageHost.Height = double.NaN;
             ImageHost.MinWidth = 0;
             ImageHost.MinHeight = 0;
             PreviewImage.Width = double.NaN;
             PreviewImage.Height = double.NaN;
+            MaskOverlayImage.Width = double.NaN;
+            MaskOverlayImage.Height = double.NaN;
             ImageHost.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
             ImageHost.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
 
@@ -243,6 +286,7 @@ public sealed partial class ImagePreviewControl : UserControl
 
             var (scale, offsetX, offsetY) = GetFitTransform(pixelSize.Width, pixelSize.Height, viewport.Width, viewport.Height);
             UpdateSelectionOverlay(scale, offsetX, offsetY);
+            UpdateMaskEditPreview(scale, offsetX, offsetY);
             UpdateRetouchOverlay(scale, offsetX, offsetY);
         }
     }
@@ -260,6 +304,38 @@ public sealed partial class ImagePreviewControl : UserControl
         Canvas.SetTop(SelectionRectangle, offsetY + (SelectionRect.Y * scale));
         SelectionRectangle.Width = SelectionRect.Width * scale;
         SelectionRectangle.Height = SelectionRect.Height * scale;
+    }
+
+    private void UpdateMaskEditPreview(double scale, double offsetX, double offsetY)
+    {
+        if (!isEditingMask ||
+            maskEditStart is not { } start ||
+            maskEditCurrent is not { } current ||
+            DisplayBitmap is null)
+        {
+            MaskEditRectangle.IsVisible = false;
+            return;
+        }
+
+        var rect = ImageSelectionRect.FromPoints(start.X, start.Y, current.X, current.Y)
+            .Clamp(DisplayBitmap.PixelSize.Width, DisplayBitmap.PixelSize.Height);
+        if (rect.IsEmpty)
+        {
+            MaskEditRectangle.IsVisible = false;
+            return;
+        }
+
+        MaskEditRectangle.IsVisible = true;
+        Canvas.SetLeft(MaskEditRectangle, offsetX + (rect.X * scale));
+        Canvas.SetTop(MaskEditRectangle, offsetY + (rect.Y * scale));
+        MaskEditRectangle.Width = rect.Width * scale;
+        MaskEditRectangle.Height = rect.Height * scale;
+    }
+
+    private void UpdateMaskEditPreview()
+    {
+        var (scale, offsetX, offsetY) = GetCurrentImageTransform();
+        UpdateMaskEditPreview(scale, offsetX, offsetY);
     }
 
     private static (double Scale, double OffsetX, double OffsetY) GetFitTransform(
@@ -469,6 +545,15 @@ public sealed partial class ImagePreviewControl : UserControl
         HideRetouchOverlay();
     }
 
+    private void ClearMaskEditState()
+    {
+        maskEditStart = null;
+        maskEditCurrent = null;
+        maskEditAction = null;
+        isEditingMask = false;
+        MaskEditRectangle.IsVisible = false;
+    }
+
     private bool TryUpdateRetouchCursor(Point hostPoint, bool clampToImage)
     {
         if (TryMapToImage(hostPoint, out var imagePoint))
@@ -621,6 +706,12 @@ public sealed partial class ImagePreviewControl : UserControl
             return;
         }
 
+        if (InteractionMode == PreviewInteractionMode.MaskReview)
+        {
+            BeginMaskEditInteraction(e, imagePoint);
+            return;
+        }
+
         if (InteractionMode == PreviewInteractionMode.Retouch)
         {
             if (RetouchTool == RetouchTool.Stamp)
@@ -642,6 +733,23 @@ public sealed partial class ImagePreviewControl : UserControl
         isSelecting = true;
         selectionStart = imagePoint;
         SelectionRect = ImageSelectionRect.FromPoints(imagePoint.X, imagePoint.Y, imagePoint.X, imagePoint.Y);
+        e.Pointer.Capture(ImageHost);
+        e.Handled = true;
+    }
+
+    private void BeginMaskEditInteraction(PointerPressedEventArgs e, Point imagePoint)
+    {
+        if (!TryGetMaskEditAction(e.KeyModifiers, out var action))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        isEditingMask = true;
+        maskEditStart = imagePoint;
+        maskEditCurrent = imagePoint;
+        maskEditAction = action;
+        UpdateMaskEditPreview();
         e.Pointer.Capture(ImageHost);
         e.Handled = true;
     }
@@ -682,6 +790,12 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (InteractionMode == PreviewInteractionMode.MaskReview)
+        {
+            UpdateMaskEditInteraction(e);
+            return;
+        }
+
         if (InteractionMode == PreviewInteractionMode.Retouch)
         {
             var retouchPoint = e.GetPosition(ImageHost);
@@ -746,8 +860,32 @@ public sealed partial class ImagePreviewControl : UserControl
         }
     }
 
+    private void UpdateMaskEditInteraction(PointerEventArgs e)
+    {
+        if (!isEditingMask)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(ImageHost);
+        if (!TryMapToImage(point, out var imagePoint))
+        {
+            imagePoint = ClampPointToImage(point);
+        }
+
+        maskEditCurrent = imagePoint;
+        UpdateMaskEditPreview();
+        e.Handled = true;
+    }
+
     private void ImageHost_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (isEditingMask)
+        {
+            FinishMaskEditInteraction(e);
+            return;
+        }
+
         if (isCapturingStampSource)
         {
             isCapturingStampSource = false;
@@ -835,9 +973,53 @@ public sealed partial class ImagePreviewControl : UserControl
         e.Handled = true;
     }
 
+    private void FinishMaskEditInteraction(PointerReleasedEventArgs e)
+    {
+        var start = maskEditStart;
+        var current = maskEditCurrent;
+        var action = maskEditAction;
+        ClearMaskEditState();
+        e.Pointer.Capture(null);
+
+        if (start is { } startPoint &&
+            current is { } currentPoint &&
+            action is { } editAction)
+        {
+            var isRectangle = Math.Abs(startPoint.X - currentPoint.X) >= 2.0 ||
+                              Math.Abs(startPoint.Y - currentPoint.Y) >= 2.0;
+            var operation = new AutoCleanMaskEditOperation(
+                ToRetouchPoint(startPoint),
+                ToRetouchPoint(currentPoint),
+                editAction,
+                Math.Clamp(BrushSize, 1, 200),
+                isRectangle);
+
+            if (MaskEditCommand?.CanExecute(operation) == true)
+            {
+                MaskEditCommand.Execute(operation);
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private static bool TryGetMaskEditAction(KeyModifiers modifiers, out AutoCleanMaskEditAction action)
+    {
+        var add = modifiers.HasFlag(KeyModifiers.Control);
+        var remove = modifiers.HasFlag(KeyModifiers.Alt);
+        if (add == remove)
+        {
+            action = default;
+            return false;
+        }
+
+        action = add ? AutoCleanMaskEditAction.Add : AutoCleanMaskEditAction.Remove;
+        return true;
+    }
+
     private void ImageHost_OnPointerExited(object? sender, PointerEventArgs e)
     {
-        if (isRetouching || isCapturingStampSource || isStamping)
+        if (isRetouching || isCapturingStampSource || isStamping || isEditingMask)
         {
             return;
         }

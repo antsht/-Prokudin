@@ -42,13 +42,43 @@ public static class AvaloniaBitmapFactory
         return CreateBitmap(image.Width, image.Height, bytes);
     }
 
-    private static WriteableBitmap CreateBitmap(int width, int height, byte[] bytes)
+    public static WriteableBitmap FromMaskOverlay(byte[] mask, int width, int height)
+    {
+        if (mask.Length != width * height)
+        {
+            throw new ArgumentException("Mask dimensions must match width * height.", nameof(mask));
+        }
+
+        const byte alpha = 116;
+        var bytes = new byte[width * height * 4];
+        for (var i = 0; i < mask.Length; i++)
+        {
+            if (mask[i] == 0)
+            {
+                continue;
+            }
+
+            var offset = i * 4;
+            bytes[offset] = 18;
+            bytes[offset + 1] = 42;
+            bytes[offset + 2] = 116;
+            bytes[offset + 3] = alpha;
+        }
+
+        return CreateBitmap(width, height, bytes, AlphaFormat.Premul);
+    }
+
+    private static WriteableBitmap CreateBitmap(
+        int width,
+        int height,
+        byte[] bytes,
+        AlphaFormat alphaFormat = AlphaFormat.Opaque)
     {
         var bitmap = new WriteableBitmap(
             new PixelSize(width, height),
             Dpi,
             PixelFormat.Bgra8888,
-            AlphaFormat.Opaque);
+            alphaFormat);
 
         using var buffer = bitmap.Lock();
         Marshal.Copy(bytes, 0, buffer.Address, bytes.Length);

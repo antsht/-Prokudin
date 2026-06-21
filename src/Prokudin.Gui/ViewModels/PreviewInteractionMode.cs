@@ -4,4 +4,5 @@ public enum PreviewInteractionMode
 {
     Selection,
     Retouch,
+    MaskReview,
 }

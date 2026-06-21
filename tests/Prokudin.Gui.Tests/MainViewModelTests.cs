@@ -1,6 +1,8 @@
 using Avalonia;
+using Prokudin.Core.Alignment;
 using FluentAssertions;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Pipeline;
 using Prokudin.Core.Retouch;
 using Prokudin.Gui;
 using Prokudin.Gui.Services;
@@ -82,23 +84,180 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task AutoCleanAfterAlign_ReusesCachedTransformAndKeepsResult()
+    public async Task ApplyAutoCleanAfterAlign_ReusesCachedTransformAndKeepsResult()
     {
         var viewModel = CreateViewModel();
         var red = ImageBuffer.Filled(21, 21, 0.5f);
         red[10, 10] = 1.0f;
-        viewModel.RedSlot.Image = red;
-        viewModel.GreenSlot.Image = ImageBuffer.Filled(21, 21, 0.5f);
-        viewModel.BlueSlot.Image = ImageBuffer.Filled(21, 21, 0.5f);
-        viewModel.AutoWhiteBalance = false;
-        await viewModel.AutoAlignCommand.ExecuteAsync(null);
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(21, 21, 0.5f),
+            ImageBuffer.Filled(21, 21, 0.5f));
 
         viewModel.SelectedSlot = viewModel.RedSlot;
         await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.ApplyAutoCleanMaskCommand.Execute(null);
         await WaitUntil(() => viewModel.ResultSlot.Result is not null);
 
         viewModel.RedSlot.Image![10, 10].Should().BeLessThan(0.85f);
         viewModel.ResultSlot.Result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AutoCleanAfterAlign_CreatesPendingMaskWithoutMutatingChannel()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+
+        viewModel.IsAutoCleanMaskPending.Should().BeTrue();
+        viewModel.PendingAutoCleanCandidatePixels.Should().BeGreaterThan(0);
+        viewModel.PreviewInteractionMode.Should().Be(PreviewInteractionMode.MaskReview);
+        viewModel.RedSlot.Image![15, 15].Should().BeApproximately(1.0f, 0.001f);
+        viewModel.ApplyAutoCleanMaskCommand.CanExecute(null).Should().BeTrue();
+        viewModel.CancelAutoCleanMaskCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ApplyAutoCleanMask_AppliesPendingMaskAndIsUndoable()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.ApplyAutoCleanMaskCommand.Execute(null);
+        await WaitUntil(() => viewModel.ResultSlot.Result?[15, 15, 0] < 0.85f);
+
+        viewModel.IsAutoCleanMaskPending.Should().BeFalse();
+        viewModel.RedSlot.Image![15, 15].Should().BeLessThan(0.85f);
+        viewModel.UndoCommand.Execute(null);
+        viewModel.RedSlot.Image![15, 15].Should().BeApproximately(1.0f, 0.001f);
+    }
+
+    [Fact]
+    public async Task CancelAutoCleanMask_ClearsPendingMaskWithoutMutationOrUndo()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        var undoWasAvailable = viewModel.UndoCommand.CanExecute(null);
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.CancelAutoCleanMaskCommand.Execute(null);
+
+        viewModel.IsAutoCleanMaskPending.Should().BeFalse();
+        viewModel.RedSlot.Image![15, 15].Should().BeApproximately(1.0f, 0.001f);
+        viewModel.UndoCommand.CanExecute(null).Should().Be(undoWasAvailable);
+    }
+
+    [Fact]
+    public void AutoCleanSelectedChannel_DisabledBeforeAutoAlign()
+    {
+        var viewModel = CreateViewModel();
+        SetInputChannels(viewModel, red: 0.5f, green: 0.5f, blue: 0.5f);
+        viewModel.SelectedSlot = viewModel.RedSlot;
+
+        viewModel.AutoCleanSelectedChannelCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SelectedChannelChange_ClearsPendingAutoCleanMask()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.SelectedSlot = viewModel.GreenSlot;
+
+        viewModel.IsAutoCleanMaskPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task EditAutoCleanMask_AddsAndRemovesBrushAndRectangleAreas()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.EditAutoCleanMaskCommand.Execute(new AutoCleanMaskEditOperation(
+            new RetouchPoint(-10, -10),
+            new RetouchPoint(-10, -10),
+            AutoCleanMaskEditAction.Add,
+            BrushSize: 3,
+            IsRectangle: false));
+        viewModel.PendingAutoCleanMask![0].Should().Be(1);
+
+        viewModel.EditAutoCleanMaskCommand.Execute(new AutoCleanMaskEditOperation(
+            new RetouchPoint(4, 4),
+            new RetouchPoint(8, 8),
+            AutoCleanMaskEditAction.Add,
+            BrushSize: 3,
+            IsRectangle: true));
+        viewModel.PendingAutoCleanMask[(6 * 31) + 6].Should().Be(1);
+
+        viewModel.EditAutoCleanMaskCommand.Execute(new AutoCleanMaskEditOperation(
+            new RetouchPoint(6, 6),
+            new RetouchPoint(6, 6),
+            AutoCleanMaskEditAction.Remove,
+            BrushSize: 3,
+            IsRectangle: false));
+        viewModel.PendingAutoCleanMask[(6 * 31) + 6].Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AutoCleanPreviewCanToggleToResultBitmap()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(31, 31, 0.5f),
+            ImageBuffer.Filled(31, 31, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.ShowAutoCleanResultPreview = true;
+
+        viewModel.PreviewDisplayBitmap.Should().BeSameAs(viewModel.ResultSlot.DisplayBitmap);
+        viewModel.AutoCleanMaskOverlayBitmap.Should().NotBeNull();
     }
 
     [Fact]
@@ -342,11 +501,68 @@ public sealed class MainViewModelTests
         viewModel.BlueSlot.Image = ImageBuffer.Filled(8, 8, blue);
     }
 
+    private static void SetAlignedChannels(
+        MainViewModel viewModel,
+        ImageBuffer red,
+        ImageBuffer green,
+        ImageBuffer blue)
+    {
+        viewModel.RedSlot.Image = red;
+        viewModel.GreenSlot.Image = green;
+        viewModel.BlueSlot.Image = blue;
+        viewModel.ResultSlot.Result = MergeRgb(red, green, blue);
+        var aligned = new AlignedChannels(
+            red.Clone(),
+            green.Clone(),
+            blue.Clone(),
+            FullMask(red),
+            FullMask(green),
+            FullMask(blue),
+            new Dictionary<ChannelName, AlignChannelMetadata>
+            {
+                [ChannelName.Red] = new("reference", 0),
+                [ChannelName.Green] = new("reference", 0),
+                [ChannelName.Blue] = new("reference", 0),
+            });
+
+        var field = typeof(MainViewModel).GetField(
+            "lastAligned",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.Should().NotBeNull();
+        field!.SetValue(viewModel, aligned);
+    }
+
     private static RgbImageBuffer FilledRgb(int width, int height, float value)
     {
         var pixels = new float[width * height * 3];
         Array.Fill(pixels, value);
         return new RgbImageBuffer(width, height, pixels);
+    }
+
+    private static RgbImageBuffer MergeRgb(ImageBuffer red, ImageBuffer green, ImageBuffer blue)
+    {
+        red.Width.Should().Be(green.Width);
+        red.Width.Should().Be(blue.Width);
+        red.Height.Should().Be(green.Height);
+        red.Height.Should().Be(blue.Height);
+
+        var pixels = new float[red.Width * red.Height * 3];
+        for (var i = 0; i < red.Width * red.Height; i++)
+        {
+            var offset = i * 3;
+            pixels[offset] = red.Pixels[i];
+            pixels[offset + 1] = green.Pixels[i];
+            pixels[offset + 2] = blue.Pixels[i];
+        }
+
+        return new RgbImageBuffer(red.Width, red.Height, pixels);
+    }
+
+    private static byte[] FullMask(ImageBuffer image)
+    {
+        var mask = new byte[image.Width * image.Height];
+        Array.Fill(mask, (byte)1);
+        return mask;
     }
 
     private static void SetResultWithoutBitmapRefresh(MainViewModel viewModel, RgbImageBuffer result)

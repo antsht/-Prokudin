@@ -13,6 +13,7 @@ flowchart TB
   Core --> Transform[Manual Transform]
   Core --> Crop[Crop]
   Core --> Color[Color]
+  Core --> Retouch[Retouch]
   Core --> Pipeline[Reconstruction Pipeline]
 ```
 
@@ -30,6 +31,7 @@ Core owns all image and reconstruction behavior:
 - manual transform helpers
 - overlap and square crop
 - color correction
+- per-channel retouch and auto-clean mask detection
 - reconstruction pipeline
 
 Core has no GUI dependency.
@@ -60,6 +62,11 @@ Main pieces:
 - `ViewModels/ChannelSlotViewModel.cs`: channel slot state and cached bitmap
 - `Services/StorageFileDialogService.cs`: native file pickers
 - `Imaging/AvaloniaBitmapFactory.cs`: Core image buffers to Avalonia bitmaps
+
+Auto-clean mask review is split across Core and GUI. Core detects
+single-channel defect masks from aligned R/G/B grayscale buffers and applies
+inpainting to a supplied mask. GUI owns the pending-mask review state, mask
+overlay bitmap, Ctrl/Alt mask edits, and the explicit apply/cancel commands.
 
 After auto-align, the status bar shows per-channel alignment metadata from
 `AlignChannelMetadata.FormatStatus`.
