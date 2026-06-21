@@ -1633,8 +1633,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshPreviewImageContext()
     {
         previewImageContextVersion++;
-        OnPropertyChanged(nameof(PreviewImageContextKey));
         RefreshPreviewBindings();
+        OnPropertyChanged(nameof(PreviewImageContextKey));
     }
 
     private void RefreshPreviewBindings()

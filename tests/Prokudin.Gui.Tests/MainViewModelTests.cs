@@ -105,6 +105,38 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void RetouchRefreshesPreviewBitmapBeforeResettingPreviewContext()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(21, 21, 0.5f);
+        red[10, 10] = 1.0f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(21, 21, 0.5f),
+            ImageBuffer.Filled(21, 21, 0.5f));
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        var previewEvents = new List<string>();
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.PreviewDisplayBitmap) or nameof(MainViewModel.PreviewImageContextKey))
+            {
+                previewEvents.Add(args.PropertyName);
+            }
+        };
+
+        viewModel.ApplyRetouchStrokeCommand.Execute(new RetouchStroke(
+            [new RetouchPoint(10, 10)],
+            BrushSize: 3));
+
+        var bitmapIndex = previewEvents.FindIndex(name => name == nameof(MainViewModel.PreviewDisplayBitmap));
+        var contextIndex = previewEvents.FindIndex(name => name == nameof(MainViewModel.PreviewImageContextKey));
+        bitmapIndex.Should().BeGreaterThanOrEqualTo(0);
+        contextIndex.Should().BeGreaterThanOrEqualTo(0);
+        bitmapIndex.Should().BeLessThan(contextIndex);
+    }
+
+    [Fact]
     public async Task AutoCleanAfterAlign_CreatesPendingMaskWithoutMutatingChannel()
     {
         var viewModel = CreateViewModel();
