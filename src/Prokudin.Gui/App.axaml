@@ -1,14 +1,36 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:Zafiro.UI;assembly=Zafiro.UI"
              x:Class="Prokudin.Gui.App"
              RequestedThemeVariant="Default">
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="Themes/Theme.axaml" />
+        <ResourceInclude Source="Themes/ZafiroIcons.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
+
+  <Application.DataTemplates>
+    <DataTemplate DataType="ui:IIcon">
+      <Border x:Name="IconBorder"
+              HorizontalAlignment="{Binding $self.(IconOptions.HorizontalAlignment)}"
+              VerticalAlignment="{Binding $self.(IconOptions.VerticalAlignment)}"
+              Padding="{Binding $self.(IconOptions.Padding)}"
+              CornerRadius="{Binding $self.(IconOptions.CornerRadius)}"
+              BorderBrush="{Binding $self.(IconOptions.BorderBrush)}"
+              BorderThickness="{Binding $self.(IconOptions.BorderThickness)}"
+              Margin="{Binding $self.(IconOptions.Margin)}"
+              Background="{Binding $self.(IconOptions.Background)}">
+        <Viewbox Height="{Binding $self.(IconOptions.Size)}"
+                 Width="{Binding $self.(IconOptions.Size)}">
+          <ContentControl ContentTemplate="{StaticResource IconDataTemplate}"
+                          Content="{Binding}" />
+        </Viewbox>
+      </Border>
+    </DataTemplate>
+  </Application.DataTemplates>
 
   <Application.Styles>
     <FluentTheme />

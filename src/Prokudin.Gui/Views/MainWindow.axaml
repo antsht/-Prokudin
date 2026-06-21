@@ -61,10 +61,9 @@
                     ColumnSpacing="6">
                 <Button Classes="IconButton"
                         Command="{Binding OpenTriptychCommand}"
+                        Content="{StaticResource IconTriptych}"
                         ToolTip.Tip="Load triptych"
-                        automation:AutomationProperties.Name="Load triptych">
-                  <PathIcon Data="{StaticResource IconTriptych}" />
-                </Button>
+                        automation:AutomationProperties.Name="Load triptych" />
                 <ComboBox Grid.Column="1"
                           ItemsSource="{Binding TriptychOrders}"
                           SelectedItem="{Binding SelectedTriptychOrder}"
@@ -74,10 +73,9 @@
                 <Button Grid.Column="2"
                         Classes="IconButton"
                         Command="{Binding ExportChannelsCommand}"
+                        Content="{StaticResource IconExport}"
                         ToolTip.Tip="Export working channels"
-                        automation:AutomationProperties.Name="Export working channels">
-                  <PathIcon Data="{StaticResource IconExport}" />
-                </Button>
+                        automation:AutomationProperties.Name="Export working channels" />
               </Grid>
             </Border>
 
@@ -169,68 +167,59 @@
                      VerticalAlignment="Center">
             <Button Classes="IconButton"
                     Command="{Binding ToggleFitToWindowCommand}"
+                    Content="{StaticResource IconZoomFit}"
                     ToolTip.Tip="{Binding FitToWindowButtonText}"
                     automation:AutomationProperties.Name="Toggle preview zoom"
-                    Margin="0,0,6,0">
-              <PathIcon Data="{StaticResource IconZoomFit}" />
-            </Button>
+                    Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding CropToSelectionCommand}"
+                    Content="{StaticResource IconCrop}"
                     ToolTip.Tip="Crop to selection"
                     automation:AutomationProperties.Name="Crop to selection"
-                    Margin="0,0,6,0">
-              <PathIcon Data="{StaticResource IconCrop}" />
-            </Button>
+                    Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding UndoCommand}"
+                    Content="{StaticResource IconUndo}"
                     ToolTip.Tip="Undo"
                     automation:AutomationProperties.Name="Undo"
-                    Margin="0,0,4,0">
-              <PathIcon Data="{StaticResource IconUndo}" />
-            </Button>
+                    Margin="0,0,4,0" />
             <Button Classes="IconButton"
                     Command="{Binding RedoCommand}"
+                    Content="{StaticResource IconRedo}"
                     ToolTip.Tip="Redo"
                     automation:AutomationProperties.Name="Redo"
-                    Margin="0,0,6,0">
-              <PathIcon Data="{StaticResource IconRedo}" />
-            </Button>
+                    Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding AutoAlignCommand}"
+                    Content="{StaticResource IconAlign}"
                     ToolTip.Tip="Auto-align"
                     automation:AutomationProperties.Name="Auto-align"
-                    Margin="0,0,6,0">
-              <PathIcon Data="{StaticResource IconAlign}" />
-            </Button>
+                    Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding AutoCleanSelectedChannelCommand}"
+                    Content="{StaticResource IconClean}"
                     ToolTip.Tip="Auto-clean selected channel"
                     automation:AutomationProperties.Name="Auto-clean selected channel"
-                    Margin="0,0,10,0">
-              <PathIcon Data="{StaticResource IconClean}" />
-            </Button>
+                    Margin="0,0,10,0" />
 
             <primitives:ToggleButton Classes="IconButton"
                                       IsChecked="{Binding IsSelectToolMode}"
+                                      Content="{StaticResource IconPointer}"
                                       ToolTip.Tip="Selection mode"
                                       automation:AutomationProperties.Name="Selection mode"
-                                      Margin="0,0,4,0">
-              <PathIcon Data="{StaticResource IconPointer}" />
-            </primitives:ToggleButton>
+                                      Margin="0,0,4,0" />
             <primitives:ToggleButton Classes="IconButton"
                                       IsChecked="{Binding IsHealToolMode}"
+                                      Content="{StaticResource IconHeal}"
                                       ToolTip.Tip="Heal retouch mode"
                                       automation:AutomationProperties.Name="Heal retouch mode"
-                                      Margin="0,0,4,0">
-              <PathIcon Data="{StaticResource IconHeal}" />
-            </primitives:ToggleButton>
+                                      Margin="0,0,4,0" />
             <primitives:ToggleButton Classes="IconButton"
                                       IsChecked="{Binding IsCloneToolMode}"
+                                      Content="{StaticResource IconClone}"
                                       ToolTip.Tip="Clone stamp mode"
                                       automation:AutomationProperties.Name="Clone stamp mode"
-                                      Margin="0,0,10,0">
-              <PathIcon Data="{StaticResource IconClone}" />
-            </primitives:ToggleButton>
+                                      Margin="0,0,10,0" />
 
             <TextBlock Text="Brush"
                        Classes="MutedCaption"
@@ -292,17 +281,15 @@
                     Margin="0,0,8,0" />
             <Button Classes="IconButton"
                     Command="{Binding ResetExposureCommand}"
+                    Content="{StaticResource IconWhiteBalance}"
                     ToolTip.Tip="Reset exposure"
                     automation:AutomationProperties.Name="Reset exposure"
-                    Margin="0,0,6,0">
-              <PathIcon Data="{StaticResource IconWhiteBalance}" />
-            </Button>
+                    Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding ClearLogCommand}"
+                    Content="{StaticResource IconClear}"
                     ToolTip.Tip="Clear log"
-                    automation:AutomationProperties.Name="Clear log">
-              <PathIcon Data="{StaticResource IconClear}" />
-            </Button>
+                    automation:AutomationProperties.Name="Clear log" />
           </WrapPanel>
         </Border>
 

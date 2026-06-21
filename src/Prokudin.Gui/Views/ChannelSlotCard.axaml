@@ -31,27 +31,24 @@
         <Button Grid.Column="1"
                 Classes="IconButton SlotIconButton"
                 Command="{Binding OpenCommand}"
+                Content="{StaticResource IconOpenImage}"
                 IsVisible="{Binding CanLoadImage}"
                 ToolTip.Tip="Load channel image"
-                automation:AutomationProperties.Name="Load channel image">
-          <PathIcon Data="{StaticResource IconOpenImage}" />
-        </Button>
+                automation:AutomationProperties.Name="Load channel image" />
         <Button Grid.Column="1"
                 Classes="IconButton SlotIconButton"
                 Command="{Binding ExportCommand}"
+                Content="{StaticResource IconExport}"
                 IsVisible="{Binding IsResultSlot}"
                 ToolTip.Tip="Export result"
-                automation:AutomationProperties.Name="Export result">
-          <PathIcon Data="{StaticResource IconExport}" />
-        </Button>
+                automation:AutomationProperties.Name="Export result" />
         <Button Grid.Column="2"
                 Classes="IconButton SlotIconButton"
                 Command="{Binding ToggleExportSettingsCommand}"
+                Content="{StaticResource IconSettings}"
                 IsVisible="{Binding IsResultSlot}"
                 ToolTip.Tip="Export settings"
-                automation:AutomationProperties.Name="Export settings">
-          <PathIcon Data="{StaticResource IconSettings}" />
-        </Button>
+                automation:AutomationProperties.Name="Export settings" />
       </Grid>
     </Grid>
   </z:Card>
