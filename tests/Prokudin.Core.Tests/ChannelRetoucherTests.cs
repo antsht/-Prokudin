@@ -75,6 +75,33 @@ public sealed class ChannelRetoucherTests
     }
 
     [Fact]
+    public void DetectSingleChannelDefects_HighSensitivityFindsSubtleTargetOnlyDefects()
+    {
+        var target = ImageBuffer.Filled(41, 41, 0.5f);
+        var other1 = ImageBuffer.Filled(41, 41, 0.5f);
+        var other2 = ImageBuffer.Filled(41, 41, 0.5f);
+        target[14, 14] = 0.57f;
+        target[26, 26] = 0.43f;
+
+        var lowSensitivity = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 20, InpaintRadius: 3));
+        var highSensitivity = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 100, InpaintRadius: 3));
+
+        lowSensitivity.Mask[(14 * target.Width) + 14].Should().Be(0);
+        lowSensitivity.Mask[(26 * target.Width) + 26].Should().Be(0);
+        highSensitivity.Mask[(14 * target.Width) + 14].Should().Be(1);
+        highSensitivity.Mask[(26 * target.Width) + 26].Should().Be(1);
+        highSensitivity.CandidatePixels.Should().BeGreaterThan(lowSensitivity.CandidatePixels);
+    }
+
+    [Fact]
     public void DetectSingleChannelDefects_DoesNotFlagSharedEdges()
     {
         var target = SharedEdgeImage();

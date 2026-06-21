@@ -267,7 +267,7 @@
                     Maximum="64"
                     Value="{Binding BrushSize}"
                     Margin="0,0,8,0" />
-            <TextBlock Text="Sens"
+            <TextBlock Text="Agg"
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
                        Margin="0,0,4,0" />
@@ -275,6 +275,7 @@
                     Minimum="0"
                     Maximum="100"
                     Value="{Binding AutoCleanSensitivity}"
+                    ToolTip.Tip="Auto-clean mask aggression"
                     Margin="0,0,8,0" />
             <TextBlock Text="Radius"
                        Classes="MutedCaption"

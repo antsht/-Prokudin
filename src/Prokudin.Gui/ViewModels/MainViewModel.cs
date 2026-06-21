@@ -31,6 +31,10 @@ public sealed partial class MainViewModel : ObservableObject
     private int exposureChangeVersion;
     private int previewImageContextVersion;
     private Bitmap? autoCleanMaskOverlayBitmap;
+    private byte[]? pendingAutoCleanBaseMask;
+    private byte[]? pendingAutoCleanAddMask;
+    private byte[]? pendingAutoCleanRemoveMask;
+    private CancellationTokenSource? autoCleanMaskRefreshCancellation;
 
     public MainViewModel(IFileDialogService fileDialogService)
         : this(fileDialogService, new JsonExportSettingsStore())
@@ -395,7 +399,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            BeginAutoCleanMaskReview(channelName, result.Mask, result.CandidatePixels);
+            BeginAutoCleanMaskReview(channelName, result.Mask);
             Status = $"Review auto-clean mask for {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels.";
             AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels, sensitivity {settings.NormalizedSensitivity}.");
         });
@@ -447,18 +451,14 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (operation.IsRectangle)
-        {
-            ApplyRectangleMaskEdit(mask, image.Width, image.Height, operation);
-        }
-        else
-        {
-            ApplyBrushMaskEdit(mask, image.Width, image.Height, operation);
-        }
+        pendingAutoCleanBaseMask ??= (byte[])mask.Clone();
+        EnsureAutoCleanEditLayers(mask.Length);
 
-        PendingAutoCleanCandidatePixels = mask.Count(value => value > 0);
-        RefreshAutoCleanMaskOverlay();
-        OnPropertyChanged(nameof(PendingAutoCleanMask));
+        var editMask = operation.IsRectangle
+            ? CreateRectangleMaskEdit(image.Width, image.Height, operation)
+            : CreateBrushMaskEdit(image.Width, image.Height, operation);
+        ApplyManualAutoCleanMaskEdit(editMask, operation.Action);
+        RebuildPendingAutoCleanMaskFromLayers();
     }
 
     [RelayCommand(CanExecute = nameof(CanApplyRetouchStroke))]
@@ -880,27 +880,35 @@ public sealed partial class MainViewModel : ObservableObject
         return true;
     }
 
-    private void BeginAutoCleanMaskReview(ChannelName channelName, byte[] mask, int candidatePixels)
+    private void BeginAutoCleanMaskReview(ChannelName channelName, byte[] mask)
     {
         PendingAutoCleanChannel = channelName;
-        PendingAutoCleanMask = (byte[])mask.Clone();
-        PendingAutoCleanCandidatePixels = candidatePixels;
+        pendingAutoCleanBaseMask = (byte[])mask.Clone();
+        pendingAutoCleanAddMask = new byte[mask.Length];
+        pendingAutoCleanRemoveMask = new byte[mask.Length];
+        RebuildPendingAutoCleanMaskFromLayers();
         ShowAutoCleanResultPreview = false;
         SelectionRect = ImageSelectionRect.Empty;
-        RefreshAutoCleanMaskOverlay();
         RefreshPreviewBindings();
         NotifyAutoCleanCommands();
     }
 
     private void ClearPendingAutoCleanMask()
     {
+        autoCleanMaskRefreshCancellation?.Cancel();
         if (PendingAutoCleanMask is null &&
             PendingAutoCleanChannel is null &&
-            AutoCleanMaskOverlayBitmap is null)
+            AutoCleanMaskOverlayBitmap is null &&
+            pendingAutoCleanBaseMask is null &&
+            pendingAutoCleanAddMask is null &&
+            pendingAutoCleanRemoveMask is null)
         {
             return;
         }
 
+        pendingAutoCleanBaseMask = null;
+        pendingAutoCleanAddMask = null;
+        pendingAutoCleanRemoveMask = null;
         PendingAutoCleanMask = null;
         PendingAutoCleanChannel = null;
         PendingAutoCleanCandidatePixels = 0;
@@ -923,49 +931,152 @@ public sealed partial class MainViewModel : ObservableObject
         AutoCleanMaskOverlayBitmap = AvaloniaBitmapFactory.FromMaskOverlay(mask, image.Width, image.Height);
     }
 
-    private static void ApplyBrushMaskEdit(
-        byte[] mask,
+    private void SchedulePendingAutoCleanMaskRefresh()
+    {
+        if (!IsAutoCleanMaskPending)
+        {
+            return;
+        }
+
+        autoCleanMaskRefreshCancellation?.Cancel();
+        autoCleanMaskRefreshCancellation = new CancellationTokenSource();
+        var token = autoCleanMaskRefreshCancellation.Token;
+        _ = RefreshPendingAutoCleanMaskAfterDelay(token);
+    }
+
+    private async Task RefreshPendingAutoCleanMaskAfterDelay(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(180, cancellationToken);
+            if (!TryGetSelectedAutoCleanInputs(out var channelName, out var target, out var other1, out var other2) ||
+                PendingAutoCleanChannel != channelName)
+            {
+                return;
+            }
+
+            var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
+            var result = await Task.Run(
+                () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings),
+                cancellationToken);
+            if (cancellationToken.IsCancellationRequested ||
+                PendingAutoCleanChannel != channelName)
+            {
+                return;
+            }
+
+            pendingAutoCleanBaseMask = result.Mask;
+            EnsureAutoCleanEditLayers(result.Mask.Length);
+            RebuildPendingAutoCleanMaskFromLayers();
+            Status = $"Review auto-clean mask for {SelectedSlot!.DisplayName}: {PendingAutoCleanCandidatePixels} candidate pixels.";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+            AppendLog($"Error: {ex.Message}");
+        }
+    }
+
+    private void RebuildPendingAutoCleanMaskFromLayers()
+    {
+        if (pendingAutoCleanBaseMask is not { } baseMask)
+        {
+            PendingAutoCleanMask = null;
+            PendingAutoCleanCandidatePixels = 0;
+            return;
+        }
+
+        EnsureAutoCleanEditLayers(baseMask.Length);
+        var addMask = pendingAutoCleanAddMask!;
+        var removeMask = pendingAutoCleanRemoveMask!;
+        var composite = new byte[baseMask.Length];
+        var count = 0;
+        for (var i = 0; i < composite.Length; i++)
+        {
+            if ((baseMask[i] > 0 || addMask[i] > 0) && removeMask[i] == 0)
+            {
+                composite[i] = 1;
+                count++;
+            }
+        }
+
+        PendingAutoCleanMask = composite;
+        PendingAutoCleanCandidatePixels = count;
+    }
+
+    private void EnsureAutoCleanEditLayers(int length)
+    {
+        if (pendingAutoCleanAddMask?.Length != length)
+        {
+            pendingAutoCleanAddMask = new byte[length];
+        }
+
+        if (pendingAutoCleanRemoveMask?.Length != length)
+        {
+            pendingAutoCleanRemoveMask = new byte[length];
+        }
+    }
+
+    private void ApplyManualAutoCleanMaskEdit(byte[] editMask, AutoCleanMaskEditAction action)
+    {
+        if (pendingAutoCleanAddMask is null || pendingAutoCleanRemoveMask is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < editMask.Length; i++)
+        {
+            if (editMask[i] == 0)
+            {
+                continue;
+            }
+
+            if (action == AutoCleanMaskEditAction.Add)
+            {
+                pendingAutoCleanAddMask[i] = 1;
+                pendingAutoCleanRemoveMask[i] = 0;
+            }
+            else
+            {
+                pendingAutoCleanRemoveMask[i] = 1;
+                pendingAutoCleanAddMask[i] = 0;
+            }
+        }
+    }
+
+    private static byte[] CreateBrushMaskEdit(
         int width,
         int height,
         AutoCleanMaskEditOperation operation)
     {
-        var brush = ChannelRetoucher.CreateBrushMask(
+        return ChannelRetoucher.CreateBrushMask(
             width,
             height,
             [new RetouchStroke([operation.Start], Math.Clamp(operation.BrushSize, 1, 200))]);
-        MergeMask(mask, brush, operation.Action);
     }
 
-    private static void ApplyRectangleMaskEdit(
-        byte[] mask,
+    private static byte[] CreateRectangleMaskEdit(
         int width,
         int height,
         AutoCleanMaskEditOperation operation)
     {
+        var mask = new byte[width * height];
         var x0 = Math.Clamp((int)MathF.Round(Math.Min(operation.Start.X, operation.End.X)), 0, width - 1);
         var y0 = Math.Clamp((int)MathF.Round(Math.Min(operation.Start.Y, operation.End.Y)), 0, height - 1);
         var x1 = Math.Clamp((int)MathF.Round(Math.Max(operation.Start.X, operation.End.X)), 0, width - 1);
         var y1 = Math.Clamp((int)MathF.Round(Math.Max(operation.Start.Y, operation.End.Y)), 0, height - 1);
-        var value = operation.Action == AutoCleanMaskEditAction.Add ? (byte)1 : (byte)0;
         for (var y = y0; y <= y1; y++)
         {
             for (var x = x0; x <= x1; x++)
             {
-                mask[(y * width) + x] = value;
+                mask[(y * width) + x] = 1;
             }
         }
-    }
 
-    private static void MergeMask(byte[] target, byte[] edit, AutoCleanMaskEditAction action)
-    {
-        var value = action == AutoCleanMaskEditAction.Add ? (byte)1 : (byte)0;
-        for (var i = 0; i < target.Length; i++)
-        {
-            if (edit[i] > 0)
-            {
-                target[i] = value;
-            }
-        }
+        return mask;
     }
 
     private ChannelSlotViewModel GetSlot(ChannelName channelName)
@@ -1265,6 +1376,11 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSelectToolMode));
         OnPropertyChanged(nameof(IsHealToolMode));
         OnPropertyChanged(nameof(IsCloneToolMode));
+    }
+
+    partial void OnAutoCleanSensitivityChanged(int value)
+    {
+        SchedulePendingAutoCleanMaskRefresh();
     }
 
     partial void OnPendingAutoCleanMaskChanged(byte[]? value)

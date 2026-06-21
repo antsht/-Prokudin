@@ -65,6 +65,8 @@ While a mask is pending:
 - Use **Apply auto-clean mask** to inpaint the selected channel.
 - Use **Cancel auto-clean mask** to discard the pending mask.
 - Toggle **Review mask on result** to view the same mask over the RGB result.
+- Adjust **Agg** to redraw the detected mask live. Higher values include weaker
+  dust and scratch candidates; manual mask edits are preserved over the redraw.
 - `Ctrl+click` adds a brush-sized spot to the mask.
 - `Alt+click` removes a brush-sized spot from the mask.
 - `Ctrl+drag` adds a rectangular mask area.

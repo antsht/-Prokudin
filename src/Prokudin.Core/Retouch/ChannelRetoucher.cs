@@ -69,9 +69,10 @@ public static class ChannelRetoucher
 
         using var rawMask = new Mat(target.Height, target.Width, MatType.CV_8UC1, Scalar.Black);
         var sensitivity = settings.NormalizedSensitivity / 100.0;
-        var residualThreshold = 0.18 - (sensitivity * 0.10);
-        var highPassThreshold = 0.08 - (sensitivity * 0.045);
-        var supportMultiplier = 1.65 - (sensitivity * 0.35);
+        var residualThreshold = 0.22 - (sensitivity * 0.18);
+        var highPassThreshold = 0.10 - (sensitivity * 0.085);
+        var supportMultiplier = 1.90 - (sensitivity * 0.90);
+        var supportOffset = 0.020f - (float)(sensitivity * 0.015);
 
         for (var i = 0; i < normalizedTarget.Length; i++)
         {
@@ -79,13 +80,13 @@ public static class ChannelRetoucher
             var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
             if (residual > residualThreshold &&
                 targetHighPass[i] > highPassThreshold &&
-                targetHighPass[i] > (otherSupport * supportMultiplier) + 0.015f)
+                targetHighPass[i] > (otherSupport * supportMultiplier) + supportOffset)
             {
                 rawMask.Set(i / target.Width, i % target.Width, (byte)255);
             }
         }
 
-        using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height);
+        using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height, sensitivity);
         var mask = MaskFromMat(filteredMask);
         return new AutoCleanMaskResult(mask, mask.Count(value => value > 0));
     }
@@ -402,10 +403,19 @@ public static class ChannelRetoucher
 
     private static Mat FilterSmallDefects(Mat rawMask, int width, int height)
     {
+        return FilterSmallDefects(rawMask, width, height, sensitivity: 0.0);
+    }
+
+    private static Mat FilterSmallDefects(Mat rawMask, int width, int height, double sensitivity)
+    {
         var filtered = new Mat(rawMask.Rows, rawMask.Cols, MatType.CV_8UC1, Scalar.Black);
         Cv2.FindContours(rawMask, out Point[][] contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-        var maxArea = Math.Clamp((width * height) / 350, 4, 300);
+        var normalizedSensitivity = Math.Clamp(sensitivity, 0.0, 1.0);
+        var maxAreaScale = 350.0 - (normalizedSensitivity * 180.0);
+        var maxAreaLimit = (int)Math.Round(300.0 + (normalizedSensitivity * 700.0));
+        var maxArea = Math.Clamp((int)Math.Round((width * height) / maxAreaScale), 4, maxAreaLimit);
+        var maxLongSide = (int)Math.Round(48.0 + (normalizedSensitivity * 96.0));
         foreach (var contour in contours)
         {
             var rect = Cv2.BoundingRect(contour);
@@ -415,7 +425,7 @@ public static class ChannelRetoucher
                 continue;
             }
 
-            if (Math.Max(rect.Width, rect.Height) > 48)
+            if (Math.Max(rect.Width, rect.Height) > maxLongSide)
             {
                 continue;
             }

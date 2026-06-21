@@ -241,6 +241,73 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task AutoCleanSensitivityChange_RebuildsPendingMaskAndKeepsManualAdds()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(41, 41, 0.5f);
+        red[20, 20] = 1.0f;
+        red[12, 12] = 0.57f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(41, 41, 0.5f),
+            ImageBuffer.Filled(41, 41, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        viewModel.AutoCleanSensitivity = 20;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.PendingAutoCleanMask![(12 * 41) + 12].Should().Be(0);
+
+        viewModel.EditAutoCleanMaskCommand.Execute(new AutoCleanMaskEditOperation(
+            new RetouchPoint(0, 0),
+            new RetouchPoint(0, 0),
+            AutoCleanMaskEditAction.Add,
+            BrushSize: 1,
+            IsRectangle: false));
+        viewModel.PendingAutoCleanMask[0].Should().Be(1);
+
+        viewModel.AutoCleanSensitivity = 100;
+
+        await WaitUntil(() =>
+            viewModel.PendingAutoCleanMask![(12 * 41) + 12] == 1 &&
+            viewModel.PendingAutoCleanMask[0] == 1);
+    }
+
+    [Fact]
+    public async Task AutoCleanSensitivityChange_RebuildsPendingMaskAndKeepsManualRemoves()
+    {
+        var viewModel = CreateViewModel();
+        var red = ImageBuffer.Filled(41, 41, 0.5f);
+        red[20, 20] = 1.0f;
+        red[12, 12] = 0.57f;
+        red[28, 28] = 0.43f;
+        SetAlignedChannels(
+            viewModel,
+            red,
+            ImageBuffer.Filled(41, 41, 0.5f),
+            ImageBuffer.Filled(41, 41, 0.5f));
+
+        viewModel.SelectedSlot = viewModel.RedSlot;
+        viewModel.AutoCleanSensitivity = 20;
+        await viewModel.AutoCleanSelectedChannelCommand.ExecuteAsync(null);
+        viewModel.PendingAutoCleanMask![(12 * 41) + 12].Should().Be(0);
+        viewModel.PendingAutoCleanMask[(28 * 41) + 28].Should().Be(0);
+
+        viewModel.EditAutoCleanMaskCommand.Execute(new AutoCleanMaskEditOperation(
+            new RetouchPoint(28, 28),
+            new RetouchPoint(28, 28),
+            AutoCleanMaskEditAction.Remove,
+            BrushSize: 1,
+            IsRectangle: false));
+
+        viewModel.AutoCleanSensitivity = 100;
+
+        await WaitUntil(() =>
+            viewModel.PendingAutoCleanMask![(12 * 41) + 12] == 1 &&
+            viewModel.PendingAutoCleanMask[(28 * 41) + 28] == 0);
+    }
+
+    [Fact]
     public async Task AutoCleanPreviewCanToggleToResultBitmap()
     {
         var viewModel = CreateViewModel();
