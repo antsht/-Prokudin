@@ -37,7 +37,9 @@
       </MenuItem>
       <MenuItem Header="_Process">
         <MenuItem Header="_Auto-align" Command="{Binding AutoAlignCommand}" />
-        <MenuItem Header="Auto-clean selected channel" Command="{Binding AutoCleanSelectedChannelCommand}" />
+        <MenuItem Header="Detect auto-clean mask" Command="{Binding AutoCleanSelectedChannelCommand}" />
+        <MenuItem Header="Apply auto-clean mask" Command="{Binding ApplyAutoCleanMaskCommand}" />
+        <MenuItem Header="Cancel auto-clean mask" Command="{Binding CancelAutoCleanMaskCommand}" />
       </MenuItem>
     </Menu>
 
@@ -198,9 +200,30 @@
             <Button Classes="IconButton"
                     Command="{Binding AutoCleanSelectedChannelCommand}"
                     Content="{StaticResource IconClean}"
-                    ToolTip.Tip="Auto-clean selected channel"
-                    automation:AutomationProperties.Name="Auto-clean selected channel"
-                    Margin="0,0,10,0" />
+                    ToolTip.Tip="Detect auto-clean mask"
+                    automation:AutomationProperties.Name="Detect auto-clean mask"
+                    Margin="0,0,4,0" />
+            <Button Classes="IconButton"
+                    Command="{Binding ApplyAutoCleanMaskCommand}"
+                    Content="{StaticResource IconApply}"
+                    ToolTip.Tip="Apply auto-clean mask"
+                    automation:AutomationProperties.Name="Apply auto-clean mask"
+                    IsVisible="{Binding IsAutoCleanMaskPending}"
+                    Margin="0,0,4,0" />
+            <Button Classes="IconButton"
+                    Command="{Binding CancelAutoCleanMaskCommand}"
+                    Content="{StaticResource IconCancel}"
+                    ToolTip.Tip="Cancel auto-clean mask"
+                    automation:AutomationProperties.Name="Cancel auto-clean mask"
+                    IsVisible="{Binding IsAutoCleanMaskPending}"
+                    Margin="0,0,4,0" />
+            <primitives:ToggleButton Classes="IconButton"
+                                      IsChecked="{Binding ShowAutoCleanResultPreview}"
+                                      Content="{StaticResource IconPreview}"
+                                      ToolTip.Tip="Review mask on result"
+                                      automation:AutomationProperties.Name="Review mask on result"
+                                      IsVisible="{Binding IsAutoCleanMaskPending}"
+                                      Margin="0,0,10,0" />
 
             <primitives:ToggleButton Classes="IconButton"
                                       IsChecked="{Binding IsSelectToolMode}"
@@ -230,7 +253,7 @@
                     Maximum="64"
                     Value="{Binding BrushSize}"
                     Margin="0,0,8,0" />
-            <TextBlock Text="Sens"
+            <TextBlock Text="Agg"
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
                        Margin="0,0,4,0" />
@@ -238,6 +261,7 @@
                     Minimum="0"
                     Maximum="100"
                     Value="{Binding AutoCleanSensitivity}"
+                    ToolTip.Tip="Auto-clean mask aggression"
                     Margin="0,0,8,0" />
             <TextBlock Text="Radius"
                        Classes="MutedCaption"
@@ -294,17 +318,19 @@
         </Border>
 
         <views:ImagePreviewControl Grid.Row="1"
-                                   DisplayBitmap="{Binding SelectedSlot.DisplayBitmap}"
+                                   DisplayBitmap="{Binding PreviewDisplayBitmap}"
+                                   MaskOverlayBitmap="{Binding AutoCleanMaskOverlayBitmap}"
                                    ZoomMode="{Binding PreviewZoomMode}"
                                    SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
-                                   HasImage="{Binding SelectedSlot.HasImage}"
+                                   HasImage="{Binding PreviewHasImage}"
                                    InteractionMode="{Binding PreviewInteractionMode}"
                                    RetouchTool="{Binding SelectedRetouchTool}"
                                    PreviewImageContextKey="{Binding PreviewImageContextKey}"
                                    BrushSize="{Binding BrushSize}"
                                    InpaintRadius="{Binding AutoCleanRadius}"
                                    RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
-                                   StampStrokeCommand="{Binding ApplyStampStrokeCommand}" />
+                                   StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
+                                   MaskEditCommand="{Binding EditAutoCleanMaskCommand}" />
 
         <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
           <z:EdgePanel>

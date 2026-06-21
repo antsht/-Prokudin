@@ -11,6 +11,9 @@
   <ui:Icon x:Key="IconUndo" Source="fa-rotate-left" />
   <ui:Icon x:Key="IconRedo" Source="fa-rotate-right" />
   <ui:Icon x:Key="IconClean" Source="fa-broom" />
+  <ui:Icon x:Key="IconApply" Source="fa-check" />
+  <ui:Icon x:Key="IconPreview" Source="fa-eye" />
+  <ui:Icon x:Key="IconCancel" Source="fa-xmark" />
   <ui:Icon x:Key="IconPointer" Source="fa-arrow-pointer" />
   <ui:Icon x:Key="IconHeal" Source="fa-bandage" />
   <ui:Icon x:Key="IconClone" Source="fa-clone" />

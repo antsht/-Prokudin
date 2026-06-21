@@ -55,6 +55,108 @@ public sealed class ChannelRetoucherTests
     }
 
     [Fact]
+    public void DetectSingleChannelDefects_FindsBrightAndDarkTargetOnlyDefects()
+    {
+        var target = ImageBuffer.Filled(31, 31, 0.5f);
+        var other1 = ImageBuffer.Filled(31, 31, 0.5f);
+        var other2 = ImageBuffer.Filled(31, 31, 0.5f);
+        target[9, 9] = 1.0f;
+        target[21, 21] = 0.0f;
+
+        var result = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 65, InpaintRadius: 3));
+
+        result.CandidatePixels.Should().BeGreaterThan(0);
+        result.Mask[(9 * target.Width) + 9].Should().Be(1);
+        result.Mask[(21 * target.Width) + 21].Should().Be(1);
+    }
+
+    [Fact]
+    public void DetectSingleChannelDefects_HighSensitivityFindsSubtleTargetOnlyDefects()
+    {
+        var target = ImageBuffer.Filled(41, 41, 0.5f);
+        var other1 = ImageBuffer.Filled(41, 41, 0.5f);
+        var other2 = ImageBuffer.Filled(41, 41, 0.5f);
+        target[14, 14] = 0.57f;
+        target[26, 26] = 0.43f;
+
+        var lowSensitivity = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 20, InpaintRadius: 3));
+        var highSensitivity = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 100, InpaintRadius: 3));
+
+        lowSensitivity.Mask[(14 * target.Width) + 14].Should().Be(0);
+        lowSensitivity.Mask[(26 * target.Width) + 26].Should().Be(0);
+        highSensitivity.Mask[(14 * target.Width) + 14].Should().Be(1);
+        highSensitivity.Mask[(26 * target.Width) + 26].Should().Be(1);
+        highSensitivity.CandidatePixels.Should().BeGreaterThan(lowSensitivity.CandidatePixels);
+    }
+
+    [Fact]
+    public void DetectSingleChannelDefects_DoesNotFlagSharedEdges()
+    {
+        var target = SharedEdgeImage();
+        var other1 = SharedEdgeImage();
+        var other2 = SharedEdgeImage();
+
+        var result = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 80, InpaintRadius: 3));
+
+        result.CandidatePixels.Should().Be(0);
+        result.Mask.Should().OnlyContain(value => value == 0);
+    }
+
+    [Fact]
+    public void DetectSingleChannelDefects_RejectsMismatchedSizes()
+    {
+        var target = ImageBuffer.Filled(12, 12, 0.5f);
+        var other1 = ImageBuffer.Filled(11, 12, 0.5f);
+        var other2 = ImageBuffer.Filled(12, 12, 0.5f);
+
+        var act = () => ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings());
+
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*same dimensions*");
+    }
+
+    [Fact]
+    public void InpaintMask_WithDetectedCrossChannelMask_RepairsOnlyTargetChannel()
+    {
+        var target = ImageBuffer.Filled(31, 31, 0.5f);
+        var other1 = ImageBuffer.Filled(31, 31, 0.5f);
+        var other2 = ImageBuffer.Filled(31, 31, 0.5f);
+        target[15, 15] = 1.0f;
+
+        var mask = ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 65, InpaintRadius: 3));
+
+        var repaired = ChannelRetoucher.InpaintMask(target, mask.Mask, radius: 3);
+
+        repaired[15, 15].Should().BeLessThan(0.85f);
+        other1[15, 15].Should().BeApproximately(0.5f, 0.001f);
+        other2[15, 15].Should().BeApproximately(0.5f, 0.001f);
+    }
+
+    [Fact]
     public void Stamp_MapsSourceAnchorToDestinationAnchor()
     {
         var image = ImageBuffer.Filled(12, 8, 0.1f);
@@ -137,5 +239,19 @@ public sealed class ChannelRetoucherTests
         result.Image[10, 6].Should().BeApproximately(0.9f, 0.001f);
         result.Image[12, 6].Should().BeApproximately(0.1f, 0.001f);
         result.Mask[(6 * image.Width) + 12].Should().Be(0);
+    }
+
+    private static ImageBuffer SharedEdgeImage()
+    {
+        var image = ImageBuffer.Filled(31, 31, 0.35f);
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 16; x < image.Width; x++)
+            {
+                image[x, y] = 0.75f;
+            }
+        }
+
+        return image;
     }
 }

@@ -6,6 +6,9 @@ namespace Prokudin.Core.Retouch;
 
 public static class ChannelRetoucher
 {
+    private const double PercentileLow = 1.0;
+    private const double PercentileHigh = 99.0;
+
     public static ImageBuffer InpaintMask(ImageBuffer image, byte[] mask, int radius)
     {
         if (mask.Length != image.Width * image.Height)
@@ -45,6 +48,47 @@ public static class ChannelRetoucher
             : image.Clone();
 
         return new RetouchResult(cleaned, mask);
+    }
+
+    public static AutoCleanMaskResult DetectSingleChannelDefects(
+        ImageBuffer target,
+        ImageBuffer other1,
+        ImageBuffer other2,
+        AutoCleanSettings settings)
+    {
+        ValidateSameDimensions(target, other1, nameof(other1));
+        ValidateSameDimensions(target, other2, nameof(other2));
+
+        var normalizedTarget = RobustNormalize(target.Pixels);
+        var normalizedOther1 = RobustNormalize(other1.Pixels);
+        var normalizedOther2 = RobustNormalize(other2.Pixels);
+        var prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2);
+        var targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0);
+        var other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0);
+        var other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0);
+
+        using var rawMask = new Mat(target.Height, target.Width, MatType.CV_8UC1, Scalar.Black);
+        var sensitivity = settings.NormalizedSensitivity / 100.0;
+        var residualThreshold = 0.22 - (sensitivity * 0.18);
+        var highPassThreshold = 0.10 - (sensitivity * 0.085);
+        var supportMultiplier = 1.90 - (sensitivity * 0.90);
+        var supportOffset = 0.020f - (float)(sensitivity * 0.015);
+
+        for (var i = 0; i < normalizedTarget.Length; i++)
+        {
+            var residual = Math.Abs(normalizedTarget[i] - prediction[i]);
+            var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
+            if (residual > residualThreshold &&
+                targetHighPass[i] > highPassThreshold &&
+                targetHighPass[i] > (otherSupport * supportMultiplier) + supportOffset)
+            {
+                rawMask.Set(i / target.Width, i % target.Width, (byte)255);
+            }
+        }
+
+        using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height, sensitivity);
+        var mask = MaskFromMat(filteredMask);
+        return new AutoCleanMaskResult(mask, mask.Count(value => value > 0));
     }
 
     public static byte[] CreateBrushMask(int width, int height, IReadOnlyList<RetouchStroke> strokes)
@@ -124,12 +168,254 @@ public static class ChannelRetoucher
         return new RetouchResult(result, appliedMask);
     }
 
+    private static void ValidateSameDimensions(ImageBuffer target, ImageBuffer other, string parameterName)
+    {
+        if (target.Width != other.Width || target.Height != other.Height)
+        {
+            throw new ArgumentException("All channels must have the same dimensions.", parameterName);
+        }
+    }
+
+    private static float[] RobustNormalize(float[] source)
+    {
+        var low = Percentile(source, PercentileLow);
+        var high = Percentile(source, PercentileHigh);
+        var normalized = new float[source.Length];
+        if (high <= low)
+        {
+            for (var i = 0; i < source.Length; i++)
+            {
+                normalized[i] = Math.Clamp(source[i], 0.0f, 1.0f);
+            }
+
+            return normalized;
+        }
+
+        var scale = 1.0f / (high - low);
+        for (var i = 0; i < source.Length; i++)
+        {
+            normalized[i] = Math.Clamp((source[i] - low) * scale, 0.0f, 1.0f);
+        }
+
+        return normalized;
+    }
+
+    private static float Percentile(float[] source, double percentile)
+    {
+        var sorted = (float[])source.Clone();
+        Array.Sort(sorted);
+        if (sorted.Length == 1)
+        {
+            return sorted[0];
+        }
+
+        var position = Math.Clamp(percentile, 0.0, 100.0) / 100.0 * (sorted.Length - 1);
+        var lower = (int)Math.Floor(position);
+        var upper = (int)Math.Ceiling(position);
+        if (lower == upper)
+        {
+            return sorted[lower];
+        }
+
+        var amount = (float)(position - lower);
+        return (sorted[lower] * (1.0f - amount)) + (sorted[upper] * amount);
+    }
+
+    private static float[] PredictChannel(float[] target, float[] other1, float[] other2)
+    {
+        var lowTarget = Percentile(target, 2.0);
+        var highTarget = Percentile(target, 98.0);
+        var lowOther1 = Percentile(other1, 2.0);
+        var highOther1 = Percentile(other1, 98.0);
+        var lowOther2 = Percentile(other2, 2.0);
+        var highOther2 = Percentile(other2, 98.0);
+
+        var coefficients = FitLinearModel(
+            target,
+            other1,
+            other2,
+            i => IsCentralValue(target[i], lowTarget, highTarget) &&
+                 IsCentralValue(other1[i], lowOther1, highOther1) &&
+                 IsCentralValue(other2[i], lowOther2, highOther2));
+
+        if (coefficients.Count == 0)
+        {
+            coefficients = FitLinearModel(target, other1, other2, _ => true);
+        }
+
+        var prediction = new float[target.Length];
+        for (var i = 0; i < prediction.Length; i++)
+        {
+            prediction[i] = Math.Clamp(
+                (float)((coefficients.A * other1[i]) + (coefficients.B * other2[i]) + coefficients.C),
+                0.0f,
+                1.0f);
+        }
+
+        return prediction;
+    }
+
+    private static bool IsCentralValue(float value, float low, float high)
+    {
+        return high > low && value > low && value < high;
+    }
+
+    private static LinearModel FitLinearModel(
+        float[] target,
+        float[] other1,
+        float[] other2,
+        Func<int, bool> include)
+    {
+        var count = 0;
+        var sumX1 = 0.0;
+        var sumX2 = 0.0;
+        var sumY = 0.0;
+        var sumX1X1 = 0.0;
+        var sumX1X2 = 0.0;
+        var sumX2X2 = 0.0;
+        var sumX1Y = 0.0;
+        var sumX2Y = 0.0;
+
+        for (var i = 0; i < target.Length; i++)
+        {
+            if (!include(i))
+            {
+                continue;
+            }
+
+            var x1 = other1[i];
+            var x2 = other2[i];
+            var y = target[i];
+            count++;
+            sumX1 += x1;
+            sumX2 += x2;
+            sumY += y;
+            sumX1X1 += x1 * x1;
+            sumX1X2 += x1 * x2;
+            sumX2X2 += x2 * x2;
+            sumX1Y += x1 * y;
+            sumX2Y += x2 * y;
+        }
+
+        if (count == 0)
+        {
+            return new LinearModel(0.0, 0.0, 0.0, 0);
+        }
+
+        var matrix = new[,]
+        {
+            { sumX1X1 + 1e-6, sumX1X2, sumX1 },
+            { sumX1X2, sumX2X2 + 1e-6, sumX2 },
+            { sumX1, sumX2, count + 1e-6 },
+        };
+        var vector = new[] { sumX1Y, sumX2Y, sumY };
+        if (!Solve3x3(matrix, vector, out var solution))
+        {
+            return new LinearModel(0.0, 0.0, sumY / count, count);
+        }
+
+        return new LinearModel(solution[0], solution[1], solution[2], count);
+    }
+
+    private static bool Solve3x3(double[,] matrix, double[] vector, out double[] solution)
+    {
+        var augmented = new double[3, 4];
+        for (var row = 0; row < 3; row++)
+        {
+            for (var column = 0; column < 3; column++)
+            {
+                augmented[row, column] = matrix[row, column];
+            }
+
+            augmented[row, 3] = vector[row];
+        }
+
+        for (var pivot = 0; pivot < 3; pivot++)
+        {
+            var bestRow = pivot;
+            var bestValue = Math.Abs(augmented[pivot, pivot]);
+            for (var row = pivot + 1; row < 3; row++)
+            {
+                var value = Math.Abs(augmented[row, pivot]);
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestRow = row;
+                }
+            }
+
+            if (bestValue < 1e-12)
+            {
+                solution = [];
+                return false;
+            }
+
+            if (bestRow != pivot)
+            {
+                for (var column = pivot; column < 4; column++)
+                {
+                    (augmented[pivot, column], augmented[bestRow, column]) =
+                        (augmented[bestRow, column], augmented[pivot, column]);
+                }
+            }
+
+            var pivotValue = augmented[pivot, pivot];
+            for (var column = pivot; column < 4; column++)
+            {
+                augmented[pivot, column] /= pivotValue;
+            }
+
+            for (var row = 0; row < 3; row++)
+            {
+                if (row == pivot)
+                {
+                    continue;
+                }
+
+                var factor = augmented[row, pivot];
+                for (var column = pivot; column < 4; column++)
+                {
+                    augmented[row, column] -= factor * augmented[pivot, column];
+                }
+            }
+        }
+
+        solution = [augmented[0, 3], augmented[1, 3], augmented[2, 3]];
+        return true;
+    }
+
+    private static float[] HighPassAbs(float[] source, int width, int height, double sigma)
+    {
+        using var sourceMat = FloatToMat(source, width, height);
+        using var blur = new Mat();
+        Cv2.GaussianBlur(sourceMat, blur, new Size(0, 0), sigma);
+        var blurred = new float[source.Length];
+        Marshal.Copy(blur.Data, blurred, 0, blurred.Length);
+
+        var highPass = new float[source.Length];
+        for (var i = 0; i < source.Length; i++)
+        {
+            highPass[i] = Math.Abs(source[i] - blurred[i]);
+        }
+
+        return highPass;
+    }
+
     private static Mat FilterSmallDefects(Mat rawMask, int width, int height)
+    {
+        return FilterSmallDefects(rawMask, width, height, sensitivity: 0.0);
+    }
+
+    private static Mat FilterSmallDefects(Mat rawMask, int width, int height, double sensitivity)
     {
         var filtered = new Mat(rawMask.Rows, rawMask.Cols, MatType.CV_8UC1, Scalar.Black);
         Cv2.FindContours(rawMask, out Point[][] contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-        var maxArea = Math.Clamp((width * height) / 350, 4, 300);
+        var normalizedSensitivity = Math.Clamp(sensitivity, 0.0, 1.0);
+        var maxAreaScale = 350.0 - (normalizedSensitivity * 180.0);
+        var maxAreaLimit = (int)Math.Round(300.0 + (normalizedSensitivity * 700.0));
+        var maxArea = Math.Clamp((int)Math.Round((width * height) / maxAreaScale), 4, maxAreaLimit);
+        var maxLongSide = (int)Math.Round(48.0 + (normalizedSensitivity * 96.0));
         foreach (var contour in contours)
         {
             var rect = Cv2.BoundingRect(contour);
@@ -139,7 +425,7 @@ public static class ChannelRetoucher
                 continue;
             }
 
-            if (Math.Max(rect.Width, rect.Height) > 48)
+            if (Math.Max(rect.Width, rect.Height) > maxLongSide)
             {
                 continue;
             }
@@ -232,6 +518,13 @@ public static class ChannelRetoucher
         return new ImageBuffer(floatMat.Cols, floatMat.Rows, pixels);
     }
 
+    private static Mat FloatToMat(float[] pixels, int width, int height)
+    {
+        var mat = new Mat(height, width, MatType.CV_32FC1);
+        Marshal.Copy(pixels, 0, mat.Data, pixels.Length);
+        return mat;
+    }
+
     private static Mat MaskToMat(byte[] mask, int width, int height)
     {
         var normalized = new byte[mask.Length];
@@ -258,4 +551,6 @@ public static class ChannelRetoucher
 
         return values;
     }
+
+    private readonly record struct LinearModel(double A, double B, double C, int Count);
 }
