@@ -43,13 +43,74 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 ### Basic workflow
 
 1. Open R, G, and B channel files, or open a triptych and choose `RGB` or `BGR`.
-2. Use the left thumbnail list to inspect channels.
-3. Drag one R/G/B thumbnail onto another to swap channel assignments.
-4. Run **Auto-align**.
+2. Use the left sidebar channel cards (with thumbnails) to inspect and select channels.
+3. Drag one R/G/B card onto another to swap channel assignments.
+4. Run **Auto-align**. Prepared aligned channels are kept for retouch and export.
 5. Read the status bar for alignment details (transform type, inliers, shifts).
-6. Optionally review and apply per-channel auto-clean masks.
-7. Inspect the result preview.
-8. Export the result as PNG, JPEG, or TIFF.
+6. Optionally retouch a channel (heal brush, clone stamp) or review auto-clean masks.
+7. Adjust per-channel exposure or toggle **Auto WB** if needed.
+8. Inspect the result preview (fit-to-window or 1:1 zoom).
+9. Export the result as PNG, JPEG, or TIFF; optionally **Export Channels** for the prepared R/G/B buffers.
+
+### Channel thumbnails
+
+Each sidebar card shows a downscaled thumbnail (max side 512 px) of the loaded
+channel or result. Thumbnails update when the underlying image changes. The main
+preview pane shows the full-resolution image for the selected slot.
+
+### Retouch tools
+
+Retouch operates on **aligned working channels** after **Auto-align**. Select a
+Red, Green, or Blue slot, then choose a tool from the toolbar:
+
+| Tool | Use |
+| --- | --- |
+| **Heal** | Paint over dust or spots. Uses cross-channel guided healing when enabled. |
+| **Clone stamp** | Alt+click to set source, then paint to copy texture from the source. |
+
+Toolbar controls:
+
+| Control | Default | Description |
+| --- | --- | --- |
+| **Brush** | — | Brush diameter for heal and stamp strokes. |
+| **Radius** | 3 | Inpaint/patch radius passed to `HealOptions`. |
+| **Cross-channel** | on | Use aligned sibling channels as healing guides. |
+| **Telea** | off | When cross-channel is off, use OpenCV Telea instead of patch healing. |
+| **Debug heal** | off | Write debug PNGs to `debug/heal/{timestamp}/` under the working directory. |
+
+Heal strokes run asynchronously (`Task.Run`). The status bar reports pixel counts
+and fallback messages (for example when guides are unavailable).
+
+**Undo** and **Redo** revert channel edits and retouch strokes. Undo history is
+cleared when you reload images or run auto-align.
+
+### Crop to selection
+
+1. Enable **Selection mode** in the toolbar.
+2. Drag a rectangle on the preview.
+3. Click **Crop to selection**.
+
+Cropping a channel trims that working buffer. Cropping the **Result** slot also
+crops the prepared R/G/B channels to the same rectangle so retouch and rebuild
+stay aligned.
+
+### Exposure and white balance
+
+Per-channel **R**, **G**, and **B** sliders adjust exposure in stops (−2…+2).
+**Auto WB** applies automatic white balance when rebuilding the RGB result.
+**Reset exposure** restores all sliders to zero.
+
+### Export settings
+
+Export settings (format, max side, PNG/JPEG/TIFF compression) persist to
+`%LocalAppData%\Prokudin\export-settings.json`. Open the settings panel from the
+result card or the export toolbar.
+
+### Export channels
+
+After **Auto-align**, use **Export Channels** (File menu or sidebar) to save
+the prepared aligned R, G, and B grayscale buffers. Useful for archival handoff or
+external editing.
 
 ### Auto-clean mask review
 
@@ -67,14 +128,29 @@ While a mask is pending:
 - Toggle **Review mask on result** to view the same mask over the RGB result.
 - Adjust **Agg** to redraw the detected mask live. Higher values include weaker
   dust and scratch candidates; manual mask edits are preserved over the redraw.
+- **Radius** sets the heal/inpaint radius used when the mask is applied (shared
+  with the heal brush).
 - `Ctrl+click` adds a brush-sized spot to the mask.
 - `Alt+click` removes a brush-sized spot from the mask.
 - `Ctrl+drag` adds a rectangular mask area.
 - `Alt+drag` removes a rectangular mask area.
 
 The mask is cleared if you switch channels, undo/redo, cancel, or change the
-working image. The cleanup is intentionally conservative: it repairs only the
-selected grayscale channel and leaves the other channels untouched.
+working image. Applying the mask uses the same healing options as the heal brush
+(cross-channel guided by default). The cleanup repairs only the selected
+grayscale channel and leaves the other channels untouched.
+
+### Cross-channel healing
+
+When **Cross-channel** is enabled (default), heal and auto-clean apply use the
+two aligned sibling channels as guides. The algorithm fits a local linear model
+on a ring around each defect, searches for a matching patch, and blends by
+prediction confidence. See [Cross-Channel Guided Healing](cross-channel-healing.md)
+for algorithm details.
+
+If guides are unavailable, healing falls back to Telea and the status bar
+reports the fallback. Turn **Cross-channel** off to use single-channel healing;
+**Telea** selects OpenCV inpaint, otherwise patch healing is used.
 
 ### Status bar after auto-align
 
@@ -101,17 +177,20 @@ for auto-scale (GUI uses the default 128).
 
 ### Current GUI scope
 
-- channel loading
-- triptych loading with RGB/BGR selector
-- thumbnail swap
-- auto-align with status metadata
-- per-channel auto-clean mask detection, review, editing, apply/cancel
-- brush heal and clone stamp retouching
-- result preview
-- PNG, JPEG, and TIFF result export with saved export settings
+Implemented in the Avalonia UI:
 
-Manual nudge, loupe, alignment limit control, and full color controls are not
-yet exposed in the Avalonia UI.
+- channel loading and triptych split with RGB/BGR selector
+- sidebar thumbnails and drag/drop slot swap
+- auto-align with status metadata and prepared channel retention
+- heal brush and clone stamp with cross-channel guided healing
+- per-channel auto-clean mask detection, review, editing, apply/cancel
+- crop-to-selection on channels and result
+- per-channel exposure sliders, auto white balance, undo/redo
+- result preview with fit-to-window zoom
+- PNG/JPEG/TIFF export with persisted settings; export prepared channels
+
+Not yet exposed: manual alignment nudge, loupe, `MaxTranslation` control, and
+full pipette/temperature color controls beyond exposure and auto WB.
 
 ## Command Line
 

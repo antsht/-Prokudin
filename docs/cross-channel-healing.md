@@ -1,6 +1,8 @@
 # Cross-Channel Guided Healing — Design
 
-Status: **approved for implementation** (brainstorming session 2026-06-22)
+Status: **implemented** (Core `ChannelHealer`, GUI heal brush and auto-clean apply, 2026-06)
+
+See also: [User Guide](user-guide.md#cross-channel-healing), [Core API](core-api.md#retouch).
 
 ## Understanding Summary
 
@@ -229,14 +231,14 @@ Regression: all `ChannelRetoucherTests` pass; `InpaintMask` behavior unchanged.
 
 | Stage | Scope | Exit criteria |
 |-------|-------|---------------|
-| **0** | Typed `ImageBuffer`; migrate Imaging → Alignment → Pipeline → Color → Retouch | All Core tests green; GUI/CLI load/export all formats |
-| **1** | `HealingMode`, `HealOptions`, `ChannelHealer` skeleton; `CurrentChannelOnly.Telea` wired | Existing heal paths use new API; Telea identical |
-| **2** | `CrossChannelPredictor` | Unit tests for ring LS, robust fit, confidence |
-| **3** | Confidence + fallback logic | Fallback matrix tests |
-| **4** | `PatchHealer` (single + guided) | Donor search tests |
-| **5** | Blend prediction + patch + feather | Tests T1–T5 |
-| **6** | `HealingDebugWriter` + GUI controls/async | Manual debug verification |
-| **7** | GUI integration + acceptance tests | User-guide update; full test suite green |
+| **0** | Typed `ImageBuffer`; migrate Imaging → Alignment → Pipeline → Color → Retouch | All Core tests green; GUI/CLI load/export all formats — **done** |
+| **1** | `HealingMode`, `HealOptions`, `ChannelHealer` skeleton; `CurrentChannelOnly.Telea` wired | Existing heal paths use new API; Telea identical — **done** |
+| **2** | `CrossChannelPredictor` | Unit tests for ring LS, robust fit, confidence — **done** |
+| **3** | Confidence + fallback logic | Fallback matrix tests — **done** |
+| **4** | `PatchHealer` (single + guided) | Donor search tests — **done** |
+| **5** | Blend prediction + patch + feather | Tests T1–T5 — **done** |
+| **6** | `HealingDebugWriter` + GUI controls/async | Manual debug verification — **done** |
+| **7** | GUI integration + acceptance tests | User-guide update; full test suite green — **done** |
 
 ## Risks
 

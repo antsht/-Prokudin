@@ -4,15 +4,31 @@
 
 ### `ImageBuffer`
 
-Single-channel float image.
+Single-channel image with typed pixel storage.
 
-- `Width`
-- `Height`
-- `Pixels`
-- `Crop(...)`
-- `Clone()`
+- `Width`, `Height`, `Format` (`PixelFormat.UInt8`, `Float32`, or `UInt16`)
+- `Pixels` — direct `float[]` access when `Format == Float32`
+- `UInt8Pixels`, `UInt16Pixels` — typed accessors for other formats
+- `GetNormalized(int index)`, `SetNormalized(int index, float value)` — `[0, 1]` range
+- `CopyNormalizedTo(...)`, `WithFormat(...)`, `FromNormalized(...)`
+- `Crop(...)`, `Clone()`, `Filled(...)`
+- `MaxAllowedHealError` — format-specific heal error cap
 
-Pixel values are expected in `[0, 1]`.
+Constructors accept `float[]`, `byte[]`, or `ushort[]` and set `Format`
+accordingly.
+
+### `PixelFormat`
+
+```csharp
+public enum PixelFormat { UInt8, Float32, UInt16 }
+```
+
+### `ImageMatConverter`
+
+OpenCV bridge for retouch and alignment:
+
+- `ToUInt8MatForInpaint(ImageBuffer)`
+- `FromMat(Mat, PixelFormat)`
 
 ### `RgbImageBuffer`
 
@@ -41,6 +57,23 @@ edge (threshold about 5/255).
 
 `SaveRgbAsync` writes PNG, JPEG, or TIFF output and can optionally resize the
 result by maximum side while preserving aspect ratio.
+
+### `RgbExportSettings`
+
+```csharp
+public sealed record RgbExportSettings
+{
+    public RgbExportFormat Format { get; init; }           // Png, Jpeg, Tiff
+    public int? MaxSide { get; init; }
+    public int PngCompression { get; init; }              // 0–9
+    public int JpegQuality { get; init; }                 // 1–100
+    public TiffExportCompression TiffCompression { get; init; }
+    public int TiffDeflateLevel { get; init; }            // 1–9
+}
+```
+
+`RgbExportSettings.Default` supplies GUI and export defaults. Call `Normalize()`
+before save.
 
 ### `TriptychSplitter`
 
@@ -162,6 +195,17 @@ Lower-level APIs:
 - `ApplyManualToAligned(...)`
 - `BuildRgb(...)`
 
+### `AlignedChannelCropper`
+
+Crops prepared aligned channels to overlap rectangles:
+
+```csharp
+var (cropped, cropInfo) = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
+var croppedOnly = AlignedChannelCropper.Crop(aligned, cropInfo);
+```
+
+Used by the GUI after auto-align and when cropping the result selection.
+
 ### `AlignedChannels`
 
 Holds aligned red, green, and blue images, per-channel validity masks, and
@@ -187,3 +231,58 @@ square.
 - pipette balance
 - temperature/tint adjustment
 - gentle levels
+
+`ChannelExposure.Apply(ImageBuffer, float stops)` multiplies normalized pixels
+by `2^stops`. `ChannelExposureSettings` bundles per-channel stop values for the
+pipeline and GUI.
+
+## Retouch
+
+### `ChannelHealer`
+
+Primary healing entry point:
+
+```csharp
+HealResult result = ChannelHealer.HealChannel(
+    targetChannel,
+    guideChannel1,   // nullable; required for CrossChannelGuided
+    guideChannel2,
+    defectMask,
+    options);
+```
+
+`HealResult` contains the healed `ImageBuffer`, the mask used, optional
+`StatusMessage`, and `UsedFallback` when cross-channel mode degrades to Telea.
+
+### `HealOptions`
+
+Key defaults:
+
+| Field | Default |
+| --- | --- |
+| `Mode` | `CrossChannelGuided` |
+| `SubMode` | `Patch` |
+| `PatchRadius` | 3 |
+| `SearchRadius` | 48 |
+| `ContextRadius` | 16 |
+| `PredictionAlphaMin` / `Max` | 0.15 / 0.75 |
+| `MaxComponentArea` | 5000 |
+| `DebugOutput` | false |
+
+Normalized radius helpers: `NormalizedPatchRadius`, `NormalizedInpaintRadius`, etc.
+
+### `ChannelRetoucher`
+
+- `InpaintMask(image, mask, radius)` — OpenCV Telea inpaint
+- `DetectSingleChannelDefects(target, other1, other2, settings)` — auto-clean mask
+- `AutoClean(image, settings)` — legacy detect-and-inpaint
+- `CreateBrushMask(width, height, strokes)` — heal brush mask from strokes
+- `Stamp(image, CloneStampStroke)` — clone stamp
+
+### `AutoCleanSettings`
+
+```csharp
+public sealed record AutoCleanSettings(int Sensitivity = 50, int InpaintRadius = 3);
+```
+
+`Sensitivity` is 0–100 (GUI **Agg** slider). `InpaintRadius` is 1–24.

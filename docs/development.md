@@ -12,6 +12,7 @@ src/
   Prokudin.Gui/
 tests/
   Prokudin.Core.Tests/
+  Prokudin.Gui.Tests/
 docs/
 ```
 
@@ -33,11 +34,15 @@ dotnet test Prokudin.slnx
 The test suite covers:
 
 - triptych split and segment size normalization
-- color correction
-- crop
+- typed `ImageBuffer` round-trip and format conversion
+- color correction and per-channel exposure
+- crop and `AlignedChannelCropper`
 - synthetic reconstruction pipeline
 - OpenCvSharp alignment (small and large synthetic shifts)
 - `MaxTranslation` clamping and `ResolveMaxTranslation` auto-scale
+- retouch: auto-clean detection, clone stamp, brush masks
+- cross-channel guided healing (`CrossChannelHealerTests`)
+- GUI: `MainViewModel` workflow, export settings store, preview geometry
 
 Alignment regression highlights in `ChannelAlignerTests`:
 
@@ -93,9 +98,8 @@ The app builds and runs; modern `DataTransfer` drag/drop can be adopted later.
 
 ## Follow-Up Work
 
-- Add GUI/viewmodel tests for slot swap, async load, and export behavior.
 - Add golden comparison tests using archived sample channels.
-- Expose `MaxTranslation` and manual nudge in the Avalonia UI.
+- Expose `MaxTranslation` and manual alignment nudge in the Avalonia UI.
 - Validate OpenCvSharp native runtime packages for Linux and macOS.
 - Add publish profiles or CI jobs for Windows first.
-- Expose crop overlay, loupe, and color controls in Avalonia.
+- Expose loupe, pipette balance, and temperature/tint controls in Avalonia.

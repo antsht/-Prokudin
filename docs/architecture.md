@@ -31,7 +31,7 @@ Core owns all image and reconstruction behavior:
 - manual transform helpers
 - overlap and square crop
 - color correction
-- per-channel retouch and auto-clean mask detection
+- per-channel retouch, cross-channel guided healing, and auto-clean mask detection
 - reconstruction pipeline
 
 Core has no GUI dependency.
@@ -58,18 +58,68 @@ Main pieces:
 
 - `App.axaml` / `App.axaml.cs`: application bootstrap
 - `Views/MainWindow.axaml`: tool UI
+- `Views/ChannelSlotCard.axaml`: sidebar channel card with thumbnail
+- `Views/ImagePreviewControl.axaml`: zoom, selection, retouch, and mask overlay
 - `ViewModels/MainViewModel.cs`: commands and workflow state
-- `ViewModels/ChannelSlotViewModel.cs`: channel slot state and cached bitmap
+- `ViewModels/ChannelSlotViewModel.cs`: channel slot state, display and thumbnail bitmaps
 - `Services/StorageFileDialogService.cs`: native file pickers
-- `Imaging/AvaloniaBitmapFactory.cs`: Core image buffers to Avalonia bitmaps
+- `Services/JsonExportSettingsStore.cs`: persisted export settings
+- `Imaging/AvaloniaBitmapFactory.cs`: Core buffers to Avalonia bitmaps and thumbnails
 
 Auto-clean mask review is split across Core and GUI. Core detects
 single-channel defect masks from aligned R/G/B grayscale buffers and applies
-inpainting to a supplied mask. GUI owns the pending-mask review state, mask
+healing through `ChannelHealer`. GUI owns the pending-mask review state, mask
 overlay bitmap, Ctrl/Alt mask edits, and the explicit apply/cancel commands.
+
+After **Auto-align**, `MainViewModel` stores prepared aligned channels via
+`AlignedChannelCropper.CropToLargestFullOverlap` so retouch, crop, and channel
+export operate on overlap-cropped working buffers without re-running alignment.
+
+`ChannelSlotViewModel` caches full-resolution `DisplayBitmap` and downscaled
+`ThumbnailBitmap` (512 px max side). Both are disposed when replaced.
+
+Retouch strokes and auto-clean apply call `ChannelHealer.HealChannel` on
+`Task.Run`. Cross-channel mode passes the two sibling channels as guides.
 
 After auto-align, the status bar shows per-channel alignment metadata from
 `AlignChannelMetadata.FormatStatus`.
+
+## Typed Image Buffers
+
+`ImageBuffer` supports `PixelFormat.UInt8`, `Float32`, and `UInt16` storage with
+normalized `[0, 1]` accessors (`GetNormalized`, `SetNormalized`). `ImageLoader`
+preserves 16-bit TIFF samples when detected. OpenCV paths convert through
+`ImageMatConverter.ToUInt8MatForInpaint` and `FromMat` to preserve the original
+format on output.
+
+## Retouch and Healing
+
+```mermaid
+flowchart TD
+  stroke[Heal brush or auto-clean apply]
+  stroke --> guides{Cross-channel guides available?}
+  guides -->|yes| cc[CrossChannelPredictor + PatchHealer]
+  guides -->|no| fallback[CurrentChannelOnly Telea]
+  cc --> blend[Blend by confidence + feather]
+  fallback --> out[Healed target channel]
+  blend --> out
+  stamp[Clone stamp] --> copy[ChannelRetoucher.Stamp]
+```
+
+Core retouch types:
+
+| Type | Role |
+| --- | --- |
+| `ChannelHealer` | Entry point for masked healing (`HealChannel`) |
+| `CrossChannelPredictor` | Local linear prediction from guide channels |
+| `PatchHealer` | Patch search and transfer (single-channel and guided) |
+| `ChannelRetoucher` | Telea inpaint, auto-clean detection, clone stamp, brush masks |
+| `HealingMaskUtils` | Connected components and mask morphology |
+| `HealingDebugWriter` | Optional debug PNG output |
+
+`HealOptions` defaults to `HealingMode.CrossChannelGuided` with
+`HealingSubMode.Patch` for single-channel fallback. GUI maps toolbar checkboxes
+to mode and sub-mode; `Radius` maps to `PatchRadius`.
 
 ## Reconstruction Pipeline
 

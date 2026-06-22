@@ -4,7 +4,8 @@ Native .NET 10 tool for reconstructing a color image from three grayscale
 red, green, and blue channel photographs in the Prokudin-Gorskii workflow.
 
 The project does not use neural restoration. It performs image loading,
-geometric alignment, channel merging, crop, color correction, and image export.
+geometric alignment, channel merging, crop, color correction, per-channel
+retouch (heal brush, clone stamp, auto-clean), and image export.
 
 ## Historical Source
 
@@ -23,10 +24,11 @@ made from those negatives.
 
 | Project | Purpose |
 | --- | --- |
-| `src/Prokudin.Core` | Image I/O, triptych split, alignment, crop, color, pipeline |
+| `src/Prokudin.Core` | Image I/O, triptych split, alignment, crop, color, retouch, pipeline |
 | `src/Prokudin.Cli` | Command-line reconstruction |
 | `src/Prokudin.Gui` | Avalonia desktop app |
 | `tests/Prokudin.Core.Tests` | Core regression tests |
+| `tests/Prokudin.Gui.Tests` | GUI viewmodel and service tests |
 
 ## Requirements
 
@@ -59,9 +61,14 @@ The desktop app supports:
 
 - opening separate R, G, B channel images
 - opening a stacked triptych with RGB or BGR order (BGR for Library of Congress scans)
-- drag/drop swap between R, G, B thumbnails
+- sidebar channel cards with thumbnails for R, G, B, and the result
+- drag/drop swap between R, G, B slots
 - auto-align with alignment metadata in the status bar
+- heal brush and clone stamp on aligned channels
+- cross-channel guided healing (default on) and per-channel auto-clean masks
+- crop-to-selection, per-channel exposure, auto white balance, undo/redo
 - result preview and PNG/JPEG/TIFF export with saved export settings
+- export prepared aligned channels after auto-align
 
 For vertical LoC TIFF triptychs, use **BGR** order.
 
@@ -100,3 +107,4 @@ Supported options:
 - [Architecture](docs/architecture.md)
 - [Core API Reference](docs/core-api.md)
 - [Development Guide](docs/development.md)
+- [Cross-Channel Guided Healing](docs/cross-channel-healing.md)
