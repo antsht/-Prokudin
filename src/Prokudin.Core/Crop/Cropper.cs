@@ -30,9 +30,9 @@ public static class Cropper
             var hasRed = maskRed[i] > 0;
             var hasGreen = maskGreen[i] > 0;
             var hasBlue = maskBlue[i] > 0;
-            var r = red.Pixels[i];
-            var g = green.Pixels[i];
-            var b = blue.Pixels[i];
+            var r = red.GetNormalized(i);
+            var g = green.GetNormalized(i);
+            var b = blue.GetNormalized(i);
 
             if (hasRed && hasGreen && hasBlue)
             {

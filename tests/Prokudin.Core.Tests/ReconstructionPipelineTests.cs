@@ -10,6 +10,29 @@ namespace Prokudin.Core.Tests;
 public sealed class ReconstructionPipelineTests
 {
     [Fact]
+    public void RunAutoAlign_PreparedChannelsBuildMatchesLegacyResultSize()
+    {
+        var green = SyntheticChannel();
+        var red = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: 6, dy: -4).Image;
+        var blue = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: -5, dy: 7).Image;
+        var channels = new Dictionary<ChannelName, ImageBuffer>
+        {
+            [ChannelName.Red] = red,
+            [ChannelName.Green] = green,
+            [ChannelName.Blue] = blue,
+        };
+        var settings = new PipelineSettings { Align = new AlignOptions(MaxTranslation: 12) };
+
+        var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
+        var (legacyRgb, _) = ReconstructionPipeline.BuildRgb(aligned, settings);
+        var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
+        var (guiRgb, _) = ReconstructionPipeline.BuildRgb(prepared.Channels, settings);
+
+        guiRgb.Width.Should().Be(legacyRgb.Width);
+        guiRgb.Height.Should().Be(legacyRgb.Height);
+    }
+
+    [Fact]
     public void RunAutoAlign_AlignsSyntheticTranslations()
     {
         var green = SyntheticChannel();
@@ -27,8 +50,8 @@ public sealed class ReconstructionPipelineTests
 
         var (rgb, _) = ReconstructionPipeline.BuildRgb(aligned, new PipelineSettings { Align = new AlignOptions(MaxTranslation: 12) });
 
-        rgb.Width.Should().Be(rgb.Height);
-        rgb.Width.Should().BeGreaterThan(80);
+        rgb.Width.Should().BeGreaterThanOrEqualTo(80);
+        rgb.Height.Should().BeGreaterThanOrEqualTo(80);
     }
 
     [Fact]

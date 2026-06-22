@@ -147,6 +147,15 @@ public sealed partial class MainViewModel : ObservableObject
     private int autoCleanRadius = 3;
 
     [ObservableProperty]
+    private bool useCrossChannelHealing = true;
+
+    [ObservableProperty]
+    private bool useTeleaHealing;
+
+    [ObservableProperty]
+    private bool debugHealOutput;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAutoCleanMaskPending))]
     [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
     private byte[]? pendingAutoCleanMask;
@@ -406,7 +415,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanApplyAutoCleanMask))]
-    private void ApplyAutoCleanMask()
+    private async Task ApplyAutoCleanMask()
     {
         if (SelectedSlot is not { Image: { } image, ChannelName: { } channelName } ||
             PendingAutoCleanMask is not { } mask ||
@@ -424,12 +433,24 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         PushUndo();
-        SelectedSlot.Image = ChannelRetoucher.InpaintMask(image, mask, AutoCleanRadius);
-        ClearPendingAutoCleanMask();
-        RefreshAlignedAfterInputEdit(channelName);
-        RefreshPreviewImageContext();
-        Status = $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
-        AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {changedPixels} masked pixels, radius {Math.Clamp(AutoCleanRadius, 1, 24)}.");
+        IsBusy = true;
+        try
+        {
+            var options = CreateHealOptions();
+            TryGetHealingGuides(channelName, out var guide1, out var guide2);
+            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
+            SelectedSlot.Image = result.Image;
+            ClearPendingAutoCleanMask();
+            RefreshAlignedAfterInputEdit(channelName);
+            RefreshPreviewImageContext();
+            Status = result.StatusMessage ??
+                     $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
+            AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {changedPixels} masked pixels, mode {options.Mode}.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelAutoCleanMask))]
@@ -462,7 +483,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanApplyRetouchStroke))]
-    private void ApplyRetouchStroke(RetouchStroke? stroke)
+    private async Task ApplyRetouchStroke(RetouchStroke? stroke)
     {
         if (stroke is not { Points.Count: > 0 } || SelectedSlot is not { Image: { } image, ChannelName: { } channelName })
         {
@@ -476,12 +497,23 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         PushUndo();
-        SelectedSlot.Image = ChannelRetoucher.InpaintMask(image, mask, AutoCleanRadius);
-        RefreshAlignedAfterInputEdit(channelName);
-        RefreshPreviewImageContext();
-        var count = mask.Count(value => value > 0);
-        Status = $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
-        AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {count} masked pixels, brush {stroke.BrushSize}, radius {AutoCleanRadius}.");
+        IsBusy = true;
+        try
+        {
+            var options = CreateHealOptions();
+            TryGetHealingGuides(channelName, out var guide1, out var guide2);
+            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
+            SelectedSlot.Image = result.Image;
+            RefreshAlignedAfterInputEdit(channelName);
+            RefreshPreviewImageContext();
+            var count = mask.Count(value => value > 0);
+            Status = result.StatusMessage ?? $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
+            AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {count} masked pixels, mode {options.Mode}.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanApplyStampStroke))]
@@ -615,8 +647,8 @@ public sealed partial class MainViewModel : ObservableObject
                 var settings = CurrentPipelineSettings();
                 var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
                 var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
-                var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings with { Crop = settings.Crop with { SkipCrop = true } });
-                return (built.Rgb, prepared.CropInfo, Aligned: prepared.Channels);
+                var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings);
+                return (built.Rgb, built.CropInfo, Aligned: prepared.Channels);
             });
 
             PushUndo();
@@ -877,6 +909,34 @@ public sealed partial class MainViewModel : ObservableObject
         red = r;
         green = g;
         blue = b;
+        return true;
+    }
+
+    private HealOptions CreateHealOptions()
+    {
+        return new HealOptions(
+            Mode: UseCrossChannelHealing ? HealingMode.CrossChannelGuided : HealingMode.CurrentChannelOnly,
+            SubMode: UseTeleaHealing ? HealingSubMode.Telea : HealingSubMode.Patch,
+            PatchRadius: AutoCleanRadius,
+            DebugOutput: DebugHealOutput);
+    }
+
+    private bool TryGetHealingGuides(ChannelName channelName, out ImageBuffer? guide1, out ImageBuffer? guide2)
+    {
+        guide1 = null;
+        guide2 = null;
+        if (!UseCrossChannelHealing || !TryGetWorkingChannels(out var red, out var green, out var blue))
+        {
+            return false;
+        }
+
+        (guide1, guide2) = channelName switch
+        {
+            ChannelName.Red => (green, blue),
+            ChannelName.Green => (red, blue),
+            ChannelName.Blue => (red, green),
+            _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
+        };
         return true;
     }
 

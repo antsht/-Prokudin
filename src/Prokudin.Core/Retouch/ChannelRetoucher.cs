@@ -21,11 +21,12 @@ public static class ChannelRetoucher
             return image.Clone();
         }
 
-        using var source = ToU8(image);
+        var format = image.Format;
+        using var source = ImageMatConverter.ToUInt8MatForInpaint(image);
         using var maskMat = MaskToMat(mask, image.Width, image.Height);
         using var cleaned = new Mat();
         Cv2.Inpaint(source, maskMat, cleaned, Math.Clamp(radius, 1, 24), InpaintMethod.Telea);
-        return FromU8(cleaned);
+        return ImageMatConverter.FromMat(cleaned, format);
     }
 
     public static RetouchResult AutoClean(ImageBuffer image, AutoCleanSettings settings)
@@ -59,9 +60,9 @@ public static class ChannelRetoucher
         ValidateSameDimensions(target, other1, nameof(other1));
         ValidateSameDimensions(target, other2, nameof(other2));
 
-        var normalizedTarget = RobustNormalize(target.Pixels);
-        var normalizedOther1 = RobustNormalize(other1.Pixels);
-        var normalizedOther2 = RobustNormalize(other2.Pixels);
+        var normalizedTarget = RobustNormalize(CopyNormalized(target));
+        var normalizedOther1 = RobustNormalize(CopyNormalized(other1));
+        var normalizedOther2 = RobustNormalize(CopyNormalized(other2));
         var prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2);
         var targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0);
         var other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0);
@@ -157,15 +158,24 @@ public static class ChannelRetoucher
                 }
 
                 var amount = alpha[index];
-                result.Pixels[index] = Math.Clamp(
-                    (image.Pixels[index] * (1.0f - amount)) + (image.Pixels[sourceIndex] * amount),
-                    0.0f,
-                    1.0f);
+                result.SetNormalized(
+                    index,
+                    Math.Clamp(
+                        (image.GetNormalized(index) * (1.0f - amount)) + (image.GetNormalized(sourceIndex) * amount),
+                        0.0f,
+                        1.0f));
                 appliedMask[index] = 1;
             }
         }
 
         return new RetouchResult(result, appliedMask);
+    }
+
+    private static float[] CopyNormalized(ImageBuffer image)
+    {
+        var pixels = new float[image.PixelCount];
+        image.CopyNormalizedTo(pixels);
+        return pixels;
     }
 
     private static void ValidateSameDimensions(ImageBuffer target, ImageBuffer other, string parameterName)
@@ -494,29 +504,7 @@ public static class ChannelRetoucher
         return values;
     }
 
-    private static Mat ToU8(ImageBuffer image)
-    {
-        var mat = new Mat(image.Height, image.Width, MatType.CV_32FC1);
-        Marshal.Copy(image.Pixels, 0, mat.Data, image.Pixels.Length);
-        var u8 = new Mat();
-        mat.ConvertTo(u8, MatType.CV_8UC1, 255.0);
-        mat.Dispose();
-        return u8;
-    }
-
-    private static ImageBuffer FromU8(Mat mat)
-    {
-        using var floatMat = new Mat();
-        mat.ConvertTo(floatMat, MatType.CV_32FC1, 1.0 / 255.0);
-        var pixels = new float[floatMat.Rows * floatMat.Cols];
-        Marshal.Copy(floatMat.Data, pixels, 0, pixels.Length);
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            pixels[i] = Math.Clamp(pixels[i], 0.0f, 1.0f);
-        }
-
-        return new ImageBuffer(floatMat.Cols, floatMat.Rows, pixels);
-    }
+    private static Mat ToU8(ImageBuffer image) => ImageMatConverter.ToUInt8MatForInpaint(image);
 
     private static Mat FloatToMat(float[] pixels, int width, int height)
     {

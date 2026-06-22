@@ -26,6 +26,7 @@ public static class ChannelAligner
             movMat,
             moving.Width,
             moving.Height,
+            moving.Format,
             options.Detector,
             Math.Max(0, options.MaxFineIterations),
             maxTranslation,
@@ -61,7 +62,7 @@ public static class ChannelAligner
         using (aligned)
         using (alignedMask)
         {
-            return (FromMat(aligned), MaskFromMat(alignedMask));
+            return (FromMat(aligned, moving.Format), MaskFromMat(alignedMask));
         }
     }
 
@@ -74,7 +75,7 @@ public static class ChannelAligner
         using var warpedMask = new Mat();
         Cv2.WarpAffine(movingMat, warped, matrix, new Size(width, height), InterpolationFlags.Linear, BorderTypes.Constant, Scalar.Black);
         Cv2.WarpAffine(mask, warpedMask, matrix, new Size(width, height), InterpolationFlags.Nearest, BorderTypes.Constant, Scalar.Black);
-        return (FromMat(warped), MaskFromMat(warpedMask));
+        return (FromMat(warped, moving.Format), MaskFromMat(warpedMask));
     }
 
     public static void SaveAlignmentDebug(ImageBuffer reference, ImageBuffer alignedRed, ImageBuffer alignedBlue, string debugDir)
@@ -106,6 +107,7 @@ public static class ChannelAligner
         Mat moving,
         int sourceWidth,
         int sourceHeight,
+        PixelFormat outputFormat,
         string detector,
         int maxFineIterations,
         int maxTranslation,
@@ -138,7 +140,7 @@ public static class ChannelAligner
 
         if (allowOrbRetry && detector == "sift" && matchCount > 0 && inliers / (double)matchCount < LowInlierRatio)
         {
-            return AlignChannel(reference, moving, sourceWidth, sourceHeight, "orb", maxFineIterations, maxTranslation, allowOrbRetry: false);
+            return AlignChannel(reference, moving, sourceWidth, sourceHeight, outputFormat, "orb", maxFineIterations, maxTranslation, allowOrbRetry: false);
         }
 
         var (fineImage, fineMask, shifts) = FineAlign(reference, warped, mask, maxFineIterations, maxTranslation);
@@ -146,7 +148,7 @@ public static class ChannelAligner
         using (fineImage)
         using (fineMask)
         {
-            return new AlignResult(FromMat(fineImage), MaskFromMat(fineMask), kind, inliers, shifts, transform);
+            return new AlignResult(FromMat(fineImage, outputFormat), MaskFromMat(fineMask), kind, inliers, shifts, transform);
         }
     }
 
@@ -584,31 +586,25 @@ public static class ChannelAligner
         return matrix;
     }
 
-    private static Mat ToMat(ImageBuffer image)
-    {
-        var mat = new Mat(image.Height, image.Width, MatType.CV_32FC1);
-        Marshal.Copy(image.Pixels, 0, mat.Data, image.Pixels.Length);
-        return mat;
-    }
+    // Alignment assumes OpenCV mats in normalized float [0, 1] regardless of ImageBuffer storage.
+    private static Mat ToMat(ImageBuffer image) => ImageMatConverter.ToNormalizedFloatMat(image);
 
-    private static ImageBuffer FromMat(Mat mat)
+    private static ImageBuffer FromMat(Mat mat, PixelFormat format)
     {
-        using var floatMat = new Mat();
-        mat.ConvertTo(floatMat, MatType.CV_32FC1);
-        var pixels = new float[floatMat.Rows * floatMat.Cols];
-        Marshal.Copy(floatMat.Data, pixels, 0, pixels.Length);
-        for (var i = 0; i < pixels.Length; i++)
-        {
-            pixels[i] = Math.Clamp(pixels[i], 0.0f, 1.0f);
-        }
-
-        return new ImageBuffer(floatMat.Cols, floatMat.Rows, pixels);
+        var aligned = ImageMatConverter.FromMat(mat, PixelFormat.Float32);
+        return format == PixelFormat.Float32 ? aligned : aligned.WithFormat(format);
     }
 
     private static Mat ToU8(Mat mat)
     {
+        if (mat.Type() == MatType.CV_8UC1)
+        {
+            return mat.Clone();
+        }
+
         var u8 = new Mat();
-        mat.ConvertTo(u8, MatType.CV_8UC1, 255.0);
+        var scale = mat.Type() == MatType.CV_16UC1 ? 255.0 / 65535.0 : 255.0;
+        mat.ConvertTo(u8, MatType.CV_8UC1, scale);
         return u8;
     }
 

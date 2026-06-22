@@ -13,9 +13,9 @@ public static class AvaloniaBitmapFactory
     public static WriteableBitmap FromImageBuffer(ImageBuffer image)
     {
         var bytes = new byte[image.Width * image.Height * 4];
-        for (var i = 0; i < image.Pixels.Length; i++)
+        for (var i = 0; i < image.PixelCount; i++)
         {
-            var value = ToByte(image.Pixels[i]);
+            var value = ToByte(image.GetNormalized(i));
             var offset = i * 4;
             bytes[offset] = value;
             bytes[offset + 1] = value;
@@ -77,7 +77,7 @@ public static class AvaloniaBitmapFactory
         var bitmap = new WriteableBitmap(
             new PixelSize(width, height),
             Dpi,
-            PixelFormat.Bgra8888,
+            Avalonia.Platform.PixelFormat.Bgra8888,
             alphaFormat);
 
         using var buffer = bitmap.Lock();

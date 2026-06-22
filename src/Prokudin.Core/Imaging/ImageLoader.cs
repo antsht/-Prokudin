@@ -39,8 +39,48 @@ public static class ImageLoader
         }
 
         await using var stream = File.OpenRead(path);
+        if (extension is ".tif" or ".tiff")
+        {
+            using var l16 = await Image.LoadAsync<L16>(stream, cancellationToken);
+            var is16Bit = false;
+            l16.ProcessPixelRows(accessor =>
+            {
+                for (var y = 0; y < accessor.Height && !is16Bit; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    for (var x = 0; x < row.Length; x++)
+                    {
+                        if (row[x].PackedValue > 255)
+                        {
+                            is16Bit = true;
+                            return;
+                        }
+                    }
+                }
+            });
+
+            if (is16Bit)
+            {
+                var pixels = new ushort[l16.Width * l16.Height];
+                l16.ProcessPixelRows(accessor =>
+                {
+                    for (var y = 0; y < accessor.Height; y++)
+                    {
+                        var row = accessor.GetRowSpan(y);
+                        for (var x = 0; x < row.Length; x++)
+                        {
+                            pixels[(y * l16.Width) + x] = row[x].PackedValue;
+                        }
+                    }
+                });
+
+                return new ImageBuffer(l16.Width, l16.Height, pixels);
+            }
+        }
+
+        stream.Position = 0;
         using var image = await Image.LoadAsync<RgbaVector>(stream, cancellationToken);
-        var pixels = new float[image.Width * image.Height];
+        var floatPixels = new float[image.Width * image.Height];
 
         image.ProcessPixelRows(accessor =>
         {
@@ -50,7 +90,7 @@ public static class ImageLoader
                 for (var x = 0; x < row.Length; x++)
                 {
                     var pixel = row[x];
-                    pixels[(y * image.Width) + x] = Math.Clamp(
+                    floatPixels[(y * image.Width) + x] = Math.Clamp(
                         (0.299f * pixel.R) + (0.587f * pixel.G) + (0.114f * pixel.B),
                         0.0f,
                         1.0f);
@@ -58,7 +98,7 @@ public static class ImageLoader
             }
         });
 
-        return new ImageBuffer(image.Width, image.Height, pixels);
+        return new ImageBuffer(image.Width, image.Height, floatPixels);
     }
 
     public static ImageBuffer TrimBlackBorders(ImageBuffer image, float threshold = 5.0f / 255.0f, float maxTrimFraction = 0.02f)

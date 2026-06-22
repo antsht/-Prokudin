@@ -22,6 +22,21 @@ public sealed class ChannelAlignerTests
     }
 
     [Fact]
+    public void AlignChannel_AlignsUInt16ShiftedChannel()
+    {
+        var reference = SyntheticFeatureChannel().WithFormat(PixelFormat.UInt16);
+        var moving = ChannelAligner.WarpTranslation(reference, reference.Width, reference.Height, dx: 7, dy: -5).Image;
+
+        var result = ChannelAligner.AlignChannel(reference, moving, new AlignOptions(Detector: "sift", MaxFineIterations: 3));
+
+        result.Image.Format.Should().Be(PixelFormat.UInt16);
+        result.Image.Width.Should().Be(reference.Width);
+        result.Image.Height.Should().Be(reference.Height);
+        result.Mask.Count(value => value > 0).Should().BeGreaterThan(reference.Width * reference.Height / 2);
+        MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeLessThan(0.08f);
+    }
+
+    [Fact]
     public void AlignChannel_UsesIdentityWhenNoFeaturesExist()
     {
         var reference = ImageBuffer.Filled(64, 64, 0.25f);
@@ -143,14 +158,14 @@ public sealed class ChannelAlignerTests
     {
         var sum = 0.0f;
         var count = 0;
-        for (var i = 0; i < reference.Pixels.Length; i++)
+        for (var i = 0; i < reference.PixelCount; i++)
         {
             if (mask[i] == 0)
             {
                 continue;
             }
 
-            sum += Math.Abs(reference.Pixels[i] - aligned.Pixels[i]);
+            sum += Math.Abs(reference.GetNormalized(i) - aligned.GetNormalized(i));
             count++;
         }
 
@@ -159,6 +174,12 @@ public sealed class ChannelAlignerTests
 
     private static float Mean(ImageBuffer image)
     {
-        return image.Pixels.Average();
+        var sum = 0.0f;
+        for (var i = 0; i < image.PixelCount; i++)
+        {
+            sum += image.GetNormalized(i);
+        }
+
+        return sum / image.PixelCount;
     }
 }

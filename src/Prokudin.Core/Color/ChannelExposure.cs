@@ -12,12 +12,12 @@ public static class ChannelExposure
         }
 
         var gain = MathF.Pow(2.0f, stops);
-        var pixels = new float[image.Pixels.Length];
-        for (var i = 0; i < pixels.Length; i++)
+        var result = image.Clone();
+        for (var i = 0; i < result.PixelCount; i++)
         {
-            pixels[i] = Math.Clamp(image.Pixels[i] * gain, 0.0f, 1.0f);
+            result.SetNormalized(i, Math.Clamp(image.GetNormalized(i) * gain, 0.0f, 1.0f));
         }
 
-        return new ImageBuffer(image.Width, image.Height, pixels);
+        return result;
     }
 }
