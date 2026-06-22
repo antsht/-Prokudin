@@ -48,6 +48,9 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private Bitmap? displayBitmap;
 
+    [ObservableProperty]
+    private Bitmap? thumbnailBitmap;
+
     public bool HasImage => Image is not null || Result is not null;
 
     public string Dimensions
@@ -74,6 +77,8 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
     {
         DisplayBitmap?.Dispose();
         DisplayBitmap = null;
+        ThumbnailBitmap?.Dispose();
+        ThumbnailBitmap = null;
     }
 
     partial void OnImageChanged(ImageBuffer? value)
@@ -88,12 +93,26 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
 
     private void RefreshDisplayBitmap()
     {
-        var previous = DisplayBitmap;
-        DisplayBitmap = Result is not null
-            ? AvaloniaBitmapFactory.FromRgbImageBuffer(Result)
-            : Image is not null
-                ? AvaloniaBitmapFactory.FromImageBuffer(Image)
-                : null;
-        previous?.Dispose();
+        var previousDisplay = DisplayBitmap;
+        var previousThumbnail = ThumbnailBitmap;
+
+        if (Result is not null)
+        {
+            DisplayBitmap = AvaloniaBitmapFactory.FromRgbImageBuffer(Result);
+            ThumbnailBitmap = AvaloniaBitmapFactory.CreateThumbnail(Result);
+        }
+        else if (Image is not null)
+        {
+            DisplayBitmap = AvaloniaBitmapFactory.FromImageBuffer(Image);
+            ThumbnailBitmap = AvaloniaBitmapFactory.CreateThumbnail(Image);
+        }
+        else
+        {
+            DisplayBitmap = null;
+            ThumbnailBitmap = null;
+        }
+
+        previousDisplay?.Dispose();
+        previousThumbnail?.Dispose();
     }
 }

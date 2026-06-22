@@ -15,8 +15,10 @@
       <Border Grid.Row="0"
               Background="{DynamicResource ThumbnailPlaceholderBrush}"
               ClipToBounds="True">
-        <Image Source="{Binding DisplayBitmap}"
-               Stretch="Uniform" />
+        <Image Source="{Binding ThumbnailBitmap}"
+               Stretch="Uniform"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch" />
       </Border>
       <TextBlock Grid.Row="1"
                  Text="{Binding DisplayName}"

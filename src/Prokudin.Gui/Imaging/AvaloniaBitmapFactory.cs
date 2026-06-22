@@ -8,6 +8,8 @@ namespace Prokudin.Gui.Imaging;
 
 public static class AvaloniaBitmapFactory
 {
+    public const int DefaultThumbnailMaxSide = 512;
+
     private static readonly Vector Dpi = new(96, 96);
 
     public static WriteableBitmap FromImageBuffer(ImageBuffer image)
@@ -40,6 +42,60 @@ public static class AvaloniaBitmapFactory
         }
 
         return CreateBitmap(image.Width, image.Height, bytes);
+    }
+
+    public static WriteableBitmap CreateThumbnail(ImageBuffer image, int maxSide = DefaultThumbnailMaxSide)
+    {
+        var (width, height) = FitWithinMaxSide(image.Width, image.Height, maxSide);
+        if (width == image.Width && height == image.Height)
+        {
+            return FromImageBuffer(image);
+        }
+
+        var bytes = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        {
+            var sourceY = (y * image.Height) / height;
+            for (var x = 0; x < width; x++)
+            {
+                var sourceX = (x * image.Width) / width;
+                var value = ToByte(image[sourceX, sourceY]);
+                var offset = ((y * width) + x) * 4;
+                bytes[offset] = value;
+                bytes[offset + 1] = value;
+                bytes[offset + 2] = value;
+                bytes[offset + 3] = 255;
+            }
+        }
+
+        return CreateBitmap(width, height, bytes);
+    }
+
+    public static WriteableBitmap CreateThumbnail(RgbImageBuffer image, int maxSide = DefaultThumbnailMaxSide)
+    {
+        var (width, height) = FitWithinMaxSide(image.Width, image.Height, maxSide);
+        if (width == image.Width && height == image.Height)
+        {
+            return FromRgbImageBuffer(image);
+        }
+
+        var bytes = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        {
+            var sourceY = (y * image.Height) / height;
+            for (var x = 0; x < width; x++)
+            {
+                var sourceX = (x * image.Width) / width;
+                var sourceOffset = ((sourceY * image.Width) + sourceX) * 3;
+                var targetOffset = ((y * width) + x) * 4;
+                bytes[targetOffset] = ToByte(image.Pixels[sourceOffset + 2]);
+                bytes[targetOffset + 1] = ToByte(image.Pixels[sourceOffset + 1]);
+                bytes[targetOffset + 2] = ToByte(image.Pixels[sourceOffset]);
+                bytes[targetOffset + 3] = 255;
+            }
+        }
+
+        return CreateBitmap(width, height, bytes);
     }
 
     public static WriteableBitmap FromMaskOverlay(byte[] mask, int width, int height)
@@ -81,8 +137,38 @@ public static class AvaloniaBitmapFactory
             alphaFormat);
 
         using var buffer = bitmap.Lock();
-        Marshal.Copy(bytes, 0, buffer.Address, bytes.Length);
+        var rowBytes = buffer.RowBytes;
+        var sourceStride = width * 4;
+        if (rowBytes == sourceStride)
+        {
+            Marshal.Copy(bytes, 0, buffer.Address, bytes.Length);
+        }
+        else
+        {
+            for (var row = 0; row < height; row++)
+            {
+                Marshal.Copy(
+                    bytes,
+                    row * sourceStride,
+                    buffer.Address + (row * rowBytes),
+                    sourceStride);
+            }
+        }
+
         return bitmap;
+    }
+
+    private static (int Width, int Height) FitWithinMaxSide(int width, int height, int maxSide)
+    {
+        if (width <= maxSide && height <= maxSide)
+        {
+            return (width, height);
+        }
+
+        var scale = maxSide / (double)Math.Max(width, height);
+        return (
+            Math.Max(1, (int)Math.Round(width * scale)),
+            Math.Max(1, (int)Math.Round(height * scale)));
     }
 
     private static byte ToByte(float value)
