@@ -1,5 +1,6 @@
 using OpenCvSharp;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Retouch;
 
@@ -108,6 +109,19 @@ public static class ChannelHealer
         HealOptions options,
         IProgress<double>? progress)
     {
+        var defectPixelCount = CountMaskedPixels(defectMask);
+        if (defectPixelCount >= options.NormalizedLargeMaskFastPathPixelThreshold)
+        {
+            return HealLargeMaskBulkPrediction(
+                targetChannel,
+                guide1,
+                guide2,
+                defectMask,
+                options,
+                defectPixelCount,
+                progress);
+        }
+
         var result = targetChannel.Clone();
         var width = targetChannel.Width;
         var height = targetChannel.Height;
@@ -219,6 +233,188 @@ public static class ChannelHealer
         var averageConfidence = confidenceCount > 0 ? confidenceSum / confidenceCount : 0.0f;
         ReportProgress(progress, 100);
         return new HealResult(result, defectMask, averageConfidence, UsedCrossChannel: true, UsedFallback: usedFallback);
+    }
+
+    private static HealResult HealLargeMaskBulkPrediction(
+        ImageBuffer targetChannel,
+        ImageBuffer guide1,
+        ImageBuffer guide2,
+        byte[] defectMask,
+        HealOptions options,
+        int defectPixelCount,
+        IProgress<double>? progress)
+    {
+        ReportProgress(progress, 5);
+        var pixelCount = targetChannel.PixelCount;
+        var targetValues = new float[pixelCount];
+        var guide1Values = new float[pixelCount];
+        var guide2Values = new float[pixelCount];
+        PixelParallel.Invoke(
+            () => targetChannel.CopyNormalizedTo(targetValues),
+            () => guide1.CopyNormalizedTo(guide1Values),
+            () => guide2.CopyNormalizedTo(guide2Values));
+
+        ReportProgress(progress, 25);
+        var model = LinearModelFitter.FitMasked(
+            targetValues,
+            guide1Values,
+            guide2Values,
+            defectMask,
+            options.UseRobustFit);
+        if (model.Count < options.MinTrainingPixels)
+        {
+            return HealWholeMaskTeleaFallback(
+                targetChannel,
+                defectMask,
+                options,
+                "Large auto-clean mask has too little clean context; using whole-mask Telea.",
+                progress);
+        }
+
+        var confidence = CalculateModelConfidence(targetChannel, targetValues, guide1Values, guide2Values, defectMask, model);
+        if (confidence < options.LowConfidenceThreshold)
+        {
+            return HealWholeMaskTeleaFallback(
+                targetChannel,
+                defectMask,
+                options,
+                "Large auto-clean mask model confidence is low; using whole-mask Telea.",
+                progress);
+        }
+
+        ReportProgress(progress, 55);
+        var output = new float[pixelCount];
+        var usedCuda = CudaNative.TryPredictMasked(
+            targetValues,
+            guide1Values,
+            guide2Values,
+            defectMask,
+            model.A,
+            model.B,
+            model.C,
+            output);
+        if (!usedCuda)
+        {
+            FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, output);
+        }
+
+        ReportProgress(progress, 90);
+        var image = ImageBuffer.FromNormalized(targetChannel.Width, targetChannel.Height, output, targetChannel.Format);
+        ReportProgress(progress, 100);
+        var backend = usedCuda ? "CUDA" : "CPU";
+        return new HealResult(
+            image,
+            defectMask,
+            confidence,
+            UsedCrossChannel: true,
+            StatusMessage: $"Large auto-clean mask healed with {backend} bulk prediction ({defectPixelCount} pixels).");
+    }
+
+    private static HealResult HealWholeMaskTeleaFallback(
+        ImageBuffer targetChannel,
+        byte[] defectMask,
+        HealOptions options,
+        string statusMessage,
+        IProgress<double>? progress)
+    {
+        ReportProgress(progress, 65);
+        var healed = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
+        ReportProgress(progress, 100);
+        return new HealResult(
+            healed,
+            defectMask,
+            UsedCrossChannel: true,
+            UsedFallback: true,
+            StatusMessage: statusMessage);
+    }
+
+    private static int CountMaskedPixels(byte[] defectMask)
+    {
+        var total = 0;
+        PixelParallel.For(
+            0,
+            defectMask.Length,
+            static () => 0,
+            (i, local) => local + (defectMask[i] > 0 ? 1 : 0),
+            local => System.Threading.Interlocked.Add(ref total, local));
+
+        return total;
+    }
+
+    private static float CalculateModelConfidence(
+        ImageBuffer targetChannel,
+        float[] targetValues,
+        float[] guide1Values,
+        float[] guide2Values,
+        byte[] defectMask,
+        LinearModel model)
+    {
+        var totalError = 0.0;
+        var totalCount = 0;
+        var sync = new object();
+        PixelParallel.For(
+            0,
+            targetValues.Length,
+            static () => new ErrorAccumulator(),
+            (i, local) =>
+            {
+                if (defectMask[i] > 0)
+                {
+                    return local;
+                }
+
+                var predicted = Math.Clamp(
+                    LinearModelFitter.Predict(model, guide1Values[i], guide2Values[i]),
+                    0.0f,
+                    1.0f);
+                local.ErrorSum += Math.Abs(targetValues[i] - predicted);
+                local.Count++;
+                return local;
+            },
+            local =>
+            {
+                if (local.Count == 0)
+                {
+                    return;
+                }
+
+                lock (sync)
+                {
+                    totalError += local.ErrorSum;
+                    totalCount += local.Count;
+                }
+            });
+
+        if (totalCount == 0)
+        {
+            return 0.0f;
+        }
+
+        var meanAbsError = (float)(totalError / totalCount);
+        return 1.0f - Math.Clamp(meanAbsError / targetChannel.MaxAllowedHealError, 0.0f, 1.0f);
+    }
+
+    private static void FillMaskedPredictionCpu(
+        float[] targetValues,
+        float[] guide1Values,
+        float[] guide2Values,
+        byte[] defectMask,
+        LinearModel model,
+        float[] output)
+    {
+        PixelParallel.For(0, output.Length, i =>
+        {
+            output[i] = defectMask[i] > 0
+                ? Math.Clamp(LinearModelFitter.Predict(model, guide1Values[i], guide2Values[i]), 0.0f, 1.0f)
+                : targetValues[i];
+        });
+    }
+
+    private struct ErrorAccumulator
+    {
+        public double ErrorSum;
+
+        public int Count;
     }
 
     private static (ImageBuffer Image, float AverageConfidence) ApplyPatchHealing(

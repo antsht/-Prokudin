@@ -1,3 +1,5 @@
+using Prokudin.Core.Processing;
+
 namespace Prokudin.Core.Retouch;
 
 internal readonly record struct LinearModel(double A, double B, double C, int Count);
@@ -29,6 +31,48 @@ internal static class LinearModelFitter
             guide1,
             guide2,
             i => Math.Abs(target[i] - Predict(model, guide1[i], guide2[i])) <= threshold);
+    }
+
+    public static LinearModel FitMasked(
+        float[] target,
+        float[] guide1,
+        float[] guide2,
+        byte[] excludedMask,
+        bool robustFit)
+    {
+        if (guide1.Length != target.Length ||
+            guide2.Length != target.Length ||
+            excludedMask.Length != target.Length)
+        {
+            throw new ArgumentException("All model buffers must have the same length.");
+        }
+
+        var model = FitMaskedSubset(target, guide1, guide2, excludedMask, null, default);
+        if (!robustFit || model.Count < 8)
+        {
+            return model;
+        }
+
+        var residuals = new float[model.Count];
+        var residualCount = 0;
+        for (var i = 0; i < target.Length; i++)
+        {
+            if (excludedMask[i] > 0)
+            {
+                continue;
+            }
+
+            residuals[residualCount++] = Math.Abs(target[i] - Predict(model, guide1[i], guide2[i]));
+        }
+
+        if (residualCount == 0)
+        {
+            return new LinearModel(0, 0, 0, 0);
+        }
+
+        Array.Sort(residuals, 0, residualCount);
+        var threshold = residuals[(int)Math.Floor((residualCount - 1) * 0.90)];
+        return FitMaskedSubset(target, guide1, guide2, excludedMask, threshold, model);
     }
 
     public static float Predict(LinearModel model, float guide1, float guide2) =>
@@ -89,6 +133,119 @@ internal static class LinearModelFitter
         }
 
         return new LinearModel(solution[0], solution[1], solution[2], count);
+    }
+
+    private static LinearModel FitMaskedSubset(
+        float[] target,
+        float[] guide1,
+        float[] guide2,
+        byte[] excludedMask,
+        float? maxResidual,
+        LinearModel residualModel)
+    {
+        var accumulator = new ModelAccumulator();
+        var sync = new object();
+        PixelParallel.For(
+            0,
+            target.Length,
+            static () => new ModelAccumulator(),
+            (i, local) =>
+            {
+                if (excludedMask[i] > 0)
+                {
+                    return local;
+                }
+
+                var x1 = guide1[i];
+                var x2 = guide2[i];
+                var y = target[i];
+                if (maxResidual is { } threshold &&
+                    Math.Abs(y - Predict(residualModel, x1, x2)) > threshold)
+                {
+                    return local;
+                }
+
+                local.Add(x1, x2, y);
+                return local;
+            },
+            local =>
+            {
+                if (local.Count == 0)
+                {
+                    return;
+                }
+
+                lock (sync)
+                {
+                    accumulator.Add(local);
+                }
+            });
+
+        if (accumulator.Count == 0)
+        {
+            return new LinearModel(0.0, 0.0, 0.0, 0);
+        }
+
+        var matrix = new[,]
+        {
+            { accumulator.SumX1X1 + 1e-6, accumulator.SumX1X2, accumulator.SumX1 },
+            { accumulator.SumX1X2, accumulator.SumX2X2 + 1e-6, accumulator.SumX2 },
+            { accumulator.SumX1, accumulator.SumX2, accumulator.Count + 1e-6 },
+        };
+        var vector = new[] { accumulator.SumX1Y, accumulator.SumX2Y, accumulator.SumY };
+        if (!Solve3x3(matrix, vector, out var solution))
+        {
+            return new LinearModel(0.0, 0.0, accumulator.SumY / accumulator.Count, accumulator.Count);
+        }
+
+        return new LinearModel(solution[0], solution[1], solution[2], accumulator.Count);
+    }
+
+    private struct ModelAccumulator
+    {
+        public int Count;
+
+        public double SumX1;
+
+        public double SumX2;
+
+        public double SumY;
+
+        public double SumX1X1;
+
+        public double SumX1X2;
+
+        public double SumX2X2;
+
+        public double SumX1Y;
+
+        public double SumX2Y;
+
+        public void Add(float x1, float x2, float y)
+        {
+            Count++;
+            SumX1 += x1;
+            SumX2 += x2;
+            SumY += y;
+            SumX1X1 += x1 * x1;
+            SumX1X2 += x1 * x2;
+            SumX2X2 += x2 * x2;
+            SumX1Y += x1 * y;
+            SumX2Y += x2 * y;
+        }
+
+        public void Add(ModelAccumulator other)
+        {
+            Count += other.Count;
+            SumX1 += other.SumX1;
+            SumX2 += other.SumX2;
+            SumY += other.SumY;
+            SumX1X1 += other.SumX1X1;
+            SumX1X2 += other.SumX1X2;
+            SumX2X2 += other.SumX2X2;
+            SumX1Y += other.SumX1Y;
+            SumX2Y += other.SumX2Y;
+        }
     }
 
     private static bool Solve3x3(double[,] matrix, double[] vector, out double[] solution)

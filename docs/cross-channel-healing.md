@@ -175,7 +175,7 @@ Key `HealOptions` fields:
 - `predictionAlphaMin`, `predictionAlphaMax`
 - `wGuide`, `wGradient`, `wBoundary`, `wDistance`
 - `featherSigma`, `maxAllowedError*` per format
-- `maxComponentArea`, `debugOutput`
+- `maxComponentArea`, `largeMaskFastPathPixelThreshold`, `debugOutput`
 
 ## GUI integration
 

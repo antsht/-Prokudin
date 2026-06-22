@@ -72,12 +72,12 @@ public static class ChannelRetoucher
             () => normalizedOther2 = RobustNormalize(CopyNormalized(other2)));
         ReportProgress(progress, 30);
 
-        float[] prediction = [];
+        LinearModel predictionModel = default;
         float[] targetHighPass = [];
         float[] other1HighPass = [];
         float[] other2HighPass = [];
         PixelParallel.Invoke(
-            () => prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2),
+            () => predictionModel = FitPredictionModel(normalizedTarget, normalizedOther1, normalizedOther2),
             () => targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0),
             () => other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0),
             () => other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0));
@@ -89,17 +89,36 @@ public static class ChannelRetoucher
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
         var rawMaskBytes = new byte[normalizedTarget.Length];
-        PixelParallel.For(0, normalizedTarget.Length, i =>
+        if (!CudaNative.TryDetectDefectMask(
+                normalizedTarget,
+                normalizedOther1,
+                normalizedOther2,
+                targetHighPass,
+                other1HighPass,
+                other2HighPass,
+                predictionModel.A,
+                predictionModel.B,
+                predictionModel.C,
+                (float)residualThreshold,
+                (float)highPassThreshold,
+                (float)supportMultiplier,
+                supportOffset,
+                rawMaskBytes))
         {
-            var residual = Math.Abs(normalizedTarget[i] - prediction[i]);
-            var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
-            if (residual > residualThreshold &&
-                targetHighPass[i] > highPassThreshold &&
-                targetHighPass[i] > (otherSupport * supportMultiplier) + supportOffset)
-            {
-                rawMaskBytes[i] = 1;
-            }
-        });
+            BuildRawMask(
+                normalizedTarget,
+                normalizedOther1,
+                normalizedOther2,
+                targetHighPass,
+                other1HighPass,
+                other2HighPass,
+                predictionModel,
+                (float)residualThreshold,
+                (float)highPassThreshold,
+                (float)supportMultiplier,
+                supportOffset,
+                rawMaskBytes);
+        }
 
         ReportProgress(progress, 96);
         using var rawMask = MaskToMat(rawMaskBytes, target.Width, target.Height);
@@ -248,7 +267,7 @@ public static class ChannelRetoucher
         return (sorted[lower] * (1.0f - amount)) + (sorted[upper] * amount);
     }
 
-    private static float[] PredictChannel(float[] target, float[] other1, float[] other2)
+    private static LinearModel FitPredictionModel(float[] target, float[] other1, float[] other2)
     {
         var lowTarget = Percentile(target, 2.0);
         var highTarget = Percentile(target, 98.0);
@@ -270,16 +289,38 @@ public static class ChannelRetoucher
             coefficients = FitLinearModel(target, other1, other2, _ => true);
         }
 
-        var prediction = new float[target.Length];
-        PixelParallel.For(0, prediction.Length, i =>
+        return coefficients;
+    }
+
+    private static void BuildRawMask(
+        float[] target,
+        float[] other1,
+        float[] other2,
+        float[] targetHighPass,
+        float[] other1HighPass,
+        float[] other2HighPass,
+        LinearModel model,
+        float residualThreshold,
+        float highPassThreshold,
+        float supportMultiplier,
+        float supportOffset,
+        byte[] rawMaskBytes)
+    {
+        PixelParallel.For(0, target.Length, i =>
         {
-            prediction[i] = Math.Clamp(
-                (float)((coefficients.A * other1[i]) + (coefficients.B * other2[i]) + coefficients.C),
+            var prediction = Math.Clamp(
+                (float)((model.A * other1[i]) + (model.B * other2[i]) + model.C),
                 0.0f,
                 1.0f);
+            var residual = Math.Abs(target[i] - prediction);
+            var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
+            if (residual > residualThreshold &&
+                targetHighPass[i] > highPassThreshold &&
+                targetHighPass[i] > (otherSupport * supportMultiplier) + supportOffset)
+            {
+                rawMaskBytes[i] = 1;
+            }
         });
-
-        return prediction;
     }
 
     private static bool IsCentralValue(float value, float low, float high)

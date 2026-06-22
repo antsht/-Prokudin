@@ -149,6 +149,35 @@ public sealed class CrossChannelHealerTests
     }
 
     [Fact]
+    public void HealChannel_UsesBulkPredictionForLargeAutoCleanMasks()
+    {
+        var red = CreateCorrelatedChannels(17, 17, 0.5f);
+        var green = CreateCorrelatedChannels(17, 17, 0.5f);
+        var blue = CreateCorrelatedChannels(17, 17, 0.5f);
+        var mask = new byte[red.PixelCount];
+        for (var i = 0; i < mask.Length; i += 17)
+        {
+            red.SetNormalized(i, 1.0f);
+            mask[i] = 1;
+        }
+
+        var result = ChannelHealer.HealChannel(
+            red,
+            green,
+            blue,
+            mask,
+            new HealOptions(
+                Mode: HealingMode.CrossChannelGuided,
+                PatchRadius: 3,
+                LargeMaskFastPathPixelThreshold: 8));
+
+        result.UsedCrossChannel.Should().BeTrue();
+        result.StatusMessage.Should().Contain("bulk");
+        result.Image.GetNormalized(0).Should().BeApproximately(0.5f, 0.02f);
+        result.Image.GetNormalized(1).Should().BeApproximately(red.GetNormalized(1), 0.001f);
+    }
+
+    [Fact]
     public void HealChannel_FallsBackToTeleaWhenGuidesMissing()
     {
         var red = ImageBuffer.Filled(11, 11, 0.5f);

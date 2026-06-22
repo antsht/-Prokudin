@@ -102,8 +102,12 @@ generation.
 
 OpenCV calls remain sequential at the call site because they execute in native
 code and may use OpenCV's own threading. CUDA is optional: `CudaBackendProbe`
-checks whether the NVIDIA driver library is available and always falls back to
-CPU behavior when it is missing or cannot be loaded. No reconstruction or GUI
+checks whether `Prokudin.Cuda.dll` can be loaded and can see a CUDA device.
+Auto-clean mask classification uses the CUDA backend when available and falls
+back to the CPU path when the native library, driver, or kernel launch is
+unavailable. Large auto-clean apply masks use a bulk cross-channel prediction
+path before connected-component healing; that path also uses CUDA when
+available and falls back to `PixelParallel` CPU work. No reconstruction or GUI
 workflow requires CUDA.
 
 ## Retouch and Healing
@@ -112,9 +116,12 @@ workflow requires CUDA.
 flowchart TD
   stroke[Heal brush or auto-clean apply]
   stroke --> guides{Cross-channel guides available?}
-  guides -->|yes| cc[CrossChannelPredictor + PatchHealer]
+  guides -->|yes| large{Large mask?}
+  large -->|yes| bulk[Bulk CUDA/CPU prediction]
+  large -->|no| cc[CrossChannelPredictor + PatchHealer]
   guides -->|no| fallback[CurrentChannelOnly Telea]
   cc --> blend[Blend by confidence + feather]
+  bulk --> out[Healed target channel]
   fallback --> out[Healed target channel]
   blend --> out
   stamp[Clone stamp] --> copy[ChannelRetoucher.Stamp]

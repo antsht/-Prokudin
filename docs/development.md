@@ -96,9 +96,24 @@ index or row. Keep ImageSharp/OpenCV accessor lifetimes and native operations
 outside parallel loops unless the code first snapshots the data into managed
 arrays.
 
-`CudaBackendProbe` only detects whether the NVIDIA driver library can be loaded.
-CUDA kernels are not required for development or tests, and every accelerated
-feature must keep a CPU fallback.
+`CudaBackendProbe` detects whether the optional `Prokudin.Cuda.dll` native
+library can be loaded and can see a CUDA device. CUDA kernels are not required
+for development or tests, and every accelerated feature must keep a CPU
+fallback.
+The native DLL exports kernels for auto-clean mask classification and large-mask
+bulk prediction during auto-clean apply. Rebuild the DLL after changing
+`native\Prokudin.Cuda\ProkudinCuda.cu`; an older DLL simply makes Core fall back
+to CPU paths.
+
+Build the CUDA backend on Windows with:
+
+```powershell
+.\native\Prokudin.Cuda\build.ps1
+```
+
+The script writes `native\Prokudin.Cuda\bin\Prokudin.Cuda.dll`. Set
+`PROKUDIN_CUDA_DLL` to an explicit DLL path if you want to load another build.
+Set `PROKUDIN_DISABLE_CUDA=1` to force CPU fallback.
 
 ## Known Warnings
 

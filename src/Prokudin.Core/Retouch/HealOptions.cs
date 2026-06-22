@@ -22,6 +22,7 @@ public sealed record HealOptions(
     float MaxAllowedErrorUint8 = 30.0f / 255.0f,
     float MaxAllowedErrorUint16 = 7700.0f / 65535.0f,
     int MaxComponentArea = 5000,
+    int LargeMaskFastPathPixelThreshold = 20_000,
     float LowConfidenceThreshold = 0.35f,
     float LargeComponentConservativeScale = 0.5f,
     bool DebugOutput = false,
@@ -36,4 +37,6 @@ public sealed record HealOptions(
     public int NormalizedContextRadius => Math.Clamp(ContextRadius, 4, 64);
 
     public int NormalizedInpaintRadius => Math.Clamp(PatchRadius + 1, 1, 24);
+
+    public int NormalizedLargeMaskFastPathPixelThreshold => Math.Max(1, LargeMaskFastPathPixelThreshold);
 }
