@@ -1,4 +1,5 @@
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Crop;
 
@@ -25,7 +26,7 @@ public static class Cropper
 
         var rgbPixels = new float[pixelCount * 3];
         var overlap = new byte[pixelCount];
-        for (var i = 0; i < pixelCount; i++)
+        PixelParallel.For(0, pixelCount, i =>
         {
             var hasRed = maskRed[i] > 0;
             var hasGreen = maskGreen[i] > 0;
@@ -40,7 +41,7 @@ public static class Cropper
                 rgbPixels[(i * 3) + 1] = g;
                 rgbPixels[(i * 3) + 2] = b;
                 overlap[i] = 1;
-                continue;
+                return;
             }
 
             overlap[i] = 0;
@@ -48,7 +49,7 @@ public static class Cropper
             rgbPixels[i * 3] = gray;
             rgbPixels[(i * 3) + 1] = gray;
             rgbPixels[(i * 3) + 2] = gray;
-        }
+        });
 
         return (new RgbImageBuffer(red.Width, red.Height, rgbPixels), overlap);
     }
@@ -225,12 +226,12 @@ public static class Cropper
         var width = x1 - x0;
         var height = y1 - y0;
         var pixels = new float[width * height * 3];
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             var source = (((y0 + y) * rgb.Width) + x0) * 3;
             var target = y * width * 3;
             Array.Copy(rgb.Pixels, source, pixels, target, width * 3);
-        }
+        });
 
         var (ox0, oy0, ox1, oy1) = overlapBbox;
         return (
@@ -248,10 +249,10 @@ public static class Cropper
         }
 
         var cropped = new byte[width * height];
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             Array.Copy(mask, ((crop.Y0 + y) * sourceWidth) + crop.X0, cropped, y * width, width);
-        }
+        });
 
         return cropped;
     }
@@ -282,11 +283,11 @@ public static class Cropper
         }
 
         var output = rgb.Clone();
-        for (var i = 0; i < overlap.Length; i++)
+        PixelParallel.For(0, overlap.Length, i =>
         {
             if (overlap[i] != 0)
             {
-                continue;
+                return;
             }
 
             var pixelIndex = i * 3;
@@ -300,7 +301,7 @@ public static class Cropper
             output.Pixels[pixelIndex] = gray;
             output.Pixels[pixelIndex + 1] = gray;
             output.Pixels[pixelIndex + 2] = gray;
-        }
+        });
 
         return output;
     }

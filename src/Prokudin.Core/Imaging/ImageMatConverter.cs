@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using OpenCvSharp;
-using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Imaging;
 
@@ -85,10 +85,10 @@ public static class ImageMatConverter
         mat.ConvertTo(floatMat, MatType.CV_32FC1, scale);
         var pixels = new float[floatMat.Rows * floatMat.Cols];
         Marshal.Copy(floatMat.Data, pixels, 0, pixels.Length);
-        for (var i = 0; i < pixels.Length; i++)
+        PixelParallel.For(0, pixels.Length, i =>
         {
             pixels[i] = Math.Clamp(pixels[i], 0.0f, 1.0f);
-        }
+        });
 
         return new ImageBuffer(floatMat.Cols, floatMat.Rows, pixels);
     }

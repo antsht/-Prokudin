@@ -88,6 +88,18 @@ Important packages:
 - xUnit
 - FluentAssertions
 
+## Acceleration Notes
+
+`Prokudin.Core.Processing.PixelParallel` is the shared helper for CPU-bound
+managed pixel loops. Use it only when each iteration writes to an independent
+index or row. Keep ImageSharp/OpenCV accessor lifetimes and native operations
+outside parallel loops unless the code first snapshots the data into managed
+arrays.
+
+`CudaBackendProbe` only detects whether the NVIDIA driver library can be loaded.
+CUDA kernels are not required for development or tests, and every accelerated
+feature must keep a CPU fallback.
+
 ## Known Warnings
 
 `dotnet test` can report `NU1903` for Avalonia's transitive

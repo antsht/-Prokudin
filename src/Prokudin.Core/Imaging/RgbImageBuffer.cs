@@ -1,3 +1,5 @@
+using Prokudin.Core.Processing;
+
 namespace Prokudin.Core.Imaging;
 
 public sealed class RgbImageBuffer
@@ -49,7 +51,7 @@ public sealed class RgbImageBuffer
         }
 
         var cropped = new float[width * height * 3];
-        for (var row = 0; row < height; row++)
+        PixelParallel.ForRows(height, row =>
         {
             var sourceRow = ((y + row) * Width) + x;
             var destRow = row * width;
@@ -61,7 +63,7 @@ public sealed class RgbImageBuffer
                 cropped[destIndex + 1] = Pixels[sourceIndex + 1];
                 cropped[destIndex + 2] = Pixels[sourceIndex + 2];
             }
-        }
+        });
 
         return new RgbImageBuffer(width, height, cropped);
     }

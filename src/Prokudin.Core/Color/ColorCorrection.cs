@@ -1,4 +1,5 @@
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Color;
 
@@ -27,13 +28,14 @@ public static class ColorCorrection
         }
 
         var output = rgb.Clone();
-        for (var i = 0; i < output.Pixels.Length; i += 3)
+        PixelParallel.For(0, output.Pixels.Length / 3, pixel =>
         {
+            var i = pixel * 3;
             for (var c = 0; c < 3; c++)
             {
                 output.Pixels[i + c] = Clamp01(output.Pixels[i + c] * target / (means[c] + 1e-6f));
             }
-        }
+        });
 
         return output;
     }
@@ -48,12 +50,13 @@ public static class ColorCorrection
         var temp = temperature / 100.0f;
         var tintValue = tint / 100.0f;
         var output = rgb.Clone();
-        for (var i = 0; i < output.Pixels.Length; i += 3)
+        PixelParallel.For(0, output.Pixels.Length / 3, pixel =>
         {
+            var i = pixel * 3;
             output.Pixels[i] = Clamp01(output.Pixels[i] * (1.0f + (0.25f * temp)));
             output.Pixels[i + 1] = Clamp01(output.Pixels[i + 1] * (1.0f + (0.15f * tintValue)));
             output.Pixels[i + 2] = Clamp01(output.Pixels[i + 2] * (1.0f - (0.25f * temp)));
-        }
+        });
 
         return output;
     }
@@ -81,10 +84,10 @@ public static class ColorCorrection
         for (var c = 0; c < 3; c++)
         {
             var values = new float[rgb.Width * rgb.Height];
-            for (var i = 0; i < values.Length; i++)
+            PixelParallel.For(0, values.Length, i =>
             {
                 values[i] = output.Pixels[(i * 3) + c];
-            }
+            });
 
             Array.Sort(values);
             var low = PercentileSorted(values, lowPercent);
@@ -95,10 +98,11 @@ public static class ColorCorrection
             }
 
             var gain = Math.Min(maxGain, 1.0f / (high - low));
-            for (var i = c; i < output.Pixels.Length; i += 3)
+            PixelParallel.For(0, values.Length, i =>
             {
-                output.Pixels[i] = Clamp01((output.Pixels[i] - low) * gain);
-            }
+                var pixelIndex = (i * 3) + c;
+                output.Pixels[pixelIndex] = Clamp01((output.Pixels[pixelIndex] - low) * gain);
+            });
         }
 
         return output;
@@ -107,10 +111,10 @@ public static class ColorCorrection
     private static RgbImageBuffer ApplyNeutralRegionBalance(RgbImageBuffer rgb, float brightnessPercent = 85.0f, float varianceThreshold = 0.08f)
     {
         var brightness = new float[rgb.Width * rgb.Height];
-        for (var i = 0; i < brightness.Length; i++)
+        PixelParallel.For(0, brightness.Length, i =>
         {
             brightness[i] = (rgb.Pixels[i * 3] + rgb.Pixels[(i * 3) + 1] + rgb.Pixels[(i * 3) + 2]) / 3.0f;
-        }
+        });
 
         var sorted = (float[])brightness.Clone();
         Array.Sort(sorted);
@@ -143,13 +147,14 @@ public static class ColorCorrection
         var means = ChannelMeans(rgb, 0, 0, rgb.Width, rgb.Height);
         var target = means.Average();
         var output = rgb.Clone();
-        for (var i = 0; i < output.Pixels.Length; i += 3)
+        PixelParallel.For(0, output.Pixels.Length / 3, pixel =>
         {
+            var i = pixel * 3;
             for (var c = 0; c < 3; c++)
             {
                 output.Pixels[i + c] = Clamp01(output.Pixels[i + c] * target / (means[c] + 1e-6f));
             }
-        }
+        });
 
         return output;
     }
@@ -157,21 +162,26 @@ public static class ColorCorrection
     private static RgbImageBuffer ScaleChannelsToWhite(RgbImageBuffer rgb, IReadOnlyList<float> means)
     {
         var output = rgb.Clone();
-        var max = 0.0f;
-        for (var i = 0; i < output.Pixels.Length; i += 3)
+        PixelParallel.For(0, output.Pixels.Length / 3, pixel =>
         {
+            var i = pixel * 3;
             for (var c = 0; c < 3; c++)
             {
                 output.Pixels[i + c] *= 1.0f / (means[c] + 1e-6f);
-                max = Math.Max(max, output.Pixels[i + c]);
             }
+        });
+
+        var max = 0.0f;
+        for (var i = 0; i < output.Pixels.Length; i++)
+        {
+            max = Math.Max(max, output.Pixels[i]);
         }
 
         max += 1e-6f;
-        for (var i = 0; i < output.Pixels.Length; i++)
+        PixelParallel.For(0, output.Pixels.Length, i =>
         {
             output.Pixels[i] = Clamp01(output.Pixels[i] / max);
-        }
+        });
 
         return output;
     }

@@ -1,4 +1,5 @@
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Transform;
 
@@ -24,7 +25,7 @@ public static class ImageTransformer
         var cos = MathF.Cos(angle);
         var sin = MathF.Sin(angle);
 
-        for (var y = 0; y < image.Height; y++)
+        PixelParallel.ForRows(image.Height, y =>
         {
             for (var x = 0; x < image.Width; x++)
             {
@@ -36,7 +37,7 @@ public static class ImageTransformer
                 output[index] = SampleBilinear(image, sourceX, sourceY);
                 outputMask[index] = SampleNearest(mask, image.Width, image.Height, sourceX, sourceY);
             }
-        }
+        });
 
         return (new ImageBuffer(image.Width, image.Height, output), outputMask);
     }

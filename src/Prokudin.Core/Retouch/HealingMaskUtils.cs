@@ -1,4 +1,5 @@
 using OpenCvSharp;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Retouch;
 
@@ -62,10 +63,10 @@ internal static class HealingMaskUtils
     public static Mat MaskToMat(byte[] mask, int width, int height)
     {
         var normalized = new byte[mask.Length];
-        for (var i = 0; i < mask.Length; i++)
+        PixelParallel.For(0, mask.Length, i =>
         {
             normalized[i] = mask[i] > 0 ? (byte)255 : (byte)0;
-        }
+        });
 
         var mat = new Mat(height, width, MatType.CV_8UC1);
         System.Runtime.InteropServices.Marshal.Copy(normalized, 0, mat.Data, normalized.Length);

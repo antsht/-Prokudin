@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using OpenCvSharp;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Retouch;
 
@@ -62,47 +63,46 @@ public static class ChannelRetoucher
         ValidateSameDimensions(target, other1, nameof(other1));
         ValidateSameDimensions(target, other2, nameof(other2));
 
-        var normalizedTarget = RobustNormalize(CopyNormalized(target));
-        ReportProgress(progress, 10);
-        var normalizedOther1 = RobustNormalize(CopyNormalized(other1));
-        ReportProgress(progress, 20);
-        var normalizedOther2 = RobustNormalize(CopyNormalized(other2));
+        float[] normalizedTarget = [];
+        float[] normalizedOther1 = [];
+        float[] normalizedOther2 = [];
+        PixelParallel.Invoke(
+            () => normalizedTarget = RobustNormalize(CopyNormalized(target)),
+            () => normalizedOther1 = RobustNormalize(CopyNormalized(other1)),
+            () => normalizedOther2 = RobustNormalize(CopyNormalized(other2)));
         ReportProgress(progress, 30);
-        var prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2);
-        ReportProgress(progress, 45);
-        var targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0);
-        ReportProgress(progress, 55);
-        var other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0);
-        ReportProgress(progress, 65);
-        var other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0);
+
+        float[] prediction = [];
+        float[] targetHighPass = [];
+        float[] other1HighPass = [];
+        float[] other2HighPass = [];
+        PixelParallel.Invoke(
+            () => prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2),
+            () => targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0),
+            () => other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0),
+            () => other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0));
         ReportProgress(progress, 75);
 
-        using var rawMask = new Mat(target.Height, target.Width, MatType.CV_8UC1, Scalar.Black);
         var sensitivity = settings.NormalizedSensitivity / 100.0;
         var residualThreshold = 0.22 - (sensitivity * 0.18);
         var highPassThreshold = 0.10 - (sensitivity * 0.085);
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
-        var progressStep = Math.Max(1, normalizedTarget.Length / 20);
-
-        for (var i = 0; i < normalizedTarget.Length; i++)
+        var rawMaskBytes = new byte[normalizedTarget.Length];
+        PixelParallel.For(0, normalizedTarget.Length, i =>
         {
-            if (i % progressStep == 0)
-            {
-                ReportProgress(progress, 75.0 + (20.0 * i / normalizedTarget.Length));
-            }
-
             var residual = Math.Abs(normalizedTarget[i] - prediction[i]);
             var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
             if (residual > residualThreshold &&
                 targetHighPass[i] > highPassThreshold &&
                 targetHighPass[i] > (otherSupport * supportMultiplier) + supportOffset)
             {
-                rawMask.Set(i / target.Width, i % target.Width, (byte)255);
+                rawMaskBytes[i] = 1;
             }
-        }
+        });
 
         ReportProgress(progress, 96);
+        using var rawMask = MaskToMat(rawMaskBytes, target.Width, target.Height);
         using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height, sensitivity);
         var mask = MaskFromMat(filteredMask);
         ReportProgress(progress, 100);
@@ -151,7 +151,7 @@ public static class ChannelRetoucher
         var result = image.Clone();
         var appliedMask = new byte[image.Width * image.Height];
 
-        for (var y = 0; y < image.Height; y++)
+        PixelParallel.ForRows(image.Height, y =>
         {
             for (var x = 0; x < image.Width; x++)
             {
@@ -183,7 +183,7 @@ public static class ChannelRetoucher
                         1.0f));
                 appliedMask[index] = 1;
             }
-        }
+        });
 
         return new RetouchResult(result, appliedMask);
     }
@@ -210,19 +210,19 @@ public static class ChannelRetoucher
         var normalized = new float[source.Length];
         if (high <= low)
         {
-            for (var i = 0; i < source.Length; i++)
+            PixelParallel.For(0, source.Length, i =>
             {
                 normalized[i] = Math.Clamp(source[i], 0.0f, 1.0f);
-            }
+            });
 
             return normalized;
         }
 
         var scale = 1.0f / (high - low);
-        for (var i = 0; i < source.Length; i++)
+        PixelParallel.For(0, source.Length, i =>
         {
             normalized[i] = Math.Clamp((source[i] - low) * scale, 0.0f, 1.0f);
-        }
+        });
 
         return normalized;
     }
@@ -271,13 +271,13 @@ public static class ChannelRetoucher
         }
 
         var prediction = new float[target.Length];
-        for (var i = 0; i < prediction.Length; i++)
+        PixelParallel.For(0, prediction.Length, i =>
         {
             prediction[i] = Math.Clamp(
                 (float)((coefficients.A * other1[i]) + (coefficients.B * other2[i]) + coefficients.C),
                 0.0f,
                 1.0f);
-        }
+        });
 
         return prediction;
     }
@@ -293,55 +293,47 @@ public static class ChannelRetoucher
         float[] other2,
         Func<int, bool> include)
     {
-        var count = 0;
-        var sumX1 = 0.0;
-        var sumX2 = 0.0;
-        var sumY = 0.0;
-        var sumX1X1 = 0.0;
-        var sumX1X2 = 0.0;
-        var sumX2X2 = 0.0;
-        var sumX1Y = 0.0;
-        var sumX2Y = 0.0;
-
-        for (var i = 0; i < target.Length; i++)
-        {
-            if (!include(i))
+        var totals = new LinearModelAccumulator();
+        var gate = new object();
+        PixelParallel.For(
+            0,
+            target.Length,
+            localInit: static () => new LinearModelAccumulator(),
+            body: (i, local) =>
             {
-                continue;
-            }
+                if (include(i))
+                {
+                    local.Add(target[i], other1[i], other2[i]);
+                }
 
-            var x1 = other1[i];
-            var x2 = other2[i];
-            var y = target[i];
-            count++;
-            sumX1 += x1;
-            sumX2 += x2;
-            sumY += y;
-            sumX1X1 += x1 * x1;
-            sumX1X2 += x1 * x2;
-            sumX2X2 += x2 * x2;
-            sumX1Y += x1 * y;
-            sumX2Y += x2 * y;
-        }
+                return local;
+            },
+            localFinally: local =>
+            {
+                lock (gate)
+                {
+                    totals.Add(local);
+                }
+            });
 
-        if (count == 0)
+        if (totals.Count == 0)
         {
             return new LinearModel(0.0, 0.0, 0.0, 0);
         }
 
         var matrix = new[,]
         {
-            { sumX1X1 + 1e-6, sumX1X2, sumX1 },
-            { sumX1X2, sumX2X2 + 1e-6, sumX2 },
-            { sumX1, sumX2, count + 1e-6 },
+            { totals.SumX1X1 + 1e-6, totals.SumX1X2, totals.SumX1 },
+            { totals.SumX1X2, totals.SumX2X2 + 1e-6, totals.SumX2 },
+            { totals.SumX1, totals.SumX2, totals.Count + 1e-6 },
         };
-        var vector = new[] { sumX1Y, sumX2Y, sumY };
+        var vector = new[] { totals.SumX1Y, totals.SumX2Y, totals.SumY };
         if (!Solve3x3(matrix, vector, out var solution))
         {
-            return new LinearModel(0.0, 0.0, sumY / count, count);
+            return new LinearModel(0.0, 0.0, totals.SumY / totals.Count, totals.Count);
         }
 
-        return new LinearModel(solution[0], solution[1], solution[2], count);
+        return new LinearModel(solution[0], solution[1], solution[2], totals.Count);
     }
 
     private static bool Solve3x3(double[,] matrix, double[] vector, out double[] solution)
@@ -420,10 +412,10 @@ public static class ChannelRetoucher
         Marshal.Copy(blur.Data, blurred, 0, blurred.Length);
 
         var highPass = new float[source.Length];
-        for (var i = 0; i < source.Length; i++)
+        PixelParallel.For(0, source.Length, i =>
         {
             highPass[i] = Math.Abs(source[i] - blurred[i]);
-        }
+        });
 
         return highPass;
     }
@@ -498,10 +490,10 @@ public static class ChannelRetoucher
         if (normalizedBlendWidth <= 1)
         {
             var solidAlpha = new float[mask.Length];
-            for (var i = 0; i < mask.Length; i++)
+            PixelParallel.For(0, mask.Length, i =>
             {
                 solidAlpha[i] = mask[i] > 0 ? 1.0f : 0.0f;
-            }
+            });
 
             return solidAlpha;
         }
@@ -511,12 +503,12 @@ public static class ChannelRetoucher
         Cv2.DistanceTransform(maskMat, distance, DistanceTypes.L2, DistanceTransformMasks.Mask3);
         var values = new float[width * height];
         Marshal.Copy(distance.Data, values, 0, values.Length);
-        for (var i = 0; i < values.Length; i++)
+        PixelParallel.For(0, values.Length, i =>
         {
             values[i] = mask[i] > 0
                 ? Math.Clamp(values[i] / normalizedBlendWidth, 0.0f, 1.0f)
                 : 0.0f;
-        }
+        });
 
         return values;
     }
@@ -538,10 +530,10 @@ public static class ChannelRetoucher
     private static Mat MaskToMat(byte[] mask, int width, int height)
     {
         var normalized = new byte[mask.Length];
-        for (var i = 0; i < mask.Length; i++)
+        PixelParallel.For(0, mask.Length, i =>
         {
             normalized[i] = mask[i] > 0 ? (byte)255 : (byte)0;
-        }
+        });
 
         var mat = new Mat(height, width, MatType.CV_8UC1);
         Marshal.Copy(normalized, 0, mat.Data, normalized.Length);
@@ -554,12 +546,59 @@ public static class ChannelRetoucher
         mat.ConvertTo(u8, MatType.CV_8UC1);
         var values = new byte[u8.Rows * u8.Cols];
         Marshal.Copy(u8.Data, values, 0, values.Length);
-        for (var i = 0; i < values.Length; i++)
+        PixelParallel.For(0, values.Length, i =>
         {
             values[i] = values[i] > 0 ? (byte)1 : (byte)0;
-        }
+        });
 
         return values;
+    }
+
+    private sealed class LinearModelAccumulator
+    {
+        public int Count { get; private set; }
+
+        public double SumX1 { get; private set; }
+
+        public double SumX2 { get; private set; }
+
+        public double SumY { get; private set; }
+
+        public double SumX1X1 { get; private set; }
+
+        public double SumX1X2 { get; private set; }
+
+        public double SumX2X2 { get; private set; }
+
+        public double SumX1Y { get; private set; }
+
+        public double SumX2Y { get; private set; }
+
+        public void Add(float y, float x1, float x2)
+        {
+            Count++;
+            SumX1 += x1;
+            SumX2 += x2;
+            SumY += y;
+            SumX1X1 += x1 * x1;
+            SumX1X2 += x1 * x2;
+            SumX2X2 += x2 * x2;
+            SumX1Y += x1 * y;
+            SumX2Y += x2 * y;
+        }
+
+        public void Add(LinearModelAccumulator other)
+        {
+            Count += other.Count;
+            SumX1 += other.SumX1;
+            SumX2 += other.SumX2;
+            SumY += other.SumY;
+            SumX1X1 += other.SumX1X1;
+            SumX1X2 += other.SumX1X2;
+            SumX2X2 += other.SumX2X2;
+            SumX1Y += other.SumX1Y;
+            SumX2Y += other.SumX2Y;
+        }
     }
 
     private readonly record struct LinearModel(double A, double B, double C, int Count);

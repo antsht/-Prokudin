@@ -5,6 +5,7 @@ using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.Formats.Tiff.Constants;
 using SixLabors.ImageSharp.PixelFormats;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Imaging;
 
@@ -282,7 +283,7 @@ public static class ImageLoader
         var pixels = new float[width * height * 3];
         var scaleX = source.Width / (float)width;
         var scaleY = source.Height / (float)height;
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             var sourceY = Math.Min(source.Height - 1, (int)(y * scaleY));
             for (var x = 0; x < width; x++)
@@ -293,7 +294,7 @@ public static class ImageLoader
                     pixels[(((y * width) + x) * 3) + c] = source[sourceX, sourceY, c];
                 }
             }
-        }
+        });
 
         return new RgbImageBuffer(width, height, pixels);
     }

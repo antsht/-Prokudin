@@ -92,6 +92,20 @@ preserves 16-bit TIFF samples when detected. OpenCV paths convert through
 `ImageMatConverter.ToUInt8MatForInpaint` and `FromMat` to preserve the original
 format on output.
 
+## Acceleration
+
+CPU-bound pixel and row loops use `Prokudin.Core.Processing.PixelParallel`,
+which keeps small buffers sequential and uses `Parallel.For` for larger managed
+arrays. This covers format conversion, exposure, color transforms, manual
+transforms, RGB merge/resize, retouch mask preparation, and GUI preview byte
+generation.
+
+OpenCV calls remain sequential at the call site because they execute in native
+code and may use OpenCV's own threading. CUDA is optional: `CudaBackendProbe`
+checks whether the NVIDIA driver library is available and always falls back to
+CPU behavior when it is missing or cannot be loaded. No reconstruction or GUI
+workflow requires CUDA.
+
 ## Retouch and Healing
 
 ```mermaid

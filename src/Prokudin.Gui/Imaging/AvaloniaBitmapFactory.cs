@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Gui.Imaging;
 
@@ -15,7 +16,7 @@ public static class AvaloniaBitmapFactory
     public static WriteableBitmap FromImageBuffer(ImageBuffer image)
     {
         var bytes = new byte[image.Width * image.Height * 4];
-        for (var i = 0; i < image.PixelCount; i++)
+        PixelParallel.For(0, image.PixelCount, i =>
         {
             var value = ToByte(image.GetNormalized(i));
             var offset = i * 4;
@@ -23,7 +24,7 @@ public static class AvaloniaBitmapFactory
             bytes[offset + 1] = value;
             bytes[offset + 2] = value;
             bytes[offset + 3] = 255;
-        }
+        });
 
         return CreateBitmap(image.Width, image.Height, bytes);
     }
@@ -31,7 +32,7 @@ public static class AvaloniaBitmapFactory
     public static WriteableBitmap FromRgbImageBuffer(RgbImageBuffer image)
     {
         var bytes = new byte[image.Width * image.Height * 4];
-        for (var i = 0; i < image.Width * image.Height; i++)
+        PixelParallel.For(0, image.Width * image.Height, i =>
         {
             var sourceOffset = i * 3;
             var targetOffset = i * 4;
@@ -39,7 +40,7 @@ public static class AvaloniaBitmapFactory
             bytes[targetOffset + 1] = ToByte(image.Pixels[sourceOffset + 1]);
             bytes[targetOffset + 2] = ToByte(image.Pixels[sourceOffset]);
             bytes[targetOffset + 3] = 255;
-        }
+        });
 
         return CreateBitmap(image.Width, image.Height, bytes);
     }
@@ -53,7 +54,7 @@ public static class AvaloniaBitmapFactory
         }
 
         var bytes = new byte[width * height * 4];
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             var sourceY = (y * image.Height) / height;
             for (var x = 0; x < width; x++)
@@ -66,7 +67,7 @@ public static class AvaloniaBitmapFactory
                 bytes[offset + 2] = value;
                 bytes[offset + 3] = 255;
             }
-        }
+        });
 
         return CreateBitmap(width, height, bytes);
     }
@@ -80,7 +81,7 @@ public static class AvaloniaBitmapFactory
         }
 
         var bytes = new byte[width * height * 4];
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             var sourceY = (y * image.Height) / height;
             for (var x = 0; x < width; x++)
@@ -93,7 +94,7 @@ public static class AvaloniaBitmapFactory
                 bytes[targetOffset + 2] = ToByte(image.Pixels[sourceOffset]);
                 bytes[targetOffset + 3] = 255;
             }
-        }
+        });
 
         return CreateBitmap(width, height, bytes);
     }
@@ -107,11 +108,11 @@ public static class AvaloniaBitmapFactory
 
         const byte alpha = 116;
         var bytes = new byte[width * height * 4];
-        for (var i = 0; i < mask.Length; i++)
+        PixelParallel.For(0, mask.Length, i =>
         {
             if (mask[i] == 0)
             {
-                continue;
+                return;
             }
 
             var offset = i * 4;
@@ -119,7 +120,7 @@ public static class AvaloniaBitmapFactory
             bytes[offset + 1] = 42;
             bytes[offset + 2] = 116;
             bytes[offset + 3] = alpha;
-        }
+        });
 
         return CreateBitmap(width, height, bytes, AlphaFormat.Premul);
     }

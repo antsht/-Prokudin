@@ -1,3 +1,5 @@
+using Prokudin.Core.Processing;
+
 namespace Prokudin.Core.Imaging;
 
 public sealed class ImageBuffer
@@ -114,7 +116,18 @@ public sealed class ImageBuffer
         }
     }
 
-    public void CopyNormalizedTo(float[] destination) => CopyNormalizedTo(destination.AsSpan());
+    public void CopyNormalizedTo(float[] destination)
+    {
+        if (destination.Length < PixelCount)
+        {
+            throw new ArgumentException("Destination array is too small.", nameof(destination));
+        }
+
+        PixelParallel.For(0, PixelCount, i =>
+        {
+            destination[i] = GetNormalized(i);
+        });
+    }
 
     public ImageBuffer Clone()
     {
@@ -185,15 +198,19 @@ public sealed class ImageBuffer
             PixelFormat.Float32 => new ImageBuffer(
                 width,
                 height,
-                normalizedPixels.Select(static v => Math.Clamp(v, 0.0f, 1.0f)).ToArray()),
+                ConvertNormalized(normalizedPixels, static v => Math.Clamp(v, 0.0f, 1.0f))),
             PixelFormat.UInt8 => new ImageBuffer(
                 width,
                 height,
-                normalizedPixels.Select(static v => (byte)Math.Clamp((int)MathF.Round(v * 255.0f), 0, 255)).ToArray()),
+                ConvertNormalized(
+                    normalizedPixels,
+                    static v => (byte)Math.Clamp((int)MathF.Round(v * 255.0f), 0, 255))),
             PixelFormat.UInt16 => new ImageBuffer(
                 width,
                 height,
-                normalizedPixels.Select(static v => (ushort)Math.Clamp((int)MathF.Round(v * 65535.0f), 0, 65535)).ToArray()),
+                ConvertNormalized(
+                    normalizedPixels,
+                    static v => (ushort)Math.Clamp((int)MathF.Round(v * 65535.0f), 0, 65535))),
             _ => throw new InvalidOperationException($"Unsupported format {format}."),
         };
     }
@@ -214,10 +231,10 @@ public sealed class ImageBuffer
     private static T[] CropArray<T>(T[] source, int x, int y, int width, int height, int sourceWidth)
     {
         var cropped = new T[width * height];
-        for (var row = 0; row < height; row++)
+        PixelParallel.ForRows(height, row =>
         {
             Array.Copy(source, ((y + row) * sourceWidth) + x, cropped, row * width, width);
-        }
+        });
 
         return cropped;
     }
@@ -230,5 +247,16 @@ public sealed class ImageBuffer
         var pixels = new T[count];
         Array.Fill(pixels, value);
         return pixels;
+    }
+
+    private static T[] ConvertNormalized<T>(float[] source, Func<float, T> convert)
+    {
+        var destination = new T[source.Length];
+        PixelParallel.For(0, source.Length, i =>
+        {
+            destination[i] = convert(source[i]);
+        });
+
+        return destination;
     }
 }

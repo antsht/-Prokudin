@@ -1,4 +1,5 @@
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Color;
 
@@ -13,10 +14,10 @@ public static class ChannelExposure
 
         var gain = MathF.Pow(2.0f, stops);
         var result = image.Clone();
-        for (var i = 0; i < result.PixelCount; i++)
+        PixelParallel.For(0, result.PixelCount, i =>
         {
             result.SetNormalized(i, Math.Clamp(image.GetNormalized(i) * gain, 0.0f, 1.0f));
-        }
+        });
 
         return result;
     }

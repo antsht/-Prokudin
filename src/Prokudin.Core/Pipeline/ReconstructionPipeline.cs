@@ -2,6 +2,7 @@ using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Crop;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Processing;
 using Prokudin.Core.Transform;
 
 namespace Prokudin.Core.Pipeline;
@@ -176,10 +177,10 @@ public static class ReconstructionPipeline
             var width = x1 - x0;
             var height = y1 - y0;
             var pixels = new float[width * height * 3];
-            for (var y = 0; y < height; y++)
+            PixelParallel.ForRows(height, y =>
             {
                 Array.Copy(rgb.Pixels, (((y0 + y) * rgb.Width) + x0) * 3, pixels, y * width * 3, width * 3);
-            }
+            });
 
             var bbox = Cropper.OverlapBoundingBox(overlap, rgb.Width, rgb.Height) ?? (0, 0, rgb.Width, rgb.Height);
             return (new RgbImageBuffer(width, height, pixels), new CropInfo(x0, y0, x1, y1, bbox.X0, bbox.Y0, bbox.X1, bbox.Y1));
@@ -195,7 +196,7 @@ public static class ReconstructionPipeline
         var pixels = new float[width * height * 3];
         var scaleX = source.Width / (float)width;
         var scaleY = source.Height / (float)height;
-        for (var y = 0; y < height; y++)
+        PixelParallel.ForRows(height, y =>
         {
             var sourceY = Math.Min(source.Height - 1, (int)(y * scaleY));
             for (var x = 0; x < width; x++)
@@ -206,7 +207,7 @@ public static class ReconstructionPipeline
                     pixels[(((y * width) + x) * 3) + c] = source[sourceX, sourceY, c];
                 }
             }
-        }
+        });
 
         return new RgbImageBuffer(width, height, pixels);
     }
@@ -215,28 +216,26 @@ public static class ReconstructionPipeline
     {
         var blurred = BoxBlur3x3(source);
         var output = source.Clone();
-        for (var i = 0; i < output.Pixels.Length; i += 3)
+        PixelParallel.For(0, source.Width * source.Height, pixel =>
         {
+            var i = pixel * 3;
             var apply = false;
             var redDetail = source.Pixels[i] - blurred.Pixels[i];
             var greenDetail = source.Pixels[i + 1] - blurred.Pixels[i + 1];
             var blueDetail = source.Pixels[i + 2] - blurred.Pixels[i + 2];
-            var detail = new[] { redDetail, greenDetail, blueDetail };
-            for (var c = 0; c < 3; c++)
-            {
-                apply |= Math.Abs(detail[c]) >= threshold;
-            }
+            apply |= Math.Abs(redDetail) >= threshold;
+            apply |= Math.Abs(greenDetail) >= threshold;
+            apply |= Math.Abs(blueDetail) >= threshold;
 
             if (!apply)
             {
-                continue;
+                return;
             }
 
-            for (var c = 0; c < 3; c++)
-            {
-                output.Pixels[i + c] = Math.Clamp(source.Pixels[i + c] + (amount * detail[c]), 0.0f, 1.0f);
-            }
-        }
+            output.Pixels[i] = Math.Clamp(source.Pixels[i] + (amount * redDetail), 0.0f, 1.0f);
+            output.Pixels[i + 1] = Math.Clamp(source.Pixels[i + 1] + (amount * greenDetail), 0.0f, 1.0f);
+            output.Pixels[i + 2] = Math.Clamp(source.Pixels[i + 2] + (amount * blueDetail), 0.0f, 1.0f);
+        });
 
         return output;
     }
@@ -244,7 +243,7 @@ public static class ReconstructionPipeline
     private static RgbImageBuffer BoxBlur3x3(RgbImageBuffer source)
     {
         var output = new float[source.Pixels.Length];
-        for (var y = 0; y < source.Height; y++)
+        PixelParallel.ForRows(source.Height, y =>
         {
             for (var x = 0; x < source.Width; x++)
             {
@@ -268,7 +267,7 @@ public static class ReconstructionPipeline
                     output[(((y * source.Width) + x) * 3) + c] = sums[c] / count;
                 }
             }
-        }
+        });
 
         return new RgbImageBuffer(source.Width, source.Height, output);
     }
