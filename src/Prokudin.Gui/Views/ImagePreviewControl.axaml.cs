@@ -56,6 +56,9 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<ICommand?> MaskEditCommandProperty =
         AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(MaskEditCommand));
 
+    public static readonly StyledProperty<ICommand?> WhiteBalancePickCommandProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(WhiteBalancePickCommand));
+
     private Point? selectionStart;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
@@ -159,6 +162,12 @@ public sealed partial class ImagePreviewControl : UserControl
     {
         get => GetValue(MaskEditCommandProperty);
         set => SetValue(MaskEditCommandProperty, value);
+    }
+
+    public ICommand? WhiteBalancePickCommand
+    {
+        get => GetValue(WhiteBalancePickCommandProperty);
+        set => SetValue(WhiteBalancePickCommandProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -726,6 +735,18 @@ public sealed partial class ImagePreviewControl : UserControl
             retouchCursorImagePoint = imagePoint;
             UpdateRetouchOverlay();
             e.Pointer.Capture(ImageHost);
+            e.Handled = true;
+            return;
+        }
+
+        if (InteractionMode == PreviewInteractionMode.WhiteBalancePicker)
+        {
+            var pickPoint = ToRetouchPoint(imagePoint);
+            if (WhiteBalancePickCommand?.CanExecute(pickPoint) == true)
+            {
+                WhiteBalancePickCommand.Execute(pickPoint);
+            }
+
             e.Handled = true;
             return;
         }

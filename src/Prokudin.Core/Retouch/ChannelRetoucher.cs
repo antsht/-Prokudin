@@ -55,18 +55,27 @@ public static class ChannelRetoucher
         ImageBuffer target,
         ImageBuffer other1,
         ImageBuffer other2,
-        AutoCleanSettings settings)
+        AutoCleanSettings settings,
+        IProgress<double>? progress = null)
     {
+        ReportProgress(progress, 0);
         ValidateSameDimensions(target, other1, nameof(other1));
         ValidateSameDimensions(target, other2, nameof(other2));
 
         var normalizedTarget = RobustNormalize(CopyNormalized(target));
+        ReportProgress(progress, 10);
         var normalizedOther1 = RobustNormalize(CopyNormalized(other1));
+        ReportProgress(progress, 20);
         var normalizedOther2 = RobustNormalize(CopyNormalized(other2));
+        ReportProgress(progress, 30);
         var prediction = PredictChannel(normalizedTarget, normalizedOther1, normalizedOther2);
+        ReportProgress(progress, 45);
         var targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0);
+        ReportProgress(progress, 55);
         var other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0);
+        ReportProgress(progress, 65);
         var other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0);
+        ReportProgress(progress, 75);
 
         using var rawMask = new Mat(target.Height, target.Width, MatType.CV_8UC1, Scalar.Black);
         var sensitivity = settings.NormalizedSensitivity / 100.0;
@@ -74,9 +83,15 @@ public static class ChannelRetoucher
         var highPassThreshold = 0.10 - (sensitivity * 0.085);
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
+        var progressStep = Math.Max(1, normalizedTarget.Length / 20);
 
         for (var i = 0; i < normalizedTarget.Length; i++)
         {
+            if (i % progressStep == 0)
+            {
+                ReportProgress(progress, 75.0 + (20.0 * i / normalizedTarget.Length));
+            }
+
             var residual = Math.Abs(normalizedTarget[i] - prediction[i]);
             var otherSupport = Math.Max(other1HighPass[i], other2HighPass[i]);
             if (residual > residualThreshold &&
@@ -87,8 +102,10 @@ public static class ChannelRetoucher
             }
         }
 
+        ReportProgress(progress, 96);
         using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height, sensitivity);
         var mask = MaskFromMat(filteredMask);
+        ReportProgress(progress, 100);
         return new AutoCleanMaskResult(mask, mask.Count(value => value > 0));
     }
 
@@ -505,6 +522,11 @@ public static class ChannelRetoucher
     }
 
     private static Mat ToU8(ImageBuffer image) => ImageMatConverter.ToUInt8MatForInpaint(image);
+
+    private static void ReportProgress(IProgress<double>? progress, double value)
+    {
+        progress?.Report(Math.Clamp(value, 0.0, 100.0));
+    }
 
     private static Mat FloatToMat(float[] pixels, int width, int height)
     {

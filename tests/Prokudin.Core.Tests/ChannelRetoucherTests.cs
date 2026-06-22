@@ -75,6 +75,32 @@ public sealed class ChannelRetoucherTests
     }
 
     [Fact]
+    public void DetectSingleChannelDefects_ReportsMonotonicProgressToCompletion()
+    {
+        var target = ImageBuffer.Filled(31, 31, 0.5f);
+        var other1 = ImageBuffer.Filled(31, 31, 0.5f);
+        var other2 = ImageBuffer.Filled(31, 31, 0.5f);
+        target[15, 15] = 1.0f;
+        var progress = new ProgressCapture();
+
+        ChannelRetoucher.DetectSingleChannelDefects(
+            target,
+            other1,
+            other2,
+            new AutoCleanSettings(Sensitivity: 65, InpaintRadius: 3),
+            progress);
+
+        progress.Values.Should().NotBeEmpty();
+        progress.Values[0].Should().Be(0.0);
+        progress.Values[^1].Should().Be(100.0);
+        progress.Values.Should().OnlyContain(value => value >= 0.0 && value <= 100.0);
+        for (var i = 1; i < progress.Values.Count; i++)
+        {
+            progress.Values[i].Should().BeGreaterThanOrEqualTo(progress.Values[i - 1]);
+        }
+    }
+
+    [Fact]
     public void DetectSingleChannelDefects_HighSensitivityFindsSubtleTargetOnlyDefects()
     {
         var target = ImageBuffer.Filled(41, 41, 0.5f);
@@ -253,5 +279,15 @@ public sealed class ChannelRetoucherTests
         }
 
         return image;
+    }
+
+    private sealed class ProgressCapture : IProgress<double>
+    {
+        public List<double> Values { get; } = [];
+
+        public void Report(double value)
+        {
+            Values.Add(value);
+        }
     }
 }

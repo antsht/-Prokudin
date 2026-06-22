@@ -84,6 +84,22 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void PickWhiteBalance_UsesResultPointAndDisablesAutoWhiteBalance()
+    {
+        var viewModel = new MainViewModel(new FakeFileDialogService());
+        SetResultWithoutBitmapRefresh(viewModel, FilledRgb(8, 8, 0.5f));
+        viewModel.SelectedSlot = viewModel.RedSlot;
+
+        viewModel.IsWhiteBalancePickerToolMode = true;
+        viewModel.PickWhiteBalanceCommand.CanExecute(new RetouchPoint(0, 0)).Should().BeTrue();
+        viewModel.PickWhiteBalanceCommand.Execute(new RetouchPoint(0, 0));
+
+        viewModel.SelectedSlot.Should().Be(viewModel.ResultSlot);
+        viewModel.AutoWhiteBalance.Should().BeFalse();
+        viewModel.Status.Should().Be("White balance picked at 0, 0.");
+    }
+
+    [Fact]
     public async Task ApplyAutoCleanAfterAlign_ReusesCachedTransformAndKeepsResult()
     {
         var viewModel = CreateViewModel();

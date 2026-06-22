@@ -17,6 +17,7 @@ namespace Prokudin.Gui.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private const int UndoLimit = 20;
+    private const int WhiteBalancePipetteRadius = 3;
     private readonly IFileDialogService fileDialogService;
     private readonly IExportSettingsStore exportSettingsStore;
     private readonly StringBuilder processingLog = new();
@@ -35,6 +36,9 @@ public sealed partial class MainViewModel : ObservableObject
     private byte[]? pendingAutoCleanAddMask;
     private byte[]? pendingAutoCleanRemoveMask;
     private CancellationTokenSource? autoCleanMaskRefreshCancellation;
+    private int autoCleanProgressVersion;
+    private int whiteBalancePipetteX = -1;
+    private int whiteBalancePipetteY = -1;
 
     public MainViewModel(IFileDialogService fileDialogService)
         : this(fileDialogService, new JsonExportSettingsStore())
@@ -95,6 +99,8 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(EditAutoCleanMaskCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRetouchStrokeCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyStampStrokeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PickWhiteBalanceCommand))]
+    [NotifyPropertyChangedFor(nameof(CanUseWhiteBalancePicker))]
     [NotifyPropertyChangedFor(nameof(PreviewImageContextKey))]
     [NotifyPropertyChangedFor(nameof(PreviewDisplayBitmap))]
     [NotifyPropertyChangedFor(nameof(PreviewHasImage))]
@@ -119,6 +125,8 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportChannelsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PickWhiteBalanceCommand))]
+    [NotifyPropertyChangedFor(nameof(CanUseWhiteBalancePicker))]
     private bool isBusy;
 
     [ObservableProperty]
@@ -135,6 +143,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
     [NotifyPropertyChangedFor(nameof(SelectedRetouchTool))]
+    [NotifyPropertyChangedFor(nameof(IsWhiteBalancePickerToolMode))]
     private EditorToolMode toolMode = EditorToolMode.Select;
 
     [ObservableProperty]
@@ -145,6 +154,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int autoCleanRadius = 3;
+
+    [ObservableProperty]
+    private bool isAutoCleanProgressVisible;
+
+    [ObservableProperty]
+    private double autoCleanProgress;
 
     [ObservableProperty]
     private bool useCrossChannelHealing = true;
@@ -158,6 +173,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAutoCleanMaskPending))]
     [NotifyPropertyChangedFor(nameof(PreviewInteractionMode))]
+    [NotifyPropertyChangedFor(nameof(CanUseWhiteBalancePicker))]
     private byte[]? pendingAutoCleanMask;
 
     [ObservableProperty]
@@ -218,12 +234,17 @@ public sealed partial class MainViewModel : ObservableObject
     public PreviewInteractionMode PreviewInteractionMode =>
         IsAutoCleanMaskPending
             ? PreviewInteractionMode.MaskReview
-            : ToolMode == EditorToolMode.Select
-                ? PreviewInteractionMode.Selection
-                : PreviewInteractionMode.Retouch;
+            : ToolMode switch
+            {
+                EditorToolMode.Select => PreviewInteractionMode.Selection,
+                EditorToolMode.WhiteBalancePicker => PreviewInteractionMode.WhiteBalancePicker,
+                _ => PreviewInteractionMode.Retouch,
+            };
 
     public RetouchTool SelectedRetouchTool =>
         ToolMode == EditorToolMode.Clone ? RetouchTool.Stamp : RetouchTool.Heal;
+
+    public bool CanUseWhiteBalancePicker => !IsBusy && !IsAutoCleanMaskPending && ResultSlot.Result is not null;
 
     public bool IsSelectToolMode
     {
@@ -257,6 +278,19 @@ public sealed partial class MainViewModel : ObservableObject
             if (value)
             {
                 ToolMode = EditorToolMode.Clone;
+            }
+        }
+    }
+
+    public bool IsWhiteBalancePickerToolMode
+    {
+        get => ToolMode == EditorToolMode.WhiteBalancePicker;
+        set
+        {
+            if (value && CanUseWhiteBalancePicker)
+            {
+                SelectedSlot = ResultSlot;
+                ToolMode = EditorToolMode.WhiteBalancePicker;
             }
         }
     }
@@ -393,24 +427,34 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await RunOperation(async () =>
         {
-            if (!TryGetSelectedAutoCleanInputs(out var channelName, out var target, out var other1, out var other2))
+            var progressScope = BeginAutoCleanProgress();
+            try
             {
-                return;
-            }
+                if (!TryGetSelectedAutoCleanInputs(out var channelName, out var target, out var other1, out var other2))
+                {
+                    return;
+                }
 
-            Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
-            var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
-            var result = await Task.Run(() => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings));
-            if (result.CandidatePixels == 0)
+                Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
+                var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
+                var progress = CreateAutoCleanProgress(progressScope);
+                var result = await Task.Run(
+                    () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress));
+                if (result.CandidatePixels == 0)
+                {
+                    Status = $"No dust/scratch candidates found in {SelectedSlot.DisplayName}.";
+                    AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: no candidates.");
+                    return;
+                }
+
+                BeginAutoCleanMaskReview(channelName, result.Mask);
+                Status = $"Review auto-clean mask for {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels.";
+                AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels, sensitivity {settings.NormalizedSensitivity}.");
+            }
+            finally
             {
-                Status = $"No dust/scratch candidates found in {SelectedSlot.DisplayName}.";
-                AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: no candidates.");
-                return;
+                EndAutoCleanProgress(progressScope);
             }
-
-            BeginAutoCleanMaskReview(channelName, result.Mask);
-            Status = $"Review auto-clean mask for {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels.";
-            AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels, sensitivity {settings.NormalizedSensitivity}.");
         });
     }
 
@@ -434,11 +478,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         PushUndo();
         IsBusy = true;
+        var progressScope = BeginAutoCleanProgress();
         try
         {
             var options = CreateHealOptions();
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
+            var progress = CreateAutoCleanProgress(progressScope);
+            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress));
             SelectedSlot.Image = result.Image;
             ClearPendingAutoCleanMask();
             RefreshAlignedAfterInputEdit(channelName);
@@ -449,6 +495,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         finally
         {
+            EndAutoCleanProgress(progressScope);
             IsBusy = false;
         }
     }
@@ -558,6 +605,33 @@ public sealed partial class MainViewModel : ObservableObject
 
         ScheduleResultRebuild();
         AppendLog("Exposure reset.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanPickWhiteBalance))]
+    private void PickWhiteBalance(RetouchPoint point)
+    {
+        if (ResultSlot.Result is not { } result)
+        {
+            return;
+        }
+
+        var x = Math.Clamp((int)MathF.Round(point.X), 0, result.Width - 1);
+        var y = Math.Clamp((int)MathF.Round(point.Y), 0, result.Height - 1);
+
+        BeginExposureOrColorEdit();
+        whiteBalancePipetteX = x;
+        whiteBalancePipetteY = y;
+        if (AutoWhiteBalance)
+        {
+            AutoWhiteBalance = false;
+        }
+        else
+        {
+            ScheduleResultRebuild();
+        }
+
+        Status = $"White balance picked at {x}, {y}.";
+        AppendLog($"White balance pipette: {x},{y}, radius {WhiteBalancePipetteRadius}.");
     }
 
     [RelayCommand]
@@ -956,6 +1030,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void ClearPendingAutoCleanMask()
     {
         autoCleanMaskRefreshCancellation?.Cancel();
+        CancelAutoCleanProgress();
         if (PendingAutoCleanMask is null &&
             PendingAutoCleanChannel is null &&
             AutoCleanMaskOverlayBitmap is null &&
@@ -976,6 +1051,45 @@ public sealed partial class MainViewModel : ObservableObject
         AutoCleanMaskOverlayBitmap = null;
         RefreshPreviewBindings();
         NotifyAutoCleanCommands();
+    }
+
+    private int BeginAutoCleanProgress()
+    {
+        var version = ++autoCleanProgressVersion;
+        AutoCleanProgress = 0;
+        IsAutoCleanProgressVisible = true;
+        return version;
+    }
+
+    private IProgress<double> CreateAutoCleanProgress(int version)
+    {
+        return new Progress<double>(value =>
+        {
+            if (version != autoCleanProgressVersion)
+            {
+                return;
+            }
+
+            AutoCleanProgress = Math.Clamp(value, 0.0, 100.0);
+        });
+    }
+
+    private void EndAutoCleanProgress(int version)
+    {
+        if (version != autoCleanProgressVersion)
+        {
+            return;
+        }
+
+        IsAutoCleanProgressVisible = false;
+        AutoCleanProgress = 0;
+    }
+
+    private void CancelAutoCleanProgress()
+    {
+        autoCleanProgressVersion++;
+        IsAutoCleanProgressVisible = false;
+        AutoCleanProgress = 0;
     }
 
     private void RefreshAutoCleanMaskOverlay()
@@ -1006,6 +1120,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async Task RefreshPendingAutoCleanMaskAfterDelay(CancellationToken cancellationToken)
     {
+        var progressScope = 0;
         try
         {
             await Task.Delay(180, cancellationToken);
@@ -1015,9 +1130,11 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
+            progressScope = BeginAutoCleanProgress();
+            var progress = CreateAutoCleanProgress(progressScope);
             var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
             var result = await Task.Run(
-                () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings),
+                () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress),
                 cancellationToken);
             if (cancellationToken.IsCancellationRequested ||
                 PendingAutoCleanChannel != channelName)
@@ -1037,6 +1154,13 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Status = ex.Message;
             AppendLog($"Error: {ex.Message}");
+        }
+        finally
+        {
+            if (progressScope != 0)
+            {
+                EndAutoCleanProgress(progressScope);
+            }
         }
     }
 
@@ -1180,7 +1304,12 @@ public sealed partial class MainViewModel : ObservableObject
         return new PipelineSettings
         {
             Align = new AlignOptions(TrimBorders: false),
-            Color = new ColorSettings(AutoWhiteBalance: AutoWhiteBalance),
+            Color = new ColorSettings(
+                AutoWhiteBalance: AutoWhiteBalance,
+                PipetteActive: HasPipetteWhiteBalance && !AutoWhiteBalance,
+                PipetteX: whiteBalancePipetteX,
+                PipetteY: whiteBalancePipetteY,
+                PipetteRadius: WhiteBalancePipetteRadius),
             Exposure = new ChannelExposureSettings(
                 (float)RedExposureStops,
                 (float)GreenExposureStops,
@@ -1188,6 +1317,8 @@ public sealed partial class MainViewModel : ObservableObject
             Crop = new CropSettings { SkipCrop = skipCrop },
         };
     }
+
+    private bool HasPipetteWhiteBalance => whiteBalancePipetteX >= 0 && whiteBalancePipetteY >= 0;
 
     private void RefreshAlignedAfterInputEdit(ChannelName channelName)
     {
@@ -1351,6 +1482,11 @@ public sealed partial class MainViewModel : ObservableObject
         return CanEditSelectedInputChannel() && stroke is { DestinationStroke.Points.Count: > 0 };
     }
 
+    private bool CanPickWhiteBalance(RetouchPoint point)
+    {
+        return CanUseWhiteBalancePicker;
+    }
+
     private bool CanUndo()
     {
         return !IsBusy && undoHistory.Count > 0;
@@ -1417,11 +1553,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSelectedSlotChanged(ChannelSlotViewModel? value)
     {
+        if (ToolMode == EditorToolMode.WhiteBalancePicker && value != ResultSlot)
+        {
+            ToolMode = EditorToolMode.Select;
+        }
+
         SelectionRect = ImageSelectionRect.Empty;
         ClearPendingAutoCleanMask();
         AutoCleanSelectedChannelCommand.NotifyCanExecuteChanged();
         ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
         ApplyStampStrokeCommand.NotifyCanExecuteChanged();
+        PickWhiteBalanceCommand.NotifyCanExecuteChanged();
         RefreshPreviewBindings();
     }
 
@@ -1436,6 +1578,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSelectToolMode));
         OnPropertyChanged(nameof(IsHealToolMode));
         OnPropertyChanged(nameof(IsCloneToolMode));
+        OnPropertyChanged(nameof(IsWhiteBalancePickerToolMode));
     }
 
     partial void OnAutoCleanSensitivityChanged(int value)
@@ -1604,6 +1747,8 @@ public sealed partial class MainViewModel : ObservableObject
             GreenExposureStops,
             BlueExposureStops,
             AutoWhiteBalance,
+            whiteBalancePipetteX,
+            whiteBalancePipetteY,
             SelectedSlot?.DisplayName);
     }
 
@@ -1625,6 +1770,8 @@ public sealed partial class MainViewModel : ObservableObject
             GreenExposureStops = snapshot.GreenExposureStops;
             BlueExposureStops = snapshot.BlueExposureStops;
             AutoWhiteBalance = snapshot.AutoWhiteBalance;
+            whiteBalancePipetteX = snapshot.WhiteBalancePipetteX;
+            whiteBalancePipetteY = snapshot.WhiteBalancePipetteY;
             SelectedSlot = snapshot.SelectedSlotDisplayName switch
             {
                 "Red" => RedSlot,
@@ -1702,6 +1849,8 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PreviewDisplayBitmap));
         OnPropertyChanged(nameof(PreviewHasImage));
         OnPropertyChanged(nameof(PreviewInteractionMode));
+        OnPropertyChanged(nameof(CanUseWhiteBalancePicker));
+        PickWhiteBalanceCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifyAutoCleanCommands()
@@ -1713,6 +1862,7 @@ public sealed partial class MainViewModel : ObservableObject
         CropToSelectionCommand.NotifyCanExecuteChanged();
         ApplyRetouchStrokeCommand.NotifyCanExecuteChanged();
         ApplyStampStrokeCommand.NotifyCanExecuteChanged();
+        PickWhiteBalanceCommand.NotifyCanExecuteChanged();
     }
 
     private void AppendLog(string message)
@@ -1741,5 +1891,7 @@ public sealed partial class MainViewModel : ObservableObject
         double GreenExposureStops,
         double BlueExposureStops,
         bool AutoWhiteBalance,
+        int WhiteBalancePipetteX,
+        int WhiteBalancePipetteY,
         string? SelectedSlotDisplayName);
 }

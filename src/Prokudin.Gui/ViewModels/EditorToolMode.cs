@@ -5,4 +5,5 @@ public enum EditorToolMode
     Select,
     Heal,
     Clone,
+    WhiteBalancePicker,
 }

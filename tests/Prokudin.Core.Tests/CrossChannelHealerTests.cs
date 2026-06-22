@@ -52,6 +52,34 @@ public sealed class CrossChannelHealerTests
     }
 
     [Fact]
+    public void HealChannel_ReportsMonotonicProgressToCompletion()
+    {
+        var red = CreateCorrelatedChannels(31, 31, 0.5f);
+        var green = CreateCorrelatedChannels(31, 31, 0.5f);
+        var blue = CreateCorrelatedChannels(31, 31, 0.5f);
+        red[15, 15] = 1.0f;
+        var mask = DefectMask(red, 15, 15);
+        var progress = new ProgressCapture();
+
+        ChannelHealer.HealChannel(
+            red,
+            green,
+            blue,
+            mask,
+            new HealOptions(Mode: HealingMode.CrossChannelGuided, PatchRadius: 3, SearchRadius: 24),
+            progress);
+
+        progress.Values.Should().NotBeEmpty();
+        progress.Values[0].Should().Be(0.0);
+        progress.Values[^1].Should().Be(100.0);
+        progress.Values.Should().OnlyContain(value => value >= 0.0 && value <= 100.0);
+        for (var i = 1; i < progress.Values.Count; i++)
+        {
+            progress.Values[i].Should().BeGreaterThanOrEqualTo(progress.Values[i - 1]);
+        }
+    }
+
+    [Fact]
     public void HealChannel_PreservesSaturatedRedObject()
     {
         var red = ImageBuffer.Filled(25, 25, 0.5f);
@@ -156,5 +184,15 @@ public sealed class CrossChannelHealerTests
     {
         var mask = Enumerable.Repeat((byte)1, red.PixelCount).ToArray();
         return Cropper.MergeChannels(red, green, blue, mask, mask, mask).Rgb;
+    }
+
+    private sealed class ProgressCapture : IProgress<double>
+    {
+        public List<double> Values { get; } = [];
+
+        public void Report(double value)
+        {
+            Values.Add(value);
+        }
     }
 }

@@ -61,7 +61,7 @@ public static class ColorCorrection
     public static RgbImageBuffer ApplyColorSettings(RgbImageBuffer rgb, ColorSettings settings)
     {
         var output = rgb;
-        if (settings.PipetteX >= 0 && settings.PipetteY >= 0)
+        if (settings.PipetteActive && settings.PipetteX >= 0 && settings.PipetteY >= 0)
         {
             output = ApplyPipetteBalance(output, settings.PipetteX, settings.PipetteY, settings.PipetteRadius);
         }

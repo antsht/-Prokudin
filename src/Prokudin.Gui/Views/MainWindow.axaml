@@ -203,6 +203,14 @@
                     ToolTip.Tip="Detect auto-clean mask"
                     automation:AutomationProperties.Name="Detect auto-clean mask"
                     Margin="0,0,4,0" />
+            <ProgressBar Width="128"
+                         Height="10"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="{Binding AutoCleanProgress}"
+                         IsVisible="{Binding IsAutoCleanProgressVisible}"
+                         VerticalAlignment="Center"
+                         Margin="0,0,6,0" />
             <Button Classes="IconButton"
                     Command="{Binding ApplyAutoCleanMaskCommand}"
                     Content="{StaticResource IconApply}"
@@ -289,6 +297,13 @@
                       IsChecked="{Binding AutoWhiteBalance}"
                       VerticalAlignment="Center"
                       Margin="0,0,8,0" />
+            <primitives:ToggleButton Classes="IconButton"
+                                      IsChecked="{Binding IsWhiteBalancePickerToolMode}"
+                                      IsEnabled="{Binding CanUseWhiteBalancePicker}"
+                                      Content="{StaticResource IconEyedropper}"
+                                      ToolTip.Tip="Pick white balance from result"
+                                      automation:AutomationProperties.Name="Pick white balance from result"
+                                      Margin="0,0,8,0" />
             <TextBlock Text="R"
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
@@ -343,7 +358,8 @@
                                    InpaintRadius="{Binding AutoCleanRadius}"
                                    RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
                                    StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
-                                   MaskEditCommand="{Binding EditAutoCleanMaskCommand}" />
+                                   MaskEditCommand="{Binding EditAutoCleanMaskCommand}"
+                                   WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}" />
 
         <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
           <z:EdgePanel>

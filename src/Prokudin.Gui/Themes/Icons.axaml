@@ -17,6 +17,7 @@
   <ui:Icon x:Key="IconPointer" Source="fa-arrow-pointer" />
   <ui:Icon x:Key="IconHeal" Source="fa-bandage" />
   <ui:Icon x:Key="IconClone" Source="fa-clone" />
+  <ui:Icon x:Key="IconEyedropper" Source="fa-eye-dropper" />
   <ui:Icon x:Key="IconWhiteBalance" Source="fa-circle-half-stroke" />
   <ui:Icon x:Key="IconClear" Source="fa-trash" />
 </ResourceDictionary>

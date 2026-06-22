@@ -10,11 +10,14 @@ public static class ChannelHealer
         ImageBuffer? guideChannel1,
         ImageBuffer? guideChannel2,
         byte[] defectMask,
-        HealOptions options)
+        HealOptions options,
+        IProgress<double>? progress = null)
     {
+        ReportProgress(progress, 0);
         ValidateMask(defectMask, targetChannel);
         if (!defectMask.Any(value => value > 0))
         {
+            ReportProgress(progress, 100);
             return new HealResult(targetChannel.Clone(), defectMask);
         }
 
@@ -27,15 +30,16 @@ public static class ChannelHealer
                     defectMask,
                     options with { Mode = HealingMode.CurrentChannelOnly, SubMode = HealingSubMode.Telea },
                     usedFallback: true,
-                    statusMessage: "Cross-channel unavailable, using Telea.");
+                    statusMessage: "Cross-channel unavailable, using Telea.",
+                    progress: progress);
             }
 
             ValidateSameDimensions(targetChannel, guideChannel1, nameof(guideChannel1));
             ValidateSameDimensions(targetChannel, guideChannel2, nameof(guideChannel2));
-            return HealCrossChannel(targetChannel, guideChannel1, guideChannel2, defectMask, options);
+            return HealCrossChannel(targetChannel, guideChannel1, guideChannel2, defectMask, options, progress);
         }
 
-        return HealCurrentChannelOnly(targetChannel, defectMask, options);
+        return HealCurrentChannelOnly(targetChannel, defectMask, options, progress: progress);
     }
 
     private static HealResult HealCurrentChannelOnly(
@@ -43,12 +47,13 @@ public static class ChannelHealer
         byte[] defectMask,
         HealOptions options,
         bool usedFallback = false,
-        string? statusMessage = null)
+        string? statusMessage = null,
+        IProgress<double>? progress = null)
     {
         return options.SubMode switch
         {
-            HealingSubMode.Telea => HealTelea(targetChannel, defectMask, options, usedFallback, statusMessage),
-            HealingSubMode.Patch => HealPatchOnly(targetChannel, defectMask, options, usedFallback, statusMessage),
+            HealingSubMode.Telea => HealTelea(targetChannel, defectMask, options, usedFallback, statusMessage, progress),
+            HealingSubMode.Patch => HealPatchOnly(targetChannel, defectMask, options, usedFallback, statusMessage, progress: progress),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.SubMode, "Unsupported healing sub-mode."),
         };
     }
@@ -58,9 +63,12 @@ public static class ChannelHealer
         byte[] defectMask,
         HealOptions options,
         bool usedFallback,
-        string? statusMessage)
+        string? statusMessage,
+        IProgress<double>? progress)
     {
+        ReportProgress(progress, 15);
         var healed = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
+        ReportProgress(progress, 100);
         return new HealResult(healed, defectMask, UsedFallback: usedFallback, StatusMessage: statusMessage);
     }
 
@@ -72,7 +80,8 @@ public static class ChannelHealer
         string? statusMessage,
         ImageBuffer? guide1 = null,
         ImageBuffer? guide2 = null,
-        bool guided = false)
+        bool guided = false,
+        IProgress<double>? progress = null)
     {
         var (result, averageConfidence) = ApplyPatchHealing(
             targetChannel,
@@ -80,7 +89,8 @@ public static class ChannelHealer
             guide2,
             defectMask,
             options,
-            guided);
+            guided,
+            progress);
         return new HealResult(
             result,
             defectMask,
@@ -95,13 +105,15 @@ public static class ChannelHealer
         ImageBuffer guide1,
         ImageBuffer guide2,
         byte[] defectMask,
-        HealOptions options)
+        HealOptions options,
+        IProgress<double>? progress)
     {
         var result = targetChannel.Clone();
         var width = targetChannel.Width;
         var height = targetChannel.Height;
         using var globalDefectMask = HealingMaskUtils.MaskToMat(defectMask, width, height);
         var components = HealingMaskUtils.FindComponents(defectMask, width, height);
+        ReportProgress(progress, 5);
         var usedFallback = false;
         var confidenceSum = 0.0f;
         var confidenceCount = 0;
@@ -109,8 +121,9 @@ public static class ChannelHealer
 
         try
         {
-            foreach (var component in components)
+            for (var componentIndex = 0; componentIndex < components.Count; componentIndex++)
             {
+                var component = components[componentIndex];
                 var area = HealingMaskUtils.CountNonZero(component);
                 var isLarge = area > options.MaxComponentArea;
 
@@ -186,6 +199,8 @@ public static class ChannelHealer
                         work,
                         prediction.Confidence);
                 }
+
+                ReportProgress(progress, ComponentProgress(componentIndex, components.Count));
             }
         }
         finally
@@ -202,6 +217,7 @@ public static class ChannelHealer
         }
 
         var averageConfidence = confidenceCount > 0 ? confidenceSum / confidenceCount : 0.0f;
+        ReportProgress(progress, 100);
         return new HealResult(result, defectMask, averageConfidence, UsedCrossChannel: true, UsedFallback: usedFallback);
     }
 
@@ -211,30 +227,35 @@ public static class ChannelHealer
         ImageBuffer? guide2,
         byte[] defectMask,
         HealOptions options,
-        bool guided)
+        bool guided,
+        IProgress<double>? progress)
     {
         var result = targetChannel.Clone();
         var width = targetChannel.Width;
         var height = targetChannel.Height;
         using var globalDefectMask = HealingMaskUtils.MaskToMat(defectMask, width, height);
         var components = HealingMaskUtils.FindComponents(defectMask, width, height);
+        ReportProgress(progress, 5);
         var confidenceSum = 0.0f;
         var confidenceCount = 0;
 
         try
         {
-            foreach (var component in components)
+            for (var componentIndex = 0; componentIndex < components.Count; componentIndex++)
             {
+                var component = components[componentIndex];
                 var patch = PatchHealer.HealComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, guided);
                 if (!patch.Succeeded)
                 {
                     ApplyTeleaComponent(result, targetChannel, component, options, width, height);
+                    ReportProgress(progress, ComponentProgress(componentIndex, components.Count));
                     continue;
                 }
 
                 confidenceSum += patch.Confidence;
                 confidenceCount++;
                 ApplyComponentValues(result, component, patch.PatchValues, options.FeatherSigma, width, height);
+                ReportProgress(progress, ComponentProgress(componentIndex, components.Count));
             }
         }
         finally
@@ -245,7 +266,20 @@ public static class ChannelHealer
             }
         }
 
+        ReportProgress(progress, 100);
         return (result, confidenceCount > 0 ? confidenceSum / confidenceCount : 0.0f);
+    }
+
+    private static double ComponentProgress(int componentIndex, int componentCount)
+    {
+        return componentCount == 0
+            ? 100.0
+            : 5.0 + (90.0 * (componentIndex + 1) / componentCount);
+    }
+
+    private static void ReportProgress(IProgress<double>? progress, double value)
+    {
+        progress?.Report(Math.Clamp(value, 0.0, 100.0));
     }
 
     private static PatchHealResult CreateIdentityPatch(ImageBuffer targetChannel)

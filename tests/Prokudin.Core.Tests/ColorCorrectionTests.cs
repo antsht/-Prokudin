@@ -19,6 +19,33 @@ public sealed class ColorCorrectionTests
     }
 
     [Fact]
+    public void ApplyColorSettings_UsesPipetteOnlyWhenActive()
+    {
+        var rgb = SolidRgb(20, 20, 0.3f, 0.6f, 0.9f);
+
+        var inactive = ColorCorrection.ApplyColorSettings(
+            rgb,
+            new ColorSettings(
+                AutoWhiteBalance: false,
+                PipetteActive: false,
+                PipetteX: 10,
+                PipetteY: 10));
+        var active = ColorCorrection.ApplyColorSettings(
+            rgb,
+            new ColorSettings(
+                AutoWhiteBalance: false,
+                PipetteActive: true,
+                PipetteX: 10,
+                PipetteY: 10));
+
+        inactive[0, 0, 0].Should().BeApproximately(0.3f, 0.001f);
+        inactive[0, 0, 1].Should().BeApproximately(0.6f, 0.001f);
+        inactive[0, 0, 2].Should().BeApproximately(0.9f, 0.001f);
+        active[0, 0, 0].Should().BeApproximately(active[0, 0, 1], 0.03f);
+        active[0, 0, 1].Should().BeApproximately(active[0, 0, 2], 0.03f);
+    }
+
+    [Fact]
     public void ApplyTempTint_WarmsImage()
     {
         var rgb = SolidRgb(20, 20, 0.5f, 0.5f, 0.5f);
