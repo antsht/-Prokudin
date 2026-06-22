@@ -298,6 +298,13 @@ public static class ChannelHealer
             FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, output);
         }
 
+        ReportProgress(progress, 70);
+        var telea = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
+        var teleaValues = new float[pixelCount];
+        telea.CopyNormalizedTo(teleaValues);
+        var alpha = Math.Min(predictionAlpha(confidence, options, isLarge: true), options.PredictionAlphaMin);
+        BlendMaskedPredictionWithTelea(targetValues, output, teleaValues, defectMask, alpha);
+
         ReportProgress(progress, 90);
         var image = ImageBuffer.FromNormalized(targetChannel.Width, targetChannel.Height, output, targetChannel.Format);
         ReportProgress(progress, 100);
@@ -307,7 +314,7 @@ public static class ChannelHealer
             defectMask,
             confidence,
             UsedCrossChannel: true,
-            StatusMessage: $"Large auto-clean mask healed with {backend} bulk prediction ({defectPixelCount} pixels).");
+            StatusMessage: $"Large auto-clean mask healed with {backend} bulk prediction + Telea blend ({defectPixelCount} pixels).");
     }
 
     private static HealResult HealWholeMaskTeleaFallback(
@@ -407,6 +414,28 @@ public static class ChannelHealer
             output[i] = defectMask[i] > 0
                 ? Math.Clamp(LinearModelFitter.Predict(model, guide1Values[i], guide2Values[i]), 0.0f, 1.0f)
                 : targetValues[i];
+        });
+    }
+
+    private static void BlendMaskedPredictionWithTelea(
+        float[] targetValues,
+        float[] predictionValues,
+        float[] teleaValues,
+        byte[] defectMask,
+        float predictionAlpha)
+    {
+        PixelParallel.For(0, predictionValues.Length, i =>
+        {
+            if (defectMask[i] == 0)
+            {
+                predictionValues[i] = targetValues[i];
+                return;
+            }
+
+            predictionValues[i] = Math.Clamp(
+                (predictionValues[i] * predictionAlpha) + (teleaValues[i] * (1.0f - predictionAlpha)),
+                0.0f,
+                1.0f);
         });
     }
 

@@ -145,6 +145,34 @@ public sealed class ChannelRetoucherTests
     }
 
     [Fact]
+    public void DetectSingleChannelDefects_DoesNotTreatCorrelatedBlueChannelAsFullMask()
+    {
+        const int width = 61;
+        const int height = 61;
+        var red = new ImageBuffer(width, height, new float[width * height]);
+        var green = new ImageBuffer(width, height, new float[width * height]);
+        var blue = new ImageBuffer(width, height, new float[width * height]);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var index = (y * width) + x;
+                red.SetNormalized(index, x / (float)(width - 1));
+                green.SetNormalized(index, y / (float)(height - 1));
+                blue.SetNormalized(index, 0.12f + (0.28f * red.GetNormalized(index)) + (0.44f * green.GetNormalized(index)));
+            }
+        }
+
+        var result = ChannelRetoucher.DetectSingleChannelDefects(
+            blue,
+            red,
+            green,
+            new AutoCleanSettings(Sensitivity: 80, InpaintRadius: 3));
+
+        result.CandidatePixels.Should().BeLessThan(blue.PixelCount / 20);
+    }
+
+    [Fact]
     public void DetectSingleChannelDefects_RejectsMismatchedSizes()
     {
         var target = ImageBuffer.Filled(12, 12, 0.5f);

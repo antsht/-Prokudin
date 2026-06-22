@@ -105,10 +105,11 @@ code and may use OpenCV's own threading. CUDA is optional: `CudaBackendProbe`
 checks whether `Prokudin.Cuda.dll` can be loaded and can see a CUDA device.
 Auto-clean mask classification uses the CUDA backend when available and falls
 back to the CPU path when the native library, driver, or kernel launch is
-unavailable. Large auto-clean apply masks use a bulk cross-channel prediction
-path before connected-component healing; that path also uses CUDA when
-available and falls back to `PixelParallel` CPU work. No reconstruction or GUI
-workflow requires CUDA.
+unavailable. Large auto-clean apply masks use a conservative bulk path before
+connected-component healing: CUDA or `PixelParallel` computes the cross-channel
+prediction, then masked pixels are blended with one whole-mask Telea pass so a
+broad false-positive mask cannot collapse a channel into one of its guides. No
+reconstruction or GUI workflow requires CUDA.
 
 ## Retouch and Healing
 
@@ -117,7 +118,7 @@ flowchart TD
   stroke[Heal brush or auto-clean apply]
   stroke --> guides{Cross-channel guides available?}
   guides -->|yes| large{Large mask?}
-  large -->|yes| bulk[Bulk CUDA/CPU prediction]
+  large -->|yes| bulk[Bulk CUDA/CPU prediction + Telea blend]
   large -->|no| cc[CrossChannelPredictor + PatchHealer]
   guides -->|no| fallback[CurrentChannelOnly Telea]
   cc --> blend[Blend by confidence + feather]

@@ -178,6 +178,103 @@ public sealed class CrossChannelHealerTests
     }
 
     [Fact]
+    public void HealChannel_BulkPredictionKeepsUnmaskedBluePixelsDistinctFromGuides()
+    {
+        const int width = 41;
+        const int height = 41;
+        var red = new ImageBuffer(width, height, new float[width * height]);
+        var green = new ImageBuffer(width, height, new float[width * height]);
+        var blue = new ImageBuffer(width, height, new float[width * height]);
+        var mask = new byte[blue.PixelCount];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var index = (y * width) + x;
+                red.SetNormalized(index, x / (float)(width - 1));
+                green.SetNormalized(index, y / (float)(height - 1));
+                blue.SetNormalized(index, 0.15f + (0.35f * red.GetNormalized(index)) + (0.25f * green.GetNormalized(index)));
+                if (index % 7 == 0)
+                {
+                    blue.SetNormalized(index, 0.0f);
+                    mask[index] = 1;
+                }
+            }
+        }
+
+        var unmaskedIndex = (5 * width) + 30;
+        var expectedBlue = blue.GetNormalized(unmaskedIndex);
+        expectedBlue.Should().NotBeApproximately(green.GetNormalized(unmaskedIndex), 0.05f);
+
+        var result = ChannelHealer.HealChannel(
+            blue,
+            red,
+            green,
+            mask,
+            new HealOptions(
+                Mode: HealingMode.CrossChannelGuided,
+                PatchRadius: 3,
+                LargeMaskFastPathPixelThreshold: 8));
+
+        result.StatusMessage.Should().Contain("bulk");
+        result.Image.GetNormalized(unmaskedIndex).Should().BeApproximately(expectedBlue, 0.001f);
+    }
+
+    [Fact]
+    public void HealChannel_BulkPredictionDoesNotCollapseMaskedBlueTextureToGreen()
+    {
+        const int width = 61;
+        const int height = 61;
+        var red = new ImageBuffer(width, height, new float[width * height]);
+        var green = new ImageBuffer(width, height, new float[width * height]);
+        var blue = new ImageBuffer(width, height, new float[width * height]);
+        var mask = new byte[blue.PixelCount];
+        var sampleIndex = -1;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var index = (y * width) + x;
+                red.SetNormalized(index, x / (float)(width - 1));
+                green.SetNormalized(index, y / (float)(height - 1));
+                var blueOnlyTexture = 0.06f * MathF.Sin(x * 0.45f);
+                blue.SetNormalized(index, Math.Clamp(green.GetNormalized(index) + blueOnlyTexture, 0.0f, 1.0f));
+                if (index % 7 == 0)
+                {
+                    mask[index] = 1;
+                    if (sampleIndex < 0 &&
+                        x > 4 &&
+                        x < width - 5 &&
+                        y > 4 &&
+                        y < height - 5 &&
+                        Math.Abs(blue.GetNormalized(index) - green.GetNormalized(index)) > 0.05f)
+                    {
+                        sampleIndex = index;
+                    }
+                }
+            }
+        }
+
+        sampleIndex.Should().BeGreaterThanOrEqualTo(0);
+        var originalBlue = blue.GetNormalized(sampleIndex);
+        var guideGreen = green.GetNormalized(sampleIndex);
+
+        var result = ChannelHealer.HealChannel(
+            blue,
+            red,
+            green,
+            mask,
+            new HealOptions(
+                Mode: HealingMode.CrossChannelGuided,
+                PatchRadius: 3,
+                LargeMaskFastPathPixelThreshold: 8));
+
+        result.StatusMessage.Should().Contain("bulk");
+        Math.Abs(result.Image.GetNormalized(sampleIndex) - originalBlue)
+            .Should().BeLessThan(Math.Abs(result.Image.GetNormalized(sampleIndex) - guideGreen));
+    }
+
+    [Fact]
     public void HealChannel_FallsBackToTeleaWhenGuidesMissing()
     {
         var red = ImageBuffer.Filled(11, 11, 0.5f);
