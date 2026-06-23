@@ -28,7 +28,8 @@ internal static class PatchHealer
         Mat globalDefectMask,
         HealOptions options,
         bool guided,
-        float[] patchValues)
+        float[] patchValues,
+        bool useCoarseToFine = true)
     {
         var width = target.Width;
         var height = target.Height;
@@ -42,11 +43,11 @@ internal static class PatchHealer
 
         var searchRadius = options.NormalizedSearchRadius;
         using var searchArea = HealingMaskUtils.BuildSearchArea(componentMask, searchRadius, options.NormalizedSafetyRadius);
-        var donor = FindBestDonor(target, guide1, guide2, componentMask, globalDefectMask, searchArea, options, guided);
+        var donor = FindBestDonor(target, guide1, guide2, componentMask, globalDefectMask, searchArea, options, guided, useCoarseToFine);
         if (!donor.Succeeded && searchRadius < 96)
         {
             using var expandedSearch = HealingMaskUtils.BuildSearchArea(componentMask, 96, options.NormalizedSafetyRadius);
-            donor = FindBestDonor(target, guide1, guide2, componentMask, globalDefectMask, expandedSearch, options, guided);
+            donor = FindBestDonor(target, guide1, guide2, componentMask, globalDefectMask, expandedSearch, options, guided, useCoarseToFine);
         }
 
         if (!donor.Succeeded)
@@ -58,6 +59,17 @@ internal static class PatchHealer
         return new PatchHealResult(patchValues, donor.Confidence, true, donor.Center);
     }
 
+    public static PatchHealResult HealComponent(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        Mat componentMask,
+        Mat globalDefectMask,
+        HealOptions options,
+        bool guided,
+        float[] patchValues) =>
+        HealComponent(target, guide1, guide2, componentMask, globalDefectMask, options, guided, patchValues, useCoarseToFine: true);
+
     private readonly record struct DonorCandidate(Point Center, double Score, bool Succeeded, float Confidence);
 
     private static DonorCandidate FindBestDonor(
@@ -68,7 +80,8 @@ internal static class PatchHealer
         Mat globalDefectMask,
         Mat searchArea,
         HealOptions options,
-        bool guided)
+        bool guided,
+        bool useCoarseToFine)
     {
         var width = target.Width;
         var height = target.Height;
@@ -80,7 +93,54 @@ internal static class PatchHealer
         var maskGuide2 = guided && guide2 is not null ? ExtractPatchMeans(guide2, componentMask, patchRadius, width, height) : null;
         var maskBoundary = ExtractBoundaryMeans(target, componentMask, width, height);
 
-        DonorCandidate? best = null;
+        var candidates = CollectCandidates(searchArea, globalDefectMask, patchRadius, width, height);
+        if (candidates.Count == 0)
+        {
+            return new DonorCandidate(default, double.MaxValue, false, 0.0f);
+        }
+
+        if (!useCoarseToFine || candidates.Count < 64)
+        {
+            return FindBestAmongCandidates(
+                target,
+                guide1,
+                guide2,
+                candidates,
+                patchRadius,
+                width,
+                height,
+                maskGuide1,
+                maskGuide2,
+                maskBoundary,
+                componentCenter,
+                options,
+                guided);
+        }
+
+        return FindBestCoarseToFine(
+            target,
+            guide1,
+            guide2,
+            candidates,
+            patchRadius,
+            width,
+            height,
+            maskGuide1,
+            maskGuide2,
+            maskBoundary,
+            componentCenter,
+            options,
+            guided);
+    }
+
+    private static List<Point> CollectCandidates(
+        Mat searchArea,
+        Mat globalDefectMask,
+        int patchRadius,
+        int width,
+        int height)
+    {
+        var candidates = new List<Point>();
         for (var y = patchRadius; y < height - patchRadius; y++)
         {
             for (var x = patchRadius; x < width - patchRadius; x++)
@@ -95,32 +155,211 @@ internal static class PatchHealer
                     continue;
                 }
 
-                var score = guided
-                    ? ScoreGuidedDonor(
-                        target,
-                        guide1!,
-                        guide2!,
-                        x,
-                        y,
-                        patchRadius,
-                        width,
-                        height,
-                        maskGuide1!,
-                        maskGuide2!,
-                        maskBoundary,
-                        componentCenter,
-                        options)
-                    : ScoreSingleChannelDonor(target, x, y, patchRadius, width, height, maskBoundary, componentCenter, options);
+                candidates.Add(new Point(x, y));
+            }
+        }
 
-                if (best is null || score < best.Value.Score)
-                {
-                    best = new DonorCandidate(new Point(x, y), score, true, 1.0f);
-                }
+        return candidates;
+    }
+
+    private static DonorCandidate FindBestAmongCandidates(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        IReadOnlyList<Point> candidates,
+        int patchRadius,
+        int width,
+        int height,
+        float[]? maskGuide1,
+        float[]? maskGuide2,
+        float[] maskBoundary,
+        Point componentCenter,
+        HealOptions options,
+        bool guided)
+    {
+        DonorCandidate? best = null;
+        foreach (var candidate in candidates)
+        {
+            var score = ScoreCandidate(
+                target,
+                guide1,
+                guide2,
+                candidate.X,
+                candidate.Y,
+                patchRadius,
+                width,
+                height,
+                maskGuide1,
+                maskGuide2,
+                maskBoundary,
+                componentCenter,
+                options,
+                guided);
+            if (best is null || score < best.Value.Score)
+            {
+                best = new DonorCandidate(candidate, score, true, 1.0f);
             }
         }
 
         return best ?? new DonorCandidate(default, double.MaxValue, false, 0.0f);
     }
+
+    private static DonorCandidate FindBestCoarseToFine(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        List<Point> candidates,
+        int patchRadius,
+        int width,
+        int height,
+        float[]? maskGuide1,
+        float[]? maskGuide2,
+        float[] maskBoundary,
+        Point componentCenter,
+        HealOptions options,
+        bool guided)
+    {
+        var coarsestStep = options.QualityMode == AutoCleanQualityMode.Balanced ? 4 : 8;
+        var candidateSet = new HashSet<Point>(candidates);
+        IReadOnlyList<Point> pool = candidates;
+
+        foreach (var step in new[] { 8, 4, 2 }.Where(step => step >= coarsestStep))
+        {
+            var stepped = pool
+                .Where(point => point.X % step == 0 && point.Y % step == 0)
+                .ToList();
+            if (stepped.Count == 0)
+            {
+                stepped = pool.ToList();
+            }
+
+            pool = RankCandidates(
+                target,
+                guide1,
+                guide2,
+                stepped,
+                patchRadius,
+                width,
+                height,
+                maskGuide1,
+                maskGuide2,
+                maskBoundary,
+                componentCenter,
+                options,
+                guided,
+                keepCount: step switch
+                {
+                    8 => 32,
+                    4 => 16,
+                    _ => 8,
+                });
+        }
+
+        var refined = new HashSet<Point>();
+        var refinementRadius = options.QualityMode == AutoCleanQualityMode.Quality ? 16 : 8;
+        foreach (var seed in pool)
+        {
+            for (var dy = -refinementRadius; dy <= refinementRadius; dy++)
+            {
+                for (var dx = -refinementRadius; dx <= refinementRadius; dx++)
+                {
+                    var point = new Point(seed.X + dx, seed.Y + dy);
+                    if (candidateSet.Contains(point))
+                    {
+                        refined.Add(point);
+                    }
+                }
+            }
+        }
+
+        var finalPool = refined.Count > 0 ? refined.ToList() : pool.ToList();
+        return FindBestAmongCandidates(
+            target,
+            guide1,
+            guide2,
+            finalPool,
+            patchRadius,
+            width,
+            height,
+            maskGuide1,
+            maskGuide2,
+            maskBoundary,
+            componentCenter,
+            options,
+            guided);
+    }
+
+    private static List<Point> RankCandidates(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        IReadOnlyList<Point> candidates,
+        int patchRadius,
+        int width,
+        int height,
+        float[]? maskGuide1,
+        float[]? maskGuide2,
+        float[] maskBoundary,
+        Point componentCenter,
+        HealOptions options,
+        bool guided,
+        int keepCount)
+    {
+        return candidates
+            .Select(candidate => (
+                candidate,
+                score: ScoreCandidate(
+                    target,
+                    guide1,
+                    guide2,
+                    candidate.X,
+                    candidate.Y,
+                    patchRadius,
+                    width,
+                    height,
+                    maskGuide1,
+                    maskGuide2,
+                    maskBoundary,
+                    componentCenter,
+                    options,
+                    guided)))
+            .OrderBy(pair => pair.score)
+            .Take(keepCount)
+            .Select(pair => pair.candidate)
+            .ToList();
+    }
+
+    private static double ScoreCandidate(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        int x,
+        int y,
+        int patchRadius,
+        int width,
+        int height,
+        float[]? maskGuide1,
+        float[]? maskGuide2,
+        float[] maskBoundary,
+        Point componentCenter,
+        HealOptions options,
+        bool guided) =>
+        guided
+            ? ScoreGuidedDonor(
+                target,
+                guide1!,
+                guide2!,
+                x,
+                y,
+                patchRadius,
+                width,
+                height,
+                maskGuide1!,
+                maskGuide2!,
+                maskBoundary,
+                componentCenter,
+                options)
+            : ScoreSingleChannelDonor(target, x, y, patchRadius, width, height, maskBoundary, componentCenter, options);
 
     private static double ScoreGuidedDonor(
         ImageBuffer target,
