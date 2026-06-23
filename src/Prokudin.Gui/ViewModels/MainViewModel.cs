@@ -22,6 +22,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IFileDialogService fileDialogService;
     private readonly IExportSettingsStore exportSettingsStore;
     private readonly IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore;
+    private readonly IAutoCleanSettingsStore autoCleanSettingsStore;
     private readonly StringBuilder processingLog = new();
     private readonly List<EditorSnapshot> undoHistory = [];
     private readonly List<EditorSnapshot> redoHistory = [];
@@ -32,6 +33,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool exposureUndoOpen;
     private bool suppressExportSettingsSave;
     private bool suppressDiagnosticsSettingsSave;
+    private bool suppressAutoCleanSettingsSave;
     private int exposureChangeVersion;
     private int previewImageContextVersion;
     private Bitmap? autoCleanMaskOverlayBitmap;
@@ -45,12 +47,12 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly AutoCleanSessionCache autoCleanSessionCache = new();
 
     public MainViewModel(IFileDialogService fileDialogService)
-        : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore())
+        : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore())
     {
     }
 
     public MainViewModel(IFileDialogService fileDialogService, IExportSettingsStore exportSettingsStore)
-        : this(fileDialogService, exportSettingsStore, new JsonProcessingDiagnosticsSettingsStore())
+        : this(fileDialogService, exportSettingsStore, new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore())
     {
     }
 
@@ -58,10 +60,20 @@ public sealed partial class MainViewModel : ObservableObject
         IFileDialogService fileDialogService,
         IExportSettingsStore exportSettingsStore,
         IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore)
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, new JsonAutoCleanSettingsStore())
+    {
+    }
+
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IExportSettingsStore exportSettingsStore,
+        IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
+        IAutoCleanSettingsStore autoCleanSettingsStore)
     {
         this.fileDialogService = fileDialogService;
         this.exportSettingsStore = exportSettingsStore;
         this.diagnosticsSettingsStore = diagnosticsSettingsStore;
+        this.autoCleanSettingsStore = autoCleanSettingsStore;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -84,6 +96,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         LoadExportSettings(exportSettingsStore.Load());
         LoadDiagnosticsSettings(diagnosticsSettingsStore.Load());
+        LoadAutoCleanSettings(autoCleanSettingsStore.Load());
         SelectedSlot = RedSlot;
     }
 
@@ -104,6 +117,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public IReadOnlyList<TiffExportCompression> TiffCompressions { get; } =
         [TiffExportCompression.None, TiffExportCompression.Lzw, TiffExportCompression.Deflate];
+
+    public IReadOnlyList<AutoCleanQualityMode> AutoCleanQualityModes { get; } =
+        Enum.GetValues<AutoCleanQualityMode>();
+
+    [ObservableProperty]
+    private AutoCleanQualityMode autoCleanQualityMode = AutoCleanQualityMode.Quality;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CropToSelectionCommand))]
@@ -471,7 +490,7 @@ public sealed partial class MainViewModel : ObservableObject
                 }
 
                 Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
-                var settings = CreateAutoCleanSettings(channelName);
+                var (settings, _) = CreateAutoCleanResolvedSettings(channelName);
                 var progress = CreateAutoCleanProgress(progressScope);
                 var result = await Task.Run(
                     () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress));
@@ -516,7 +535,7 @@ public sealed partial class MainViewModel : ObservableObject
         var progressScope = BeginAutoCleanProgress();
         try
         {
-            var options = CreateHealOptions();
+            var (_, options) = CreateAutoCleanResolvedSettings(channelName);
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var progress = CreateAutoCleanProgress(progressScope);
             var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress));
@@ -1031,8 +1050,18 @@ public sealed partial class MainViewModel : ObservableObject
             SubMode: UseTeleaHealing ? HealingSubMode.Telea : HealingSubMode.Patch,
             PatchRadius: AutoCleanRadius,
             DebugOutput: DebugHealOutput,
-            SessionCache: autoCleanSessionCache,
             Diagnostics: CreateDiagnostics());
+    }
+
+    private (AutoCleanSettings Detect, HealOptions Apply) CreateAutoCleanResolvedSettings(ChannelName channelName)
+    {
+        var (detect, apply) = AutoCleanQualityProfiles.Resolve(
+            AutoCleanQualityMode,
+            CreateAutoCleanSettings(channelName),
+            CreateHealOptions());
+        return (
+            detect with { SessionCache = autoCleanSessionCache },
+            apply with { SessionCache = autoCleanSessionCache });
     }
 
     private AutoCleanSettings CreateAutoCleanSettings(ChannelName channelName)
@@ -1045,7 +1074,6 @@ public sealed partial class MainViewModel : ObservableObject
             AutoMergeDistancePx: AutoMergeDistancePx,
             DebugOutput: DebugHealOutput,
             DebugMaskPrefix: $"{ChannelDebugPrefix(channelName)}_",
-            SessionCache: autoCleanSessionCache,
             Diagnostics: CreateDiagnostics());
     }
 
@@ -1197,7 +1225,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             progressScope = BeginAutoCleanProgress();
             var progress = CreateAutoCleanProgress(progressScope);
-            var settings = CreateAutoCleanSettings(channelName);
+            var (settings, _) = CreateAutoCleanResolvedSettings(channelName);
             var result = await Task.Run(
                 () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress),
                 cancellationToken);
@@ -1407,6 +1435,40 @@ public sealed partial class MainViewModel : ObservableObject
         finally
         {
             suppressDiagnosticsSettingsSave = false;
+        }
+    }
+
+    private void LoadAutoCleanSettings(AutoCleanSettingsSnapshot settings)
+    {
+        suppressAutoCleanSettingsSave = true;
+        try
+        {
+            AutoCleanQualityMode = settings.QualityMode;
+        }
+        finally
+        {
+            suppressAutoCleanSettingsSave = false;
+        }
+    }
+
+    private void SaveAutoCleanSettings()
+    {
+        if (suppressAutoCleanSettingsSave)
+        {
+            return;
+        }
+
+        try
+        {
+            autoCleanSettingsStore.Save(new AutoCleanSettingsSnapshot(AutoCleanQualityMode));
+        }
+        catch (IOException ex)
+        {
+            AppendLog($"Failed to save auto-clean settings: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppendLog($"Failed to save auto-clean settings: {ex.Message}");
         }
     }
 
@@ -1703,6 +1765,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnAutoCleanSensitivityChanged(int value)
     {
+        SchedulePendingAutoCleanMaskRefresh();
+    }
+
+    partial void OnAutoCleanQualityModeChanged(AutoCleanQualityMode value)
+    {
+        SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
     }
 

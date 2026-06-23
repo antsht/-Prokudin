@@ -265,6 +265,11 @@
                        Classes="MutedCaption"
                        VerticalAlignment="Center"
                        Margin="0,0,4,0" />
+            <ComboBox MinWidth="96"
+                      ItemsSource="{Binding AutoCleanQualityModes}"
+                      SelectedItem="{Binding AutoCleanQualityMode}"
+                      ToolTip.Tip="Quality: best result. Balanced: faster. Fast: preview speed."
+                      Margin="0,0,8,0" />
             <Slider Width="80"
                     Minimum="0"
                     Maximum="100"
