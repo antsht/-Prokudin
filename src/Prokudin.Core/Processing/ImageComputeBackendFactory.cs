@@ -1,10 +1,20 @@
+using Prokudin.Core.Diagnostics;
+
 namespace Prokudin.Core.Processing;
 
 internal static class ImageComputeBackendFactory
 {
-    private static readonly Lazy<IImageComputeBackend> BestBackend = new(CreateBestCore);
+    private static readonly Lazy<IImageComputeBackend> BestBackend = new(() => CreateChain(NullProcessingDiagnostics.Instance));
 
-    public static IImageComputeBackend CreateBest() => BestBackend.Value;
+    public static IImageComputeBackend CreateBest(IProcessingDiagnostics? diagnostics = null)
+    {
+        if (diagnostics is null or NullProcessingDiagnostics)
+        {
+            return BestBackend.Value;
+        }
+
+        return CreateChain(diagnostics);
+    }
 
     public static IImageComputeBackend CreateCpu() => new CpuImageComputeBackend();
 
@@ -20,7 +30,7 @@ internal static class ImageComputeBackendFactory
         return false;
     }
 
-    private static IImageComputeBackend CreateBestCore()
+    private static IImageComputeBackend CreateChain(IProcessingDiagnostics diagnostics)
     {
         List<IImageComputeBackend> backends = [];
 
@@ -35,6 +45,6 @@ internal static class ImageComputeBackendFactory
         }
 
         backends.Add(new CpuImageComputeBackend());
-        return new FallbackImageComputeBackend(backends);
+        return new FallbackImageComputeBackend(backends, diagnostics);
     }
 }

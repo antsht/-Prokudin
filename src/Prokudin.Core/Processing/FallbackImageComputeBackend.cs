@@ -1,7 +1,19 @@
+using System.Diagnostics;
+using Prokudin.Core.Diagnostics;
+
 namespace Prokudin.Core.Processing;
 
-internal sealed class FallbackImageComputeBackend(IReadOnlyList<IImageComputeBackend> backends) : IImageComputeBackend
+internal sealed class FallbackImageComputeBackend : IImageComputeBackend
 {
+    private readonly IReadOnlyList<IImageComputeBackend> backends;
+    private readonly IProcessingDiagnostics diagnostics;
+
+    public FallbackImageComputeBackend(IReadOnlyList<IImageComputeBackend> backends, IProcessingDiagnostics? diagnostics = null)
+    {
+        this.backends = backends;
+        this.diagnostics = diagnostics ?? NullProcessingDiagnostics.Instance;
+    }
+
     public AccelerationBackendKind Kind => backends.Count > 0 ? backends[0].Kind : AccelerationBackendKind.Cpu;
 
     public bool TryDetectDefectMask(
@@ -18,32 +30,25 @@ internal sealed class FallbackImageComputeBackend(IReadOnlyList<IImageComputeBac
         float highPassThreshold,
         float supportMultiplier,
         float supportOffset,
-        byte[] outputMask)
-    {
-        foreach (var backend in backends)
-        {
-            if (backend.TryDetectDefectMask(
-                    target,
-                    other1,
-                    other2,
-                    targetHighPass,
-                    other1HighPass,
-                    other2HighPass,
-                    coefficientA,
-                    coefficientB,
-                    coefficientC,
-                    residualThreshold,
-                    highPassThreshold,
-                    supportMultiplier,
-                    supportOffset,
-                    outputMask))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        byte[] outputMask) =>
+        TryWithLogging(
+            "DetectDefectMask",
+            target.Length,
+            backend => backend.TryDetectDefectMask(
+                target,
+                other1,
+                other2,
+                targetHighPass,
+                other1HighPass,
+                other2HighPass,
+                coefficientA,
+                coefficientB,
+                coefficientC,
+                residualThreshold,
+                highPassThreshold,
+                supportMultiplier,
+                supportOffset,
+                outputMask));
 
     public bool TryPredictMasked(
         float[] target,
@@ -53,33 +58,53 @@ internal sealed class FallbackImageComputeBackend(IReadOnlyList<IImageComputeBac
         double coefficientA,
         double coefficientB,
         double coefficientC,
-        float[] output)
-    {
-        foreach (var backend in backends)
-        {
-            if (backend.TryPredictMasked(target, guide1, guide2, defectMask, coefficientA, coefficientB, coefficientC, output))
-            {
-                return true;
-            }
-        }
+        float[] output) =>
+        TryWithLogging(
+            "PredictMasked",
+            target.Length,
+            backend => backend.TryPredictMasked(
+                target,
+                guide1,
+                guide2,
+                defectMask,
+                coefficientA,
+                coefficientB,
+                coefficientC,
+                output));
 
-        return false;
-    }
-
-    public bool TryApplyGain(float[] source, float gain, float[] output)
-    {
-        foreach (var backend in backends)
-        {
-            if (backend.TryApplyGain(source, gain, output))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    public bool TryApplyGain(float[] source, float gain, float[] output) =>
+        TryWithLogging(
+            "ApplyGain",
+            source.Length,
+            backend => backend.TryApplyGain(source, gain, output));
 
     public void Dispose()
     {
+    }
+
+    private bool TryWithLogging(string operation, int pixelCount, Func<IImageComputeBackend, bool> attempt)
+    {
+        diagnostics.Log(
+            ProcessingLogCategory.ComputeBackend,
+            $"[compute] {operation} ({pixelCount:N0} px)");
+
+        foreach (var backend in backends)
+        {
+            Stopwatch? stopwatch = diagnostics.Options.IncludeTimings ? Stopwatch.StartNew() : null;
+            var succeeded = attempt(backend);
+            stopwatch?.Stop();
+            diagnostics.LogComputeAttempt(
+                operation,
+                backend.Kind,
+                succeeded,
+                stopwatch?.ElapsedMilliseconds);
+
+            if (succeeded)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
