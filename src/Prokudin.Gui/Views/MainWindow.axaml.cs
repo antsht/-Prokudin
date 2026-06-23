@@ -1,72 +1,59 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
+using Prokudin.Gui.ViewModels;
 
 namespace Prokudin.Gui.Views;
 
 public sealed partial class MainWindow : Window
 {
     private bool stickLogToBottom = true;
+    private MainViewModel? viewModel;
 
     public MainWindow()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
     }
 
-    private void ProcessingLogTextBox_OnTextChanged(object? sender, TextChangedEventArgs e)
+    private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        if (!stickLogToBottom)
+        if (viewModel is not null)
+        {
+            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        viewModel = DataContext as MainViewModel;
+        if (viewModel is not null)
+        {
+            viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.ProcessingLogText) || !stickLogToBottom)
         {
             return;
         }
 
-        Dispatcher.UIThread.Post(
-            () => ProcessingLogTextBox.FindDescendantOfType<ScrollViewer>()?.ScrollToEnd(),
-            DispatcherPriority.Background);
+        ScrollLogToEnd();
     }
 
-    protected override void OnPointerWheelChanged(Avalonia.Input.PointerWheelEventArgs e)
+    private void ProcessingLogScrollViewer_OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        base.OnPointerWheelChanged(e);
+        var maxOffset = Math.Max(0, ProcessingLogScrollViewer.Extent.Height - ProcessingLogScrollViewer.Viewport.Height);
+        stickLogToBottom = ProcessingLogScrollViewer.Offset.Y >= maxOffset - 4.0;
+    }
 
-        if (!IsPointerOverLogTextBox(e.Source))
-        {
-            return;
-        }
-
+    private void ScrollLogToEnd()
+    {
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (ProcessingLogTextBox.FindDescendantOfType<ScrollViewer>() is not { } scrollViewer)
-                {
-                    return;
-                }
-
-                var maxOffset = Math.Max(0, scrollViewer.Extent.Height - scrollViewer.Viewport.Height);
-                stickLogToBottom = scrollViewer.Offset.Y >= maxOffset - 4.0;
+                ProcessingLogScrollViewer.ScrollToEnd();
             },
             DispatcherPriority.Loaded);
-    }
-
-    private bool IsPointerOverLogTextBox(object? source)
-    {
-        if (source is not Avalonia.Visual visual)
-        {
-            return false;
-        }
-
-        var current = visual;
-        while (current is not null)
-        {
-            if (ReferenceEquals(current, ProcessingLogTextBox))
-            {
-                return true;
-            }
-
-            current = current.GetVisualParent();
-        }
-
-        return false;
     }
 }

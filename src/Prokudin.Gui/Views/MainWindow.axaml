@@ -405,8 +405,11 @@
         <z:HeaderedContainer Grid.Row="3"
                              Header="Processing log"
                              Classes="LogPanel">
-          <StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+          <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Margin="0,0,0,4">
               <CheckBox Content="Backends"
                         IsChecked="{Binding LogComputeBackends}"
                         ToolTip.Tip="Log compute backend chain (Native CUDA, ILGPU, CPU fallback)" />
@@ -420,19 +423,18 @@
                         IsChecked="{Binding LogTimings}"
                         ToolTip.Tip="Include elapsed milliseconds for accelerated operations" />
             </StackPanel>
-            <TextBox x:Name="ProcessingLogTextBox"
-                     Text="{Binding ProcessingLogText}"
-                     IsReadOnly="True"
-                     IsTabStop="False"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     FontFamily="Consolas,Courier New,monospace"
-                     FontSize="12"
-                     MinHeight="72"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     TextChanged="ProcessingLogTextBox_OnTextChanged" />
-          </StackPanel>
+            <ScrollViewer x:Name="ProcessingLogScrollViewer"
+                          MaxHeight="88"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto"
+                          Focusable="True"
+                          ScrollChanged="ProcessingLogScrollViewer_OnScrollChanged">
+              <TextBlock Text="{Binding ProcessingLogText}"
+                         FontFamily="Consolas,Courier New,monospace"
+                         FontSize="12"
+                         TextWrapping="Wrap" />
+            </ScrollViewer>
+          </DockPanel>
         </z:HeaderedContainer>
       </Grid>
     </Grid>
