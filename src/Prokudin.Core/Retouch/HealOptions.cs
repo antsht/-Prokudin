@@ -1,5 +1,7 @@
 namespace Prokudin.Core.Retouch;
 
+using Prokudin.Core.Diagnostics;
+
 public sealed record HealOptions(
     HealingMode Mode = HealingMode.CrossChannelGuided,
     HealingSubMode SubMode = HealingSubMode.Patch,
@@ -26,7 +28,8 @@ public sealed record HealOptions(
     float LowConfidenceThreshold = 0.35f,
     float LargeComponentConservativeScale = 0.5f,
     bool DebugOutput = false,
-    string? DebugOutputDirectory = null)
+    string? DebugOutputDirectory = null,
+    IProcessingDiagnostics? Diagnostics = null)
 {
     public int NormalizedPatchRadius => Math.Clamp(PatchRadius, 1, 12);
 

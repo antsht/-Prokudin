@@ -1,5 +1,6 @@
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
+using Prokudin.Core.Diagnostics;
 
 namespace Prokudin.Core.Pipeline;
 
@@ -16,4 +17,6 @@ public sealed record PipelineSettings
     public bool Sharpen { get; init; } = true;
 
     public int? OutputSize { get; init; }
+
+    public IProcessingDiagnostics? Diagnostics { get; init; }
 }

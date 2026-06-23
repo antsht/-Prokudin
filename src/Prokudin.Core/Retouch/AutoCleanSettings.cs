@@ -1,5 +1,7 @@
 namespace Prokudin.Core.Retouch;
 
+using Prokudin.Core.Diagnostics;
+
 public sealed record AutoCleanSettings(
     int Sensitivity = 50,
     int InpaintRadius = 3,
@@ -9,7 +11,8 @@ public sealed record AutoCleanSettings(
     int MaxAutoExpandedComponentArea = 10000,
     bool DebugOutput = false,
     string? DebugOutputDirectory = null,
-    string? DebugMaskPrefix = null)
+    string? DebugMaskPrefix = null,
+    IProcessingDiagnostics? Diagnostics = null)
 {
     public int NormalizedSensitivity => Math.Clamp(Sensitivity, 0, 100);
 

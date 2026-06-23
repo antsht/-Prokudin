@@ -21,17 +21,20 @@ public static class PixelParallel
             throw new ArgumentOutOfRangeException(nameof(toExclusive));
         }
 
-        if (toExclusive - fromInclusive < MinimumParallelIterations || Environment.ProcessorCount <= 1)
+        var iterationCount = toExclusive - fromInclusive;
+        if (iterationCount < MinimumParallelIterations || Environment.ProcessorCount <= 1)
         {
             for (var i = fromInclusive; i < toExclusive; i++)
             {
                 body(i);
             }
 
+            RecordParallel("For", iterationCount, usedParallel: false, Options.MaxDegreeOfParallelism);
             return;
         }
 
         Parallel.For(fromInclusive, toExclusive, Options, body);
+        RecordParallel("For", iterationCount, usedParallel: true, Options.MaxDegreeOfParallelism);
     }
 
     public static void ForRows(int height, Action<int> body)
@@ -60,7 +63,8 @@ public static class PixelParallel
             throw new ArgumentOutOfRangeException(nameof(toExclusive));
         }
 
-        if (toExclusive - fromInclusive < MinimumParallelIterations || Environment.ProcessorCount <= 1)
+        var iterationCount = toExclusive - fromInclusive;
+        if (iterationCount < MinimumParallelIterations || Environment.ProcessorCount <= 1)
         {
             var local = localInit();
             for (var i = fromInclusive; i < toExclusive; i++)
@@ -69,6 +73,7 @@ public static class PixelParallel
             }
 
             localFinally(local);
+            RecordParallel("For", iterationCount, usedParallel: false, Options.MaxDegreeOfParallelism);
             return;
         }
 
@@ -79,6 +84,7 @@ public static class PixelParallel
             localInit,
             (i, _, local) => body(i, local),
             localFinally);
+        RecordParallel("For", iterationCount, usedParallel: true, Options.MaxDegreeOfParallelism);
     }
 
     public static void Invoke(params Action[] actions)
@@ -97,12 +103,14 @@ public static class PixelParallel
                 action();
             }
 
+            RecordParallel("Invoke", actions.Length, usedParallel: false, Options.MaxDegreeOfParallelism);
             return;
         }
 
         try
         {
             Parallel.Invoke(Options, actions);
+            RecordParallel("Invoke", actions.Length, usedParallel: true, Options.MaxDegreeOfParallelism);
         }
         catch (AggregateException exception) when (exception.InnerExceptions.Count == 1)
         {
@@ -110,4 +118,7 @@ public static class PixelParallel
             throw;
         }
     }
+
+    private static void RecordParallel(string method, long iterationCount, bool usedParallel, int maxDegree) =>
+        ProcessingDiagnosticsAmbient.RecordParallel(method, iterationCount, usedParallel, maxDegree);
 }
