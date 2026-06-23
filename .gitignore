@@ -7,3 +7,5 @@ obj/
 test_images/
 debug/heal/
 AGENTS.md
+.vscode/*
+.vscode/settings.json

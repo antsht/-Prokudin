@@ -12,7 +12,6 @@ src/
   Prokudin.Gui/
 tests/
   Prokudin.Core.Tests/
-  Prokudin.Gui.Tests/
 docs/
 ```
 

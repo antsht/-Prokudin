@@ -28,7 +28,6 @@ made from those negatives.
 | `src/Prokudin.Cli` | Command-line reconstruction |
 | `src/Prokudin.Gui` | Avalonia desktop app |
 | `tests/Prokudin.Core.Tests` | Core regression tests |
-| `tests/Prokudin.Gui.Tests` | GUI viewmodel and service tests |
 
 ## Requirements
 
