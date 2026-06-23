@@ -79,14 +79,16 @@ public static class ChannelRetoucher
         ReportProgress(progress, 30);
 
         LinearModel predictionModel = default;
-        float[] targetHighPass = [];
-        float[] other1HighPass = [];
-        float[] other2HighPass = [];
+        float[] targetHighPass = new float[normalizedTarget.Length];
+        float[] other1HighPass = new float[normalizedOther1.Length];
+        float[] other2HighPass = new float[normalizedOther2.Length];
+        var backend = ImageComputeBackendFactory.CreateBest(diagnostics);
+        const double highPassSigma = 2.0;
         PixelParallel.Invoke(
             () => predictionModel = FitPredictionModel(normalizedTarget, normalizedOther1, normalizedOther2),
-            () => targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0),
-            () => other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0),
-            () => other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0));
+            () => ComputeHighPass(backend, normalizedTarget, target.Width, target.Height, highPassSigma, targetHighPass, diagnostics),
+            () => ComputeHighPass(backend, normalizedOther1, target.Width, target.Height, highPassSigma, other1HighPass, diagnostics),
+            () => ComputeHighPass(backend, normalizedOther2, target.Width, target.Height, highPassSigma, other2HighPass, diagnostics));
         settings.SessionCache?.Store(normalizedTarget, normalizedOther1, normalizedOther2);
         ReportProgress(progress, 75);
 
@@ -96,7 +98,7 @@ public static class ChannelRetoucher
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
         var rawMaskBytes = new byte[normalizedTarget.Length];
-        if (!ImageComputeBackendFactory.CreateBest(diagnostics).TryDetectDefectMask(
+        if (!backend.TryDetectDefectMask(
                 normalizedTarget,
                 normalizedOther1,
                 normalizedOther2,
@@ -494,21 +496,24 @@ public static class ChannelRetoucher
         return true;
     }
 
-    private static float[] HighPassAbs(float[] source, int width, int height, double sigma)
+    private static void ComputeHighPass(
+        IImageComputeBackend backend,
+        float[] source,
+        int width,
+        int height,
+        double sigma,
+        float[] output,
+        IProcessingDiagnostics diagnostics)
     {
-        using var sourceMat = FloatToMat(source, width, height);
-        using var blur = new Mat();
-        Cv2.GaussianBlur(sourceMat, blur, new Size(0, 0), sigma);
-        var blurred = new float[source.Length];
-        Marshal.Copy(blur.Data, blurred, 0, blurred.Length);
-
-        var highPass = new float[source.Length];
-        PixelParallel.For(0, source.Length, i =>
+        if (backend.TryHighPassAbs(source, width, height, sigma, output))
         {
-            highPass[i] = Math.Abs(source[i] - blurred[i]);
-        });
+            return;
+        }
 
-        return highPass;
+        diagnostics.Log(
+            ProcessingLogCategory.ComputeBackend,
+            "[compute] HighPassAbs: all backends failed → OpenCV fallback");
+        HighPassFilter.Compute(source, width, height, sigma, output);
     }
 
     private static Mat FilterSmallDefects(Mat rawMask, int width, int height)

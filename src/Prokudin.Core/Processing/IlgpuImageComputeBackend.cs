@@ -230,6 +230,8 @@ internal sealed class IlgpuImageComputeBackend : IImageComputeBackend
         }
     }
 
+    public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output) => false;
+
     public void Dispose()
     {
         accelerator.Dispose();

@@ -78,6 +78,12 @@ internal sealed class FallbackImageComputeBackend : IImageComputeBackend
             source.Length,
             backend => backend.TryApplyGain(source, gain, output));
 
+    public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output) =>
+        TryWithLogging(
+            "HighPassAbs",
+            source.Length,
+            backend => backend.TryHighPassAbs(source, width, height, sigma, output));
+
     public void Dispose()
     {
     }

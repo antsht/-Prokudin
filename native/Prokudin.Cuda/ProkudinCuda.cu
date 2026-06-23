@@ -78,6 +78,107 @@ namespace
                 coefficientC));
     }
 
+    __device__ int clampIndex(int value, int limit)
+    {
+        return value < 0 ? 0 : value >= limit ? limit - 1 : value;
+    }
+
+    __global__ void blurHorizontalKernel(
+        const float* source,
+        float* destination,
+        int width,
+        int height,
+        int radius,
+        const float* weights)
+    {
+        const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+        const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+        if (x >= width || y >= height)
+        {
+            return;
+        }
+
+        float sum = 0.0f;
+        for (int offset = -radius; offset <= radius; ++offset)
+        {
+            const int sampleX = clampIndex(x + offset, width);
+            sum += source[(y * width) + sampleX] * weights[offset + radius];
+        }
+
+        destination[(y * width) + x] = sum;
+    }
+
+    __global__ void blurVerticalKernel(
+        const float* source,
+        float* destination,
+        int width,
+        int height,
+        int radius,
+        const float* weights)
+    {
+        const int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+        const int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+        if (x >= width || y >= height)
+        {
+            return;
+        }
+
+        float sum = 0.0f;
+        for (int offset = -radius; offset <= radius; ++offset)
+        {
+            const int sampleY = clampIndex(y + offset, height);
+            sum += source[(sampleY * width) + x] * weights[offset + radius];
+        }
+
+        destination[(y * width) + x] = sum;
+    }
+
+    __global__ void highPassAbsKernel(
+        const float* source,
+        const float* blurred,
+        float* output,
+        int length)
+    {
+        const int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+        if (index >= length)
+        {
+            return;
+        }
+
+        output[index] = fabsf(source[index] - blurred[index]);
+    }
+
+    void computeGaussianWeights(float sigma, int radius, float* weights)
+    {
+        const int kernelSize = (2 * radius) + 1;
+        float sum = 0.0f;
+        for (int offset = -radius; offset <= radius; ++offset)
+        {
+            const float weight = expf(-(static_cast<float>(offset * offset)) / (2.0f * sigma * sigma));
+            weights[offset + radius] = weight;
+            sum += weight;
+        }
+
+        for (int i = 0; i < kernelSize; ++i)
+        {
+            weights[i] /= sum;
+        }
+    }
+
+    void freeHighPassBuffers(
+        float* source,
+        float* temp,
+        float* blurred,
+        float* output,
+        float* weights)
+    {
+        cudaFree(source);
+        cudaFree(temp);
+        cudaFree(blurred);
+        cudaFree(output);
+        cudaFree(weights);
+    }
+
     void freeAll(
         float* target,
         float* other1,
@@ -335,5 +436,129 @@ PROKUDIN_CUDA_API int ProkudinCudaPredictMasked(
     cudaFree(deviceDefectMask);
     cudaFree(deviceOutput);
 
+    return error == cudaSuccess ? 0 : static_cast<int>(error);
+}
+
+PROKUDIN_CUDA_API int ProkudinCudaHighPassAbs(
+    const float* source,
+    int width,
+    int height,
+    float sigma,
+    float* output)
+{
+    if (source == nullptr || output == nullptr || width <= 0 || height <= 0 || sigma <= 0.0f)
+    {
+        return -1;
+    }
+
+    const int deviceStatus = ensureDevice();
+    if (deviceStatus != 0)
+    {
+        return deviceStatus;
+    }
+
+    const int length = width * height;
+    const size_t floatBytes = static_cast<size_t>(length) * sizeof(float);
+    const int radius = static_cast<int>(ceilf(sigma * 3.0f));
+    const int kernelSize = (2 * radius) + 1;
+    float hostWeights[64] = {};
+    if (kernelSize > 64)
+    {
+        return -1;
+    }
+
+    computeGaussianWeights(sigma, radius, hostWeights);
+
+    float* deviceSource = nullptr;
+    float* deviceTemp = nullptr;
+    float* deviceBlurred = nullptr;
+    float* deviceOutput = nullptr;
+    float* deviceWeights = nullptr;
+
+    int status = copyToDevice(&deviceSource, source, floatBytes);
+    if (status == 0)
+    {
+        const cudaError_t error = cudaMalloc(reinterpret_cast<void**>(&deviceTemp), floatBytes);
+        status = error == cudaSuccess ? 0 : static_cast<int>(error);
+    }
+
+    if (status == 0)
+    {
+        const cudaError_t error = cudaMalloc(reinterpret_cast<void**>(&deviceBlurred), floatBytes);
+        status = error == cudaSuccess ? 0 : static_cast<int>(error);
+    }
+
+    if (status == 0)
+    {
+        const cudaError_t error = cudaMalloc(reinterpret_cast<void**>(&deviceOutput), floatBytes);
+        status = error == cudaSuccess ? 0 : static_cast<int>(error);
+    }
+
+    if (status == 0)
+    {
+        const cudaError_t error = cudaMalloc(reinterpret_cast<void**>(&deviceWeights), kernelSize * sizeof(float));
+        status = error == cudaSuccess ? 0 : static_cast<int>(error);
+    }
+
+    if (status != 0)
+    {
+        freeHighPassBuffers(deviceSource, deviceTemp, deviceBlurred, deviceOutput, deviceWeights);
+        return status;
+    }
+
+    cudaError_t error = cudaMemcpy(deviceWeights, hostWeights, kernelSize * sizeof(float), cudaMemcpyHostToDevice);
+    if (error != cudaSuccess)
+    {
+        freeHighPassBuffers(deviceSource, deviceTemp, deviceBlurred, deviceOutput, deviceWeights);
+        return static_cast<int>(error);
+    }
+
+    const dim3 blockSize(16, 16);
+    const dim3 gridSize(
+        (width + blockSize.x - 1) / blockSize.x,
+        (height + blockSize.y - 1) / blockSize.y);
+
+    blurHorizontalKernel<<<gridSize, blockSize>>>(
+        deviceSource,
+        deviceTemp,
+        width,
+        height,
+        radius,
+        deviceWeights);
+    error = cudaGetLastError();
+    if (error == cudaSuccess)
+    {
+        blurVerticalKernel<<<gridSize, blockSize>>>(
+            deviceTemp,
+            deviceBlurred,
+            width,
+            height,
+            radius,
+            deviceWeights);
+        error = cudaGetLastError();
+    }
+
+    if (error == cudaSuccess)
+    {
+        const int blockCount = (length + ThreadsPerBlock - 1) / ThreadsPerBlock;
+        highPassAbsKernel<<<blockCount, ThreadsPerBlock>>>(
+            deviceSource,
+            deviceBlurred,
+            deviceOutput,
+            length);
+        error = cudaGetLastError();
+    }
+
+    if (error == cudaSuccess)
+    {
+        error = cudaDeviceSynchronize();
+    }
+
+    if (error == cudaSuccess)
+    {
+        error = cudaMemcpy(output, deviceOutput, floatBytes, cudaMemcpyDeviceToHost);
+    }
+
+    freeHighPassBuffers(deviceSource, deviceTemp, deviceBlurred, deviceOutput, deviceWeights);
     return error == cudaSuccess ? 0 : static_cast<int>(error);
 }

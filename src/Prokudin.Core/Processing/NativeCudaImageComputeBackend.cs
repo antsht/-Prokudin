@@ -56,6 +56,9 @@ internal sealed class NativeCudaImageComputeBackend : IImageComputeBackend
 
     public bool TryApplyGain(float[] source, float gain, float[] output) => false;
 
+    public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output) =>
+        CudaNative.TryHighPassAbs(source, width, height, sigma, output);
+
     public void Dispose()
     {
     }

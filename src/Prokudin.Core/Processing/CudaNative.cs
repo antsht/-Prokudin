@@ -93,6 +93,27 @@ internal static class CudaNative
             output);
     }
 
+    public static bool TryHighPassAbs(
+        float[] source,
+        int width,
+        int height,
+        double sigma,
+        float[] output)
+    {
+        var api = Api.Value;
+        if (api is null ||
+            source.Length == 0 ||
+            width <= 0 ||
+            height <= 0 ||
+            source.Length != width * height ||
+            output.Length != source.Length)
+        {
+            return false;
+        }
+
+        return api.TryHighPassAbs(source, width, height, sigma, output);
+    }
+
     private static NativeApi? LoadApi()
     {
         if (IsDisabled())
@@ -194,23 +215,34 @@ internal static class CudaNative
         double coefficientC,
         IntPtr output);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int HighPassAbsDelegate(
+        IntPtr source,
+        int width,
+        int height,
+        float sigma,
+        IntPtr output);
+
     private sealed class NativeApi
     {
         private readonly IntPtr handle;
         private readonly IsAvailableDelegate isAvailable;
         private readonly DetectDefectMaskDelegate detectDefectMask;
         private readonly PredictMaskedDelegate predictMasked;
+        private readonly HighPassAbsDelegate? highPassAbs;
 
         private NativeApi(
             IntPtr handle,
             IsAvailableDelegate isAvailable,
             DetectDefectMaskDelegate detectDefectMask,
-            PredictMaskedDelegate predictMasked)
+            PredictMaskedDelegate predictMasked,
+            HighPassAbsDelegate? highPassAbs)
         {
             this.handle = handle;
             this.isAvailable = isAvailable;
             this.detectDefectMask = detectDefectMask;
             this.predictMasked = predictMasked;
+            this.highPassAbs = highPassAbs;
         }
 
         ~NativeApi()
@@ -228,11 +260,18 @@ internal static class CudaNative
                 return false;
             }
 
+            HighPassAbsDelegate? highPassDelegate = null;
+            if (NativeLibrary.TryGetExport(handle, "ProkudinCudaHighPassAbs", out var highPassPointer))
+            {
+                highPassDelegate = Marshal.GetDelegateForFunctionPointer<HighPassAbsDelegate>(highPassPointer);
+            }
+
             api = new NativeApi(
                 handle,
                 Marshal.GetDelegateForFunctionPointer<IsAvailableDelegate>(isAvailablePointer),
                 Marshal.GetDelegateForFunctionPointer<DetectDefectMaskDelegate>(detectDefectMaskPointer),
-                Marshal.GetDelegateForFunctionPointer<PredictMaskedDelegate>(predictMaskedPointer));
+                Marshal.GetDelegateForFunctionPointer<PredictMaskedDelegate>(predictMaskedPointer),
+                highPassDelegate);
             return true;
         }
 
@@ -366,6 +405,42 @@ internal static class CudaNative
                 }
 
                 return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                foreach (var pinnedHandle in handles)
+                {
+                    pinnedHandle.Free();
+                }
+            }
+        }
+
+        public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output)
+        {
+            if (highPassAbs is null || !IsAvailable())
+            {
+                return false;
+            }
+
+            var handles = new[]
+            {
+                GCHandle.Alloc(source, GCHandleType.Pinned),
+                GCHandle.Alloc(output, GCHandleType.Pinned),
+            };
+
+            try
+            {
+                var status = highPassAbs(
+                    handles[0].AddrOfPinnedObject(),
+                    width,
+                    height,
+                    (float)sigma,
+                    handles[1].AddrOfPinnedObject());
+                return status == 0;
             }
             catch
             {

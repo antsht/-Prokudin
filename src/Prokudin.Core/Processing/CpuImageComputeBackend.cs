@@ -93,6 +93,17 @@ internal sealed class CpuImageComputeBackend : IImageComputeBackend
         return true;
     }
 
+    public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output)
+    {
+        if (source.Length != width * height || output.Length != source.Length)
+        {
+            return false;
+        }
+
+        HighPassFilter.Compute(source, width, height, sigma, output);
+        return true;
+    }
+
     public void Dispose()
     {
     }

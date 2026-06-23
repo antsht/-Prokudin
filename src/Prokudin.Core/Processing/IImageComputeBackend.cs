@@ -31,4 +31,6 @@ internal interface IImageComputeBackend : IDisposable
         float[] output);
 
     bool TryApplyGain(float[] source, float gain, float[] output);
+
+    bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output);
 }
