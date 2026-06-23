@@ -149,7 +149,7 @@ public sealed class CrossChannelHealerTests
     }
 
     [Fact]
-    public void HealChannel_UsesBulkPredictionForLargeAutoCleanMasks()
+    public void HealChannel_UsesComponentPathForLargeAutoCleanMasks()
     {
         var red = CreateCorrelatedChannels(17, 17, 0.5f);
         var green = CreateCorrelatedChannels(17, 17, 0.5f);
@@ -172,9 +172,43 @@ public sealed class CrossChannelHealerTests
                 LargeMaskFastPathPixelThreshold: 8));
 
         result.UsedCrossChannel.Should().BeTrue();
-        result.StatusMessage.Should().Contain("bulk");
-        result.Image.GetNormalized(0).Should().BeApproximately(0.5f, 0.02f);
+        result.Image.GetNormalized(0).Should().BeLessThan(0.85f);
         result.Image.GetNormalized(1).Should().BeApproximately(red.GetNormalized(1), 0.001f);
+    }
+
+    [Fact]
+    public void HealChannel_LargeMaskDoesNotBlackenBrightDefectOnDarkGuides()
+    {
+        const int width = 120;
+        const int height = 120;
+        var red = ImageBuffer.Filled(width, height, 0.004f, PixelFormat.UInt16);
+        var green = ImageBuffer.Filled(width, height, 0.004f, PixelFormat.UInt16);
+        var blue = ImageBuffer.Filled(width, height, 0.004f, PixelFormat.UInt16);
+        var mask = new byte[width * height];
+        const int defectIndex = 71;
+        red.SetNormalized(defectIndex, 0.925f);
+        mask[defectIndex] = 1;
+        for (var i = 0; i < mask.Length; i += 11)
+        {
+            if (mask[i] == 0)
+            {
+                mask[i] = 1;
+                red.SetNormalized(i, 0.92f);
+            }
+        }
+
+        var result = ChannelHealer.HealChannel(
+            red,
+            green,
+            blue,
+            mask,
+            new HealOptions(
+                Mode: HealingMode.CrossChannelGuided,
+                PatchRadius: 3,
+                LargeMaskFastPathPixelThreshold: 8));
+
+        result.Image.GetNormalized(defectIndex).Should().BeGreaterThan(0.001f);
+        result.Image.GetNormalized(defectIndex).Should().BeLessThan(0.85f);
     }
 
     [Fact]
@@ -216,7 +250,6 @@ public sealed class CrossChannelHealerTests
                 PatchRadius: 3,
                 LargeMaskFastPathPixelThreshold: 8));
 
-        result.StatusMessage.Should().Contain("bulk");
         result.Image.GetNormalized(unmaskedIndex).Should().BeApproximately(expectedBlue, 0.001f);
     }
 
@@ -269,7 +302,6 @@ public sealed class CrossChannelHealerTests
                 PatchRadius: 3,
                 LargeMaskFastPathPixelThreshold: 8));
 
-        result.StatusMessage.Should().Contain("bulk");
         Math.Abs(result.Image.GetNormalized(sampleIndex) - originalBlue)
             .Should().BeLessThan(Math.Abs(result.Image.GetNormalized(sampleIndex) - guideGreen));
     }

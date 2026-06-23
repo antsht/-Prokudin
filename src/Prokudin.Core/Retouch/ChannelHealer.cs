@@ -110,17 +110,7 @@ public static class ChannelHealer
         IProgress<double>? progress)
     {
         var defectPixelCount = CountMaskedPixels(defectMask);
-        if (defectPixelCount >= options.NormalizedLargeMaskFastPathPixelThreshold)
-        {
-            return HealLargeMaskBulkPrediction(
-                targetChannel,
-                guide1,
-                guide2,
-                defectMask,
-                options,
-                defectPixelCount,
-                progress);
-        }
+        var useLargeMaskFastPath = defectPixelCount >= options.NormalizedLargeMaskFastPathPixelThreshold;
 
         var result = targetChannel.Clone();
         var width = targetChannel.Width;
@@ -128,94 +118,169 @@ public static class ChannelHealer
         using var globalDefectMask = HealingMaskUtils.MaskToMat(defectMask, width, height);
         var components = HealingMaskUtils.FindComponents(defectMask, width, height);
         ReportProgress(progress, 5);
-        var usedFallback = false;
-        var confidenceSum = 0.0f;
-        var confidenceCount = 0;
-        var work = new float[width * height];
 
         try
         {
-            for (var componentIndex = 0; componentIndex < components.Count; componentIndex++)
+            if (useLargeMaskFastPath &&
+                TryHealLargeMaskFastPath(
+                    targetChannel,
+                    guide1,
+                    guide2,
+                    defectMask,
+                    options,
+                    defectPixelCount,
+                    components,
+                    globalDefectMask,
+                    result,
+                    width,
+                    height,
+                    progress,
+                    out var fastResult))
             {
-                var component = components[componentIndex];
-                var area = HealingMaskUtils.CountNonZero(component);
-                var isLarge = area > options.MaxComponentArea;
+                ReportProgress(progress, 100);
+                return fastResult;
+            }
 
-                var prediction = options.UseLocalLinearPrediction
-                    ? CrossChannelPredictor.PredictComponent(targetChannel, guide1, guide2, component, globalDefectMask, options)
-                    : new PredictionResult(work, 0.0f, false, default);
+            var usedFallback = false;
+            var confidenceSum = 0.0f;
+            var confidenceCount = 0;
+            var pixelCount = width * height;
+            var completed = 0;
+            var sync = new object();
+            var parallelDegree = Environment.ProcessorCount;
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = parallelDegree,
+            };
 
-                var patch = options.UseGuidedPatchSearch
-                    ? PatchHealer.HealComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, guided: true)
-                    : CreateIdentityPatch(targetChannel);
-
-                if (!prediction.Succeeded && !patch.Succeeded)
+            Parallel.For(
+                0,
+                components.Count,
+                parallelOptions,
+                componentIndex =>
                 {
-                    usedFallback = true;
-                    ApplyTeleaComponent(result, targetChannel, component, options, width, height);
-                    continue;
-                }
-
-                targetChannel.CopyNormalizedTo(work);
-                var alpha = prediction.Succeeded
-                    ? predictionAlpha(prediction.Confidence, options, isLarge)
-                    : 0.0f;
-
-                if (prediction.Confidence < options.LowConfidenceThreshold)
-                {
-                    alpha = options.PredictionAlphaMin;
-                    usedFallback = true;
-                }
-
-                if (!prediction.Succeeded)
-                {
-                    usedFallback = true;
-                }
-
-                if (!patch.Succeeded)
-                {
-                    usedFallback = true;
-                    patch = PatchHealer.HealComponent(targetChannel, null, null, component, globalDefectMask, options, guided: false);
-                }
-
-                for (var y = 0; y < height; y++)
-                {
-                    for (var x = 0; x < width; x++)
+                    var work = HealingScratchBuffers.Rent(pixelCount);
+                    var patchScratch = HealingScratchBuffers.Rent(pixelCount);
+                    var predictionScratch = HealingScratchBuffers.Rent(pixelCount);
+                    try
                     {
-                        if (component.At<byte>(y, x) == 0)
+                        var component = components[componentIndex];
+                        var area = HealingMaskUtils.CountNonZero(component);
+                        var isLarge = area > options.MaxComponentArea;
+                        var localFallback = false;
+
+                        var prediction = options.UseLocalLinearPrediction
+                            ? CrossChannelPredictor.PredictComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, predictionScratch)
+                            : new PredictionResult(work, 0.0f, false, default);
+
+                        var patch = options.UseGuidedPatchSearch
+                            ? PatchHealer.HealComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, guided: true, patchScratch)
+                            : CreateIdentityPatch(targetChannel, patchScratch);
+
+                        if (!prediction.Succeeded && !patch.Succeeded)
                         {
-                            continue;
+                            localFallback = true;
+                            lock (sync)
+                            {
+                                usedFallback = true;
+                                ApplyTeleaComponent(result, targetChannel, component, options, width, height);
+                            }
+
+                            var teleaDone = Interlocked.Increment(ref completed);
+                            ReportProgress(progress, ComponentProgress(teleaDone - 1, components.Count));
+                            return;
                         }
 
-                        var index = (y * width) + x;
-                        var predicted = prediction.Succeeded ? prediction.Prediction[index] : work[index];
-                        var patched = patch.Succeeded ? patch.PatchValues[index] : work[index];
-                        work[index] = (alpha * predicted) + ((1.0f - alpha) * patched);
+                        targetChannel.CopyNormalizedTo(work);
+                        var alpha = prediction.Succeeded
+                            ? predictionAlpha(prediction.Confidence, options, isLarge)
+                            : 0.0f;
+
+                        if (prediction.Confidence < options.LowConfidenceThreshold)
+                        {
+                            alpha = options.PredictionAlphaMin;
+                            localFallback = true;
+                        }
+
+                        if (!prediction.Succeeded)
+                        {
+                            localFallback = true;
+                        }
+
+                        if (!patch.Succeeded)
+                        {
+                            localFallback = true;
+                            patch = PatchHealer.HealComponent(targetChannel, null, null, component, globalDefectMask, options, guided: false, patchScratch);
+                        }
+
+                        for (var y = 0; y < height; y++)
+                        {
+                            for (var x = 0; x < width; x++)
+                            {
+                                if (component.At<byte>(y, x) == 0)
+                                {
+                                    continue;
+                                }
+
+                                var index = (y * width) + x;
+                                var predicted = prediction.Succeeded ? prediction.Prediction[index] : work[index];
+                                var patched = patch.Succeeded ? patch.PatchValues[index] : work[index];
+                                work[index] = (alpha * predicted) + ((1.0f - alpha) * patched);
+                            }
+                        }
+
+                        lock (sync)
+                        {
+                            if (localFallback)
+                            {
+                                usedFallback = true;
+                            }
+
+                            if (prediction.Succeeded)
+                            {
+                                confidenceSum += prediction.Confidence;
+                                confidenceCount++;
+                            }
+
+                            ApplyComponentValues(result, component, work, options.FeatherSigma, width, height);
+
+                            if (options.DebugOutput)
+                            {
+                                HealingDebugWriter.SaveComponentDebug(
+                                    options,
+                                    targetChannel,
+                                    component,
+                                    prediction.Prediction,
+                                    patch.PatchValues,
+                                    work,
+                                    prediction.Confidence);
+                            }
+                        }
+
+                        var done = Interlocked.Increment(ref completed);
+                        ReportProgress(progress, ComponentProgress(done - 1, components.Count));
                     }
-                }
-
-                if (prediction.Succeeded)
-                {
-                    confidenceSum += prediction.Confidence;
-                    confidenceCount++;
-                }
-
-                ApplyComponentValues(result, component, work, options.FeatherSigma, width, height);
-
-                if (options.DebugOutput)
-                {
-                    HealingDebugWriter.SaveComponentDebug(
-                        options,
-                        targetChannel,
-                        component,
-                        prediction.Prediction,
-                        patch.PatchValues,
-                        work,
-                        prediction.Confidence);
-                }
-
-                ReportProgress(progress, ComponentProgress(componentIndex, components.Count));
+                    finally
+                    {
+                        HealingScratchBuffers.Return(work);
+                        HealingScratchBuffers.Return(patchScratch);
+                        HealingScratchBuffers.Return(predictionScratch);
+                    }
+                });
+            if (options.DebugOutput)
+            {
+                HealingDebugWriter.SaveFinalDebug(options, targetChannel, result, defectMask, width, height);
             }
+
+            var averageConfidence = confidenceCount > 0 ? confidenceSum / confidenceCount : 0.0f;
+            ReportProgress(progress, 100);
+            return new HealResult(
+                result,
+                defectMask,
+                averageConfidence,
+                UsedCrossChannel: true,
+                UsedFallback: usedFallback,
+                StatusMessage: $"Cross-channel: parallel patch ({components.Count} components, {defectPixelCount} px).");
         }
         finally
         {
@@ -224,37 +289,37 @@ public static class ChannelHealer
                 component.Dispose();
             }
         }
-
-        if (options.DebugOutput)
-        {
-            HealingDebugWriter.SaveFinalDebug(options, targetChannel, result, defectMask, width, height);
-        }
-
-        var averageConfidence = confidenceCount > 0 ? confidenceSum / confidenceCount : 0.0f;
-        ReportProgress(progress, 100);
-        return new HealResult(result, defectMask, averageConfidence, UsedCrossChannel: true, UsedFallback: usedFallback);
     }
 
-    private static HealResult HealLargeMaskBulkPrediction(
+    private const float MinWeightedPrediction = 0.01f;
+
+    private static bool TryHealLargeMaskFastPath(
         ImageBuffer targetChannel,
         ImageBuffer guide1,
         ImageBuffer guide2,
         byte[] defectMask,
         HealOptions options,
         int defectPixelCount,
-        IProgress<double>? progress)
+        IReadOnlyList<Mat> components,
+        Mat globalDefectMask,
+        ImageBuffer result,
+        int width,
+        int height,
+        IProgress<double>? progress,
+        out HealResult healResult)
     {
-        ReportProgress(progress, 5);
+        healResult = null!;
         var pixelCount = targetChannel.PixelCount;
         var targetValues = new float[pixelCount];
         var guide1Values = new float[pixelCount];
         var guide2Values = new float[pixelCount];
+
         PixelParallel.Invoke(
             () => targetChannel.CopyNormalizedTo(targetValues),
             () => guide1.CopyNormalizedTo(guide1Values),
             () => guide2.CopyNormalizedTo(guide2Values));
 
-        ReportProgress(progress, 25);
+        ReportProgress(progress, 20);
         var model = LinearModelFitter.FitMasked(
             targetValues,
             guide1Values,
@@ -263,27 +328,17 @@ public static class ChannelHealer
             options.UseRobustFit);
         if (model.Count < options.MinTrainingPixels)
         {
-            return HealWholeMaskTeleaFallback(
-                targetChannel,
-                defectMask,
-                options,
-                "Large auto-clean mask has too little clean context; using whole-mask Telea.",
-                progress);
+            return false;
         }
 
         var confidence = CalculateModelConfidence(targetChannel, targetValues, guide1Values, guide2Values, defectMask, model);
         if (confidence < options.LowConfidenceThreshold)
         {
-            return HealWholeMaskTeleaFallback(
-                targetChannel,
-                defectMask,
-                options,
-                "Large auto-clean mask model confidence is low; using whole-mask Telea.",
-                progress);
+            return false;
         }
 
-        ReportProgress(progress, 55);
-        var output = new float[pixelCount];
+        ReportProgress(progress, 35);
+        var globalPrediction = new float[pixelCount];
         var usedCuda = CudaNative.TryPredictMasked(
             targetValues,
             guide1Values,
@@ -292,60 +347,170 @@ public static class ChannelHealer
             model.A,
             model.B,
             model.C,
-            output);
+            globalPrediction);
         if (!usedCuda)
         {
-            FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, output);
+            FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, globalPrediction);
         }
 
-        ReportProgress(progress, 70);
-        var telea = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
-        var teleaValues = new float[pixelCount];
-        telea.CopyNormalizedTo(teleaValues);
-        var alpha = Math.Min(predictionAlpha(confidence, options, isLarge: true), options.PredictionAlphaMin);
-        BlendMaskedPredictionWithTelea(targetValues, output, teleaValues, defectMask, alpha);
+        var baseAlpha = predictionAlpha(confidence, options, isLarge: true);
+        var usedFallback = false;
+        var confidenceSum = 0.0;
+        var confidenceCount = 0;
+        var completed = 0;
+        var sync = new object();
+        var parallelDegree = Environment.ProcessorCount;
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = parallelDegree,
+        };
 
-        ReportProgress(progress, 90);
-        var image = ImageBuffer.FromNormalized(targetChannel.Width, targetChannel.Height, output, targetChannel.Format);
-        ReportProgress(progress, 100);
+        Parallel.For(
+            0,
+            components.Count,
+            parallelOptions,
+            componentIndex =>
+            {
+                var work = HealingScratchBuffers.Rent(pixelCount);
+                var patchScratch = HealingScratchBuffers.Rent(pixelCount);
+                var predictionScratch = HealingScratchBuffers.Rent(pixelCount);
+                try
+                {
+                    var component = components[componentIndex];
+                    targetChannel.CopyNormalizedTo(work);
+
+                    var patch = options.UseGuidedPatchSearch
+                        ? PatchHealer.HealComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, guided: true, patchScratch)
+                        : CreateIdentityPatch(targetChannel, patchScratch);
+                    if (!patch.Succeeded)
+                    {
+                        patch = PatchHealer.HealComponent(targetChannel, null, null, component, globalDefectMask, options, guided: false, patchScratch);
+                    }
+
+                    var area = HealingMaskUtils.CountNonZero(component);
+                    var isLarge = area > options.MaxComponentArea;
+                    var localFallback = false;
+
+                    var needsLocalPrediction = false;
+                    if (options.UseLocalLinearPrediction)
+                    {
+                        for (var y = 0; y < height && !needsLocalPrediction; y++)
+                        {
+                            for (var x = 0; x < width; x++)
+                            {
+                                if (component.At<byte>(y, x) == 0)
+                                {
+                                    continue;
+                                }
+
+                                if (globalPrediction[(y * width) + x] < MinWeightedPrediction)
+                                {
+                                    needsLocalPrediction = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    var localPrediction = needsLocalPrediction
+                        ? CrossChannelPredictor.PredictComponent(targetChannel, guide1, guide2, component, globalDefectMask, options, predictionScratch)
+                        : new PredictionResult(work, 0.0f, false, default);
+
+                    if (!localPrediction.Succeeded && !patch.Succeeded)
+                    {
+                        localFallback = true;
+                        var componentMaskBytes = ExtractComponentMask(component, width, height);
+                        var telea = ChannelRetoucher.InpaintMask(targetChannel, componentMaskBytes, options.NormalizedInpaintRadius);
+                        telea.CopyNormalizedTo(work);
+                    }
+                    else
+                    {
+                        for (var y = 0; y < height; y++)
+                        {
+                            for (var x = 0; x < width; x++)
+                            {
+                                if (component.At<byte>(y, x) == 0)
+                                {
+                                    continue;
+                                }
+
+                                var index = (y * width) + x;
+                                float predicted;
+                                float alpha;
+                                if (localPrediction.Succeeded)
+                                {
+                                    predicted = localPrediction.Prediction[index];
+                                    alpha = predictionAlpha(localPrediction.Confidence, options, isLarge);
+                                    if (localPrediction.Confidence < options.LowConfidenceThreshold)
+                                    {
+                                        alpha = options.PredictionAlphaMin;
+                                        localFallback = true;
+                                    }
+                                }
+                                else
+                                {
+                                    predicted = globalPrediction[index];
+                                    alpha = predicted < MinWeightedPrediction ? 0.0f : baseAlpha;
+                                    if (alpha <= 0.0f)
+                                    {
+                                        localFallback = true;
+                                    }
+                                }
+
+                                if (!localPrediction.Succeeded || !patch.Succeeded)
+                                {
+                                    localFallback = true;
+                                }
+
+                                var patched = patch.Succeeded ? patch.PatchValues[index] : work[index];
+                                work[index] = (alpha * predicted) + ((1.0f - alpha) * patched);
+                            }
+                        }
+                    }
+
+                    lock (sync)
+                    {
+                        if (localFallback)
+                        {
+                            usedFallback = true;
+                        }
+
+                        if (localPrediction.Succeeded)
+                        {
+                            confidenceSum += localPrediction.Confidence;
+                            confidenceCount++;
+                        }
+                        else if (patch.Succeeded)
+                        {
+                            confidenceSum += patch.Confidence;
+                            confidenceCount++;
+                        }
+
+                        ApplyComponentValues(result, component, work, options.FeatherSigma, width, height);
+                    }
+
+                    var done = Interlocked.Increment(ref completed);
+                    ReportProgress(progress, ComponentProgress(done - 1, components.Count));
+                }
+                finally
+                {
+                    HealingScratchBuffers.Return(work);
+                    HealingScratchBuffers.Return(patchScratch);
+                    HealingScratchBuffers.Return(predictionScratch);
+                }
+            });
+        ReportProgress(progress, 95);
+
         var backend = usedCuda ? "CUDA" : "CPU";
-        return new HealResult(
-            image,
+        healResult = new HealResult(
+            result,
             defectMask,
             confidence,
             UsedCrossChannel: true,
-            StatusMessage: $"Large auto-clean mask healed with {backend} bulk prediction + Telea blend ({defectPixelCount} pixels).");
-    }
-
-    private static HealResult HealWholeMaskTeleaFallback(
-        ImageBuffer targetChannel,
-        byte[] defectMask,
-        HealOptions options,
-        string statusMessage,
-        IProgress<double>? progress)
-    {
-        ReportProgress(progress, 65);
-        var healed = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
-        ReportProgress(progress, 100);
-        return new HealResult(
-            healed,
-            defectMask,
-            UsedCrossChannel: true,
-            UsedFallback: true,
-            StatusMessage: statusMessage);
-    }
-
-    private static int CountMaskedPixels(byte[] defectMask)
-    {
-        var total = 0;
-        PixelParallel.For(
-            0,
-            defectMask.Length,
-            static () => 0,
-            (i, local) => local + (defectMask[i] > 0 ? 1 : 0),
-            local => System.Threading.Interlocked.Add(ref total, local));
-
-        return total;
+            UsedFallback: usedFallback,
+            StatusMessage:
+            $"Large auto-clean: {backend} prediction + parallel patch ({components.Count} components, {defectPixelCount} px).");
+        return true;
     }
 
     private static float CalculateModelConfidence(
@@ -417,33 +582,24 @@ public static class ChannelHealer
         });
     }
 
-    private static void BlendMaskedPredictionWithTelea(
-        float[] targetValues,
-        float[] predictionValues,
-        float[] teleaValues,
-        byte[] defectMask,
-        float predictionAlpha)
-    {
-        PixelParallel.For(0, predictionValues.Length, i =>
-        {
-            if (defectMask[i] == 0)
-            {
-                predictionValues[i] = targetValues[i];
-                return;
-            }
-
-            predictionValues[i] = Math.Clamp(
-                (predictionValues[i] * predictionAlpha) + (teleaValues[i] * (1.0f - predictionAlpha)),
-                0.0f,
-                1.0f);
-        });
-    }
-
     private struct ErrorAccumulator
     {
         public double ErrorSum;
 
         public int Count;
+    }
+
+    private static int CountMaskedPixels(byte[] defectMask)
+    {
+        var total = 0;
+        PixelParallel.For(
+            0,
+            defectMask.Length,
+            static () => 0,
+            (i, local) => local + (defectMask[i] > 0 ? 1 : 0),
+            local => System.Threading.Interlocked.Add(ref total, local));
+
+        return total;
     }
 
     private static (ImageBuffer Image, float AverageConfidence) ApplyPatchHealing(
@@ -505,6 +661,12 @@ public static class ChannelHealer
     private static void ReportProgress(IProgress<double>? progress, double value)
     {
         progress?.Report(Math.Clamp(value, 0.0, 100.0));
+    }
+
+    private static PatchHealResult CreateIdentityPatch(ImageBuffer targetChannel, float[] patchValues)
+    {
+        targetChannel.CopyNormalizedTo(patchValues);
+        return new PatchHealResult(patchValues, 0.0f, false, default);
     }
 
     private static PatchHealResult CreateIdentityPatch(ImageBuffer targetChannel)

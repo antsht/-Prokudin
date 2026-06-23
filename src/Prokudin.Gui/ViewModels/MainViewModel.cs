@@ -487,11 +487,12 @@ public sealed partial class MainViewModel : ObservableObject
             var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress));
             SelectedSlot.Image = result.Image;
             ClearPendingAutoCleanMask();
+            var healStatus = result.StatusMessage ??
+                             $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
+            Status = healStatus;
+            AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {healStatus}");
             RefreshAlignedAfterInputEdit(channelName);
             RefreshPreviewImageContext();
-            Status = result.StatusMessage ??
-                     $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
-            AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {changedPixels} masked pixels, mode {options.Mode}.");
         }
         finally
         {
@@ -551,11 +552,12 @@ public sealed partial class MainViewModel : ObservableObject
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
             SelectedSlot.Image = result.Image;
+            var count = mask.Count(value => value > 0);
+            var healStatus = result.StatusMessage ?? $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
+            Status = healStatus;
+            AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {healStatus}");
             RefreshAlignedAfterInputEdit(channelName);
             RefreshPreviewImageContext();
-            var count = mask.Count(value => value > 0);
-            Status = result.StatusMessage ?? $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
-            AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {count} masked pixels, mode {options.Mode}.");
         }
         finally
         {
@@ -1402,8 +1404,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             ResultSlot.Result = result.Rgb;
             RefreshPreviewBindings();
-            Status = $"Result rebuilt: {result.Rgb.Width} x {result.Rgb.Height}.";
-            AppendLog("Result rebuilt from cached alignment.");
+            AppendLog($"Result rebuilt from cached alignment: {result.Rgb.Width}x{result.Rgb.Height}.");
         }
         catch (OperationCanceledException)
         {

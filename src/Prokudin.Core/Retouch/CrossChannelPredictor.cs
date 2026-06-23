@@ -19,9 +19,27 @@ internal static class CrossChannelPredictor
         Mat globalDefectMask,
         HealOptions options)
     {
+        var prediction = new float[target.PixelCount];
+        return PredictComponent(target, guide1, guide2, componentMask, globalDefectMask, options, prediction);
+    }
+
+    public static PredictionResult PredictComponent(
+        ImageBuffer target,
+        ImageBuffer guide1,
+        ImageBuffer guide2,
+        Mat componentMask,
+        Mat globalDefectMask,
+        HealOptions options,
+        float[] prediction)
+    {
         var width = target.Width;
         var height = target.Height;
-        var prediction = new float[width * height];
+        var pixelCount = width * height;
+        if (prediction.Length < pixelCount)
+        {
+            throw new ArgumentException("Prediction buffer is too small.", nameof(prediction));
+        }
+
         target.CopyNormalizedTo(prediction);
 
         var contextRadius = options.NormalizedContextRadius;

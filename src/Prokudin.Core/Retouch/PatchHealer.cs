@@ -16,9 +16,28 @@ internal static class PatchHealer
         HealOptions options,
         bool guided)
     {
+        var patchValues = new float[target.PixelCount];
+        return HealComponent(target, guide1, guide2, componentMask, globalDefectMask, options, guided, patchValues);
+    }
+
+    public static PatchHealResult HealComponent(
+        ImageBuffer target,
+        ImageBuffer? guide1,
+        ImageBuffer? guide2,
+        Mat componentMask,
+        Mat globalDefectMask,
+        HealOptions options,
+        bool guided,
+        float[] patchValues)
+    {
         var width = target.Width;
         var height = target.Height;
-        var patchValues = new float[width * height];
+        var pixelCount = width * height;
+        if (patchValues.Length < pixelCount)
+        {
+            throw new ArgumentException("Patch buffer is too small.", nameof(patchValues));
+        }
+
         target.CopyNormalizedTo(patchValues);
 
         var searchRadius = options.NormalizedSearchRadius;
