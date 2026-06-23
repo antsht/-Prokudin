@@ -106,9 +106,17 @@ Portable compute acceleration is routed through an internal image compute
 backend chain. The current chain tries native `Prokudin.Cuda.dll` when present,
 then an ILGPU CUDA/OpenCL accelerator when available, and finally the CPU
 backend. The accelerated kernels cover auto-clean raw mask classification,
-large-mask cross-channel prediction, and normalized exposure gain. Every kernel
-keeps CPU fallback behavior, so no reconstruction or GUI workflow requires GPU
-hardware.
+Gaussian high-pass for auto-clean detect prep, large-mask cross-channel
+prediction, and normalized exposure gain. Every kernel keeps CPU fallback
+behavior, so no reconstruction or GUI workflow requires GPU hardware.
+
+Auto-clean apply (Quality mode) uses a large-mask fast path: bulk
+`PredictMasked`, tile-grouped coarse-to-fine `PatchHealer` search, and a
+session cache that reuses detect normalization buffers between detect and apply.
+The GUI exposes **Quality**, **Balanced**, and **Fast** presets (toolbar
+ComboBox); presets affect auto-clean detect/apply only, not heal brush or clone
+stamp. **Fast** skips per-component patch search and blends bulk prediction with
+Telea on low-confidence pixels.
 
 ### Processing diagnostics
 
@@ -164,7 +172,9 @@ Core retouch types:
 
 `HealOptions` defaults to `HealingMode.CrossChannelGuided` with
 `HealingSubMode.Patch` for single-channel fallback. GUI maps toolbar checkboxes
-to mode and sub-mode; `Radius` maps to `PatchRadius`.
+to mode and sub-mode; `Radius` maps to `PatchRadius`. Auto-clean detect/apply
+uses `AutoCleanQualityProfiles.Resolve` with the selected quality preset;
+settings persist in `%LocalAppData%/Prokudin/auto-clean-settings.json`.
 
 ## Reconstruction Pipeline
 

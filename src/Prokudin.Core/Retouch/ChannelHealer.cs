@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using OpenCvSharp;
 using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Imaging;
@@ -567,6 +568,8 @@ public static class ChannelHealer
         ReportProgress(progress, 35);
         var globalPrediction = new float[pixelCount];
         var backend = ImageComputeBackendFactory.CreateBest(options.Diagnostics);
+        var includeTimings = diagnostics.Options.IncludeTimings;
+        var predictStopwatch = includeTimings ? Stopwatch.StartNew() : null;
         var usedBackend = backend.TryPredictMasked(
             targetValues,
             guide1Values,
@@ -584,6 +587,7 @@ public static class ChannelHealer
             FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, globalPrediction);
         }
 
+        predictStopwatch?.Stop();
         var backendLabel = usedBackend ? "accelerated" : "CPU";
 
         var baseAlpha = softFastPath
@@ -606,6 +610,7 @@ public static class ChannelHealer
             MaxDegreeOfParallelism = parallelDegree,
         };
 
+        var patchStopwatch = includeTimings ? Stopwatch.StartNew() : null;
         Parallel.ForEach(
             tileGroups,
             parallelOptions,
@@ -742,7 +747,15 @@ public static class ChannelHealer
                     }
                 }
             });
+        patchStopwatch?.Stop();
         ReportProgress(progress, 95);
+
+        if (includeTimings)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] apply: fast_path=ok, predict={predictStopwatch?.ElapsedMilliseconds ?? 0}ms, patch={patchStopwatch?.ElapsedMilliseconds ?? 0}ms, components={components.Count}");
+        }
 
         healResult = new HealResult(
             result,

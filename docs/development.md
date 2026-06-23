@@ -100,11 +100,12 @@ The internal image compute backend chain detects native CUDA, ILGPU CUDA/OpenCL,
 and CPU support. Native CUDA and ILGPU kernels are not required for development
 or tests, and every accelerated feature must keep a CPU fallback.
 
-The native DLL exports kernels for auto-clean mask classification and large-mask
-bulk prediction during auto-clean apply. ILGPU provides portable C# kernels for
-the same operations and normalized exposure gain. Rebuild the native DLL after
-changing `native\Prokudin.Cuda\ProkudinCuda.cu`; an older DLL simply makes Core
-fall back to ILGPU or CPU paths.
+The native DLL exports kernels for auto-clean mask classification, separable
+Gaussian high-pass (`HighPassAbs`), and large-mask bulk prediction during
+auto-clean apply. ILGPU provides portable C# kernels for mask classification,
+prediction, and normalized exposure gain. Rebuild the native DLL after changing
+`native\Prokudin.Cuda\ProkudinCuda.cu`; an older DLL simply makes Core fall back
+to ILGPU or CPU paths.
 
 Build the CUDA backend on Windows with:
 
@@ -120,12 +121,18 @@ Set `PROKUDIN_DISABLE_CUDA=1` to force CPU fallback.
 
 Enable toggles above the GUI Processing log:
 
-- **Backends** — which compute backend ran (`DetectDefectMask`, `PredictMasked`, `ApplyGain`) and fallback attempts
-- **Pipeline** — alignment coarse/fine paths, exposure rebuild, auto-clean detect/apply
+- **Backends** — which compute backend ran (`DetectDefectMask`, `HighPassAbs`, `PredictMasked`, `ApplyGain`) and fallback attempts
+- **Pipeline** — alignment coarse/fine paths, exposure rebuild, auto-clean detect/apply (fast path accept/reject, tile patch stats, session cache reuse)
 - **CPU parallel** — `PixelParallel` mode inside active scopes
-- **Timings** — optional millisecond timings on backend attempts
+- **Timings** — millisecond timings on backend attempts and large-mask apply breakdown (`predict` / `patch`)
 
-Settings are stored in `%LocalAppData%/Prokudin/diagnostics-settings.json`.
+Auto-clean quality presets (**Quality** / **Balanced** / **Fast**) are in the
+toolbar ComboBox next to the sensitivity slider. Presets affect auto-clean
+detect and apply only; brush and stamp healing use toolbar `HealOptions`
+unchanged. Preset choice persists in
+`%LocalAppData%/Prokudin/auto-clean-settings.json`.
+
+Diagnostics toggles persist in `%LocalAppData%/Prokudin/diagnostics-settings.json`.
 
 ## Known Warnings
 
