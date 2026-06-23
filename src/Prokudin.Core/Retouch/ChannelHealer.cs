@@ -130,6 +130,21 @@ public static class ChannelHealer
 
         try
         {
+            if (useLargeMaskFastPath && options.QualityMode == AutoCleanQualityMode.Fast)
+            {
+                ReportProgress(progress, 100);
+                return HealFastMode(
+                    targetChannel,
+                    guide1,
+                    guide2,
+                    defectMask,
+                    options,
+                    defectPixelCount,
+                    width,
+                    height,
+                    progress);
+            }
+
             if (useLargeMaskFastPath &&
                 TryHealLargeMaskFastPath(
                     targetChannel,
@@ -313,6 +328,161 @@ public static class ChannelHealer
     }
 
     private const float MinWeightedPrediction = 0.01f;
+
+    private static HealResult HealFastMode(
+        ImageBuffer targetChannel,
+        ImageBuffer guide1,
+        ImageBuffer guide2,
+        byte[] defectMask,
+        HealOptions options,
+        int defectPixelCount,
+        int width,
+        int height,
+        IProgress<double>? progress)
+    {
+        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
+        var pixelCount = targetChannel.PixelCount;
+        float[] targetValues;
+        float[] guide1Values;
+        float[] guide2Values;
+
+        if (options.SessionCache?.TryGet(out targetValues, out guide1Values, out guide2Values) == true)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                "[retouch] reuse detect normalization cache");
+        }
+        else
+        {
+            targetValues = new float[pixelCount];
+            guide1Values = new float[pixelCount];
+            guide2Values = new float[pixelCount];
+            PixelParallel.Invoke(
+                () => targetChannel.CopyNormalizedTo(targetValues),
+                () => guide1.CopyNormalizedTo(guide1Values),
+                () => guide2.CopyNormalizedTo(guide2Values));
+        }
+
+        ReportProgress(progress, 20);
+        var model = LinearModelFitter.FitMasked(
+            targetValues,
+            guide1Values,
+            guide2Values,
+            defectMask,
+            options.UseRobustFit);
+
+        var result = targetChannel.Clone();
+        if (model.Count < options.MinTrainingPixels)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] fast mode: insufficient training={model.Count} < {options.MinTrainingPixels}, Telea fallback");
+            var telea = ChannelRetoucher.InpaintMask(targetChannel, defectMask, options.NormalizedInpaintRadius);
+            ReportProgress(progress, 100);
+            return new HealResult(
+                telea,
+                defectMask,
+                UsedCrossChannel: true,
+                UsedFallback: true,
+                StatusMessage: $"Fast auto-clean: Telea fallback ({defectPixelCount} px).");
+        }
+
+        var confidence = CalculateModelConfidence(targetChannel, targetValues, guide1Values, guide2Values, defectMask, model);
+        diagnostics.Log(
+            ProcessingLogCategory.PipelineStage,
+            $"[retouch] fast mode: confidence={confidence:F2} (training={model.Count:N0} px)");
+
+        ReportProgress(progress, 35);
+        var globalPrediction = new float[pixelCount];
+        var backend = ImageComputeBackendFactory.CreateBest(options.Diagnostics);
+        var usedBackend = backend.TryPredictMasked(
+            targetValues,
+            guide1Values,
+            guide2Values,
+            defectMask,
+            model.A,
+            model.B,
+            model.C,
+            globalPrediction);
+        if (!usedBackend)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.ComputeBackend,
+                "[compute] PredictMasked: all backends failed → CPU inline");
+            FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, globalPrediction);
+        }
+
+        var highConfidenceMask = new byte[pixelCount];
+        var lowConfidenceMask = new byte[pixelCount];
+        for (var i = 0; i < pixelCount; i++)
+        {
+            if (defectMask[i] == 0)
+            {
+                continue;
+            }
+
+            if (globalPrediction[i] >= MinWeightedPrediction)
+            {
+                highConfidenceMask[i] = 1;
+            }
+            else
+            {
+                lowConfidenceMask[i] = 1;
+            }
+        }
+
+        var usedFallback = false;
+        if (highConfidenceMask.Any(value => value > 0))
+        {
+            ApplyPredictionWithFeather(result, highConfidenceMask, globalPrediction, options.FeatherSigma, width, height);
+        }
+
+        if (lowConfidenceMask.Any(value => value > 0))
+        {
+            usedFallback = true;
+            var telea = ChannelRetoucher.InpaintMask(targetChannel, lowConfidenceMask, options.NormalizedInpaintRadius);
+            var teleaValues = new float[pixelCount];
+            telea.CopyNormalizedTo(teleaValues);
+            ApplyPredictionWithFeather(result, lowConfidenceMask, teleaValues, options.FeatherSigma, width, height);
+        }
+
+        ReportProgress(progress, 100);
+        return new HealResult(
+            result,
+            defectMask,
+            confidence,
+            UsedCrossChannel: true,
+            UsedFallback: usedFallback,
+            StatusMessage: $"Fast auto-clean: prediction + Telea ({defectPixelCount} px).");
+    }
+
+    private static void ApplyPredictionWithFeather(
+        ImageBuffer result,
+        byte[] mask,
+        float[] values,
+        float featherSigma,
+        int width,
+        int height)
+    {
+        using var maskMat = HealingMaskUtils.MaskToMat(mask, width, height);
+        using var softMask = HealingMaskUtils.BuildSoftMask(maskMat, featherSigma);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var maskValue = softMask.At<float>(y, x);
+                if (maskValue <= 0.0f)
+                {
+                    continue;
+                }
+
+                var index = (y * width) + x;
+                var original = result.GetNormalized(index);
+                var blended = (original * (1.0f - maskValue)) + (values[index] * maskValue);
+                result.SetNormalized(index, blended);
+            }
+        }
+    }
 
     private static bool TryHealLargeMaskFastPath(
         ImageBuffer targetChannel,
