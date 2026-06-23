@@ -110,6 +110,21 @@ large-mask cross-channel prediction, and normalized exposure gain. Every kernel
 keeps CPU fallback behavior, so no reconstruction or GUI workflow requires GPU
 hardware.
 
+### Processing diagnostics
+
+`Prokudin.Core.Diagnostics.IProcessingDiagnostics` is an optional sink threaded
+through `PipelineSettings`, `HealOptions`, and `AutoCleanSettings`. Default is
+`NullProcessingDiagnostics` (zero overhead). The GUI exposes four toggles above
+the Processing log:
+
+- **Backends** — native CUDA / ILGPU / CPU fallback attempts per kernel
+- **Pipeline** — alignment, reconstruction, and retouch stage summaries
+- **CPU parallel** — `PixelParallel` sequential vs parallel decisions and OpenCV thread count
+- **Timings** — elapsed milliseconds on accelerated operations
+
+Settings persist in `%LocalAppData%/Prokudin/diagnostics-settings.json`. All toggles
+default to off for normal use.
+
 OpenCV calls remain sequential at the call site because they execute in native
 code and may use OpenCV's own threading. Alignment search still uses OpenCV
 SIFT/ORB, phase correlation, and ECC on CPU. Full-resolution GPU warp and

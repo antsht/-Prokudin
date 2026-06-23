@@ -117,6 +117,17 @@ The script writes `native\Prokudin.Cuda\bin\Prokudin.Cuda.dll`. Set
 `PROKUDIN_CUDA_DLL` to an explicit DLL path if you want to load another build.
 Set `PROKUDIN_DISABLE_CUDA=1` to force CPU fallback.
 
+## Processing diagnostics (debug)
+
+Enable toggles above the GUI Processing log:
+
+- **Backends** — which compute backend ran (`DetectDefectMask`, `PredictMasked`, `ApplyGain`) and fallback attempts
+- **Pipeline** — alignment coarse/fine paths, exposure rebuild, auto-clean detect/apply
+- **CPU parallel** — `PixelParallel` mode inside active scopes
+- **Timings** — optional millisecond timings on backend attempts
+
+Settings are stored in `%LocalAppData%/Prokudin/diagnostics-settings.json`.
+
 ## Known Warnings
 
 `dotnet test` can report `NU1903` for Avalonia's transitive
