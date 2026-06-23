@@ -400,18 +400,34 @@
         <z:HeaderedContainer Grid.Row="3"
                              Header="Processing log"
                              Classes="LogPanel">
-          <ScrollViewer VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Auto">
-            <TextBox Text="{Binding ProcessingLogText}"
-                     IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     FontFamily="Consolas,Courier New,monospace"
-                     FontSize="12"
-                     MinHeight="100"
-                     BorderThickness="0"
-                     Background="Transparent" />
-          </ScrollViewer>
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+              <CheckBox Content="Backends"
+                        IsChecked="{Binding LogComputeBackends}"
+                        ToolTip.Tip="Log compute backend chain (Native CUDA, ILGPU, CPU fallback)" />
+              <CheckBox Content="Pipeline"
+                        IsChecked="{Binding LogPipelineStages}"
+                        ToolTip.Tip="Log alignment, reconstruction, and retouch stages" />
+              <CheckBox Content="CPU parallel"
+                        IsChecked="{Binding LogCpuParallel}"
+                        ToolTip.Tip="Log PixelParallel and OpenCV threading decisions" />
+              <CheckBox Content="Timings"
+                        IsChecked="{Binding LogTimings}"
+                        ToolTip.Tip="Include elapsed milliseconds for accelerated operations" />
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto">
+              <TextBox Text="{Binding ProcessingLogText}"
+                       IsReadOnly="True"
+                       AcceptsReturn="True"
+                       TextWrapping="Wrap"
+                       FontFamily="Consolas,Courier New,monospace"
+                       FontSize="12"
+                       MinHeight="100"
+                       BorderThickness="0"
+                       Background="Transparent" />
+            </ScrollViewer>
+          </StackPanel>
         </z:HeaderedContainer>
       </Grid>
     </Grid>

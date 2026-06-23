@@ -9,6 +9,7 @@ using Prokudin.Core.Crop;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 using Prokudin.Core.Retouch;
+using Prokudin.Gui.Diagnostics;
 using Prokudin.Gui.Imaging;
 using Prokudin.Gui.Services;
 
@@ -20,6 +21,7 @@ public sealed partial class MainViewModel : ObservableObject
     private const int WhiteBalancePipetteRadius = 3;
     private readonly IFileDialogService fileDialogService;
     private readonly IExportSettingsStore exportSettingsStore;
+    private readonly IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore;
     private readonly StringBuilder processingLog = new();
     private readonly List<EditorSnapshot> undoHistory = [];
     private readonly List<EditorSnapshot> redoHistory = [];
@@ -29,6 +31,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool suppressUndoCapture;
     private bool exposureUndoOpen;
     private bool suppressExportSettingsSave;
+    private bool suppressDiagnosticsSettingsSave;
     private int exposureChangeVersion;
     private int previewImageContextVersion;
     private Bitmap? autoCleanMaskOverlayBitmap;
@@ -41,14 +44,23 @@ public sealed partial class MainViewModel : ObservableObject
     private int whiteBalancePipetteY = -1;
 
     public MainViewModel(IFileDialogService fileDialogService)
-        : this(fileDialogService, new JsonExportSettingsStore())
+        : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore())
     {
     }
 
     public MainViewModel(IFileDialogService fileDialogService, IExportSettingsStore exportSettingsStore)
+        : this(fileDialogService, exportSettingsStore, new JsonProcessingDiagnosticsSettingsStore())
+    {
+    }
+
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IExportSettingsStore exportSettingsStore,
+        IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore)
     {
         this.fileDialogService = fileDialogService;
         this.exportSettingsStore = exportSettingsStore;
+        this.diagnosticsSettingsStore = diagnosticsSettingsStore;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -70,6 +82,7 @@ public sealed partial class MainViewModel : ObservableObject
         ResultSlot.ToggleExportSettingsCommand = ToggleExportSettingsCommand;
 
         LoadExportSettings(exportSettingsStore.Load());
+        LoadDiagnosticsSettings(diagnosticsSettingsStore.Load());
         SelectedSlot = RedSlot;
     }
 
@@ -178,6 +191,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool debugHealOutput;
+
+    [ObservableProperty]
+    private bool logComputeBackends;
+
+    [ObservableProperty]
+    private bool logPipelineStages;
+
+    [ObservableProperty]
+    private bool logCpuParallel;
+
+    [ObservableProperty]
+    private bool logTimings;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAutoCleanMaskPending))]
@@ -730,7 +755,7 @@ public sealed partial class MainViewModel : ObservableObject
             var result = await Task.Run(() =>
             {
                 var settings = CurrentPipelineSettings();
-                var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align);
+                var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align, settings.Diagnostics);
                 var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
                 var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings);
                 return (built.Rgb, built.CropInfo, Aligned: prepared.Channels);
@@ -1003,7 +1028,8 @@ public sealed partial class MainViewModel : ObservableObject
             Mode: UseCrossChannelHealing ? HealingMode.CrossChannelGuided : HealingMode.CurrentChannelOnly,
             SubMode: UseTeleaHealing ? HealingSubMode.Telea : HealingSubMode.Patch,
             PatchRadius: AutoCleanRadius,
-            DebugOutput: DebugHealOutput);
+            DebugOutput: DebugHealOutput,
+            Diagnostics: CreateDiagnostics());
     }
 
     private AutoCleanSettings CreateAutoCleanSettings(ChannelName channelName)
@@ -1015,7 +1041,8 @@ public sealed partial class MainViewModel : ObservableObject
             AutoMergeNearbyDefects: AutoMergeNearbyDefects,
             AutoMergeDistancePx: AutoMergeDistancePx,
             DebugOutput: DebugHealOutput,
-            DebugMaskPrefix: $"{ChannelDebugPrefix(channelName)}_");
+            DebugMaskPrefix: $"{ChannelDebugPrefix(channelName)}_",
+            Diagnostics: CreateDiagnostics());
     }
 
     private static string ChannelDebugPrefix(ChannelName channelName)
@@ -1349,8 +1376,64 @@ public sealed partial class MainViewModel : ObservableObject
                 (float)GreenExposureStops,
                 (float)BlueExposureStops),
             Crop = new CropSettings { SkipCrop = skipCrop },
+            Diagnostics = CreateDiagnostics(),
         };
     }
+
+    private Core.Diagnostics.IProcessingDiagnostics CreateDiagnostics() =>
+        new GuiProcessingDiagnostics(AppendLog, CurrentDiagnosticsSettings().ToOptions());
+
+    private ProcessingDiagnosticsSettings CurrentDiagnosticsSettings() =>
+        new(
+            LogComputeBackends,
+            LogPipelineStages,
+            LogCpuParallel,
+            LogTimings);
+
+    private void LoadDiagnosticsSettings(ProcessingDiagnosticsSettings settings)
+    {
+        suppressDiagnosticsSettingsSave = true;
+        try
+        {
+            LogComputeBackends = settings.LogComputeBackends;
+            LogPipelineStages = settings.LogPipelineStages;
+            LogCpuParallel = settings.LogCpuParallel;
+            LogTimings = settings.LogTimings;
+        }
+        finally
+        {
+            suppressDiagnosticsSettingsSave = false;
+        }
+    }
+
+    private void SaveDiagnosticsSettings()
+    {
+        if (suppressDiagnosticsSettingsSave)
+        {
+            return;
+        }
+
+        try
+        {
+            diagnosticsSettingsStore.Save(CurrentDiagnosticsSettings());
+        }
+        catch (IOException ex)
+        {
+            AppendLog($"Could not save diagnostics settings: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppendLog($"Could not save diagnostics settings: {ex.Message}");
+        }
+    }
+
+    partial void OnLogComputeBackendsChanged(bool value) => SaveDiagnosticsSettings();
+
+    partial void OnLogPipelineStagesChanged(bool value) => SaveDiagnosticsSettings();
+
+    partial void OnLogCpuParallelChanged(bool value) => SaveDiagnosticsSettings();
+
+    partial void OnLogTimingsChanged(bool value) => SaveDiagnosticsSettings();
 
     private bool HasPipetteWhiteBalance => whiteBalancePipetteX >= 0 && whiteBalancePipetteY >= 0;
 
