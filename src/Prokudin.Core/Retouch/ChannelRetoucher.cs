@@ -87,6 +87,7 @@ public static class ChannelRetoucher
             () => targetHighPass = HighPassAbs(normalizedTarget, target.Width, target.Height, sigma: 2.0),
             () => other1HighPass = HighPassAbs(normalizedOther1, target.Width, target.Height, sigma: 2.0),
             () => other2HighPass = HighPassAbs(normalizedOther2, target.Width, target.Height, sigma: 2.0));
+        settings.SessionCache?.Store(normalizedTarget, normalizedOther1, normalizedOther2);
         ReportProgress(progress, 75);
 
         var sensitivity = settings.NormalizedSensitivity / 100.0;

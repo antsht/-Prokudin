@@ -330,15 +330,28 @@ public static class ChannelHealer
         out HealResult healResult)
     {
         healResult = null!;
+        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
         var pixelCount = targetChannel.PixelCount;
-        var targetValues = new float[pixelCount];
-        var guide1Values = new float[pixelCount];
-        var guide2Values = new float[pixelCount];
+        float[] targetValues;
+        float[] guide1Values;
+        float[] guide2Values;
 
-        PixelParallel.Invoke(
-            () => targetChannel.CopyNormalizedTo(targetValues),
-            () => guide1.CopyNormalizedTo(guide1Values),
-            () => guide2.CopyNormalizedTo(guide2Values));
+        if (options.SessionCache?.TryGet(out targetValues, out guide1Values, out guide2Values) == true)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                "[retouch] reuse detect normalization cache");
+        }
+        else
+        {
+            targetValues = new float[pixelCount];
+            guide1Values = new float[pixelCount];
+            guide2Values = new float[pixelCount];
+            PixelParallel.Invoke(
+                () => targetChannel.CopyNormalizedTo(targetValues),
+                () => guide1.CopyNormalizedTo(guide1Values),
+                () => guide2.CopyNormalizedTo(guide2Values));
+        }
 
         ReportProgress(progress, 20);
         var model = LinearModelFitter.FitMasked(
@@ -355,7 +368,6 @@ public static class ChannelHealer
             return false;
         }
 
-        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
         var confidence = CalculateModelConfidence(targetChannel, targetValues, guide1Values, guide2Values, defectMask, model);
         var softFastPath = options.AllowSoftFastPath &&
                            options.QualityMode == AutoCleanQualityMode.Quality &&

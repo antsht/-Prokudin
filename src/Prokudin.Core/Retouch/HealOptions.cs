@@ -28,6 +28,7 @@ public sealed record HealOptions(
     float LowConfidenceThreshold = 0.35f,
     AutoCleanQualityMode QualityMode = AutoCleanQualityMode.Quality,
     bool AllowSoftFastPath = true,
+    AutoCleanSessionCache? SessionCache = null,
     float LargeComponentConservativeScale = 0.5f,
     bool DebugOutput = false,
     string? DebugOutputDirectory = null,

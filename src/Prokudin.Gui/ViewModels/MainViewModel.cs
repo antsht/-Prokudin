@@ -42,6 +42,7 @@ public sealed partial class MainViewModel : ObservableObject
     private int autoCleanProgressVersion;
     private int whiteBalancePipetteX = -1;
     private int whiteBalancePipetteY = -1;
+    private readonly AutoCleanSessionCache autoCleanSessionCache = new();
 
     public MainViewModel(IFileDialogService fileDialogService)
         : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore())
@@ -762,6 +763,7 @@ public sealed partial class MainViewModel : ObservableObject
             });
 
             PushUndo();
+            autoCleanSessionCache.Clear();
             SetPreparedChannels(result.Aligned);
             lastAligned = result.Aligned;
             ResultSlot.Result = result.Rgb;
@@ -1029,6 +1031,7 @@ public sealed partial class MainViewModel : ObservableObject
             SubMode: UseTeleaHealing ? HealingSubMode.Telea : HealingSubMode.Patch,
             PatchRadius: AutoCleanRadius,
             DebugOutput: DebugHealOutput,
+            SessionCache: autoCleanSessionCache,
             Diagnostics: CreateDiagnostics());
     }
 
@@ -1042,6 +1045,7 @@ public sealed partial class MainViewModel : ObservableObject
             AutoMergeDistancePx: AutoMergeDistancePx,
             DebugOutput: DebugHealOutput,
             DebugMaskPrefix: $"{ChannelDebugPrefix(channelName)}_",
+            SessionCache: autoCleanSessionCache,
             Diagnostics: CreateDiagnostics());
     }
 

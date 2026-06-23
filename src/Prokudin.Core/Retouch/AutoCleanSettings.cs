@@ -12,6 +12,7 @@ public sealed record AutoCleanSettings(
     bool DebugOutput = false,
     string? DebugOutputDirectory = null,
     string? DebugMaskPrefix = null,
+    AutoCleanSessionCache? SessionCache = null,
     IProcessingDiagnostics? Diagnostics = null)
 {
     public int NormalizedSensitivity => Math.Clamp(Sensitivity, 0, 100);
