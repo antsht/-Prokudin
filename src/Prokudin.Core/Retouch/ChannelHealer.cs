@@ -337,13 +337,37 @@ public static class ChannelHealer
             options.UseRobustFit);
         if (model.Count < options.MinTrainingPixels)
         {
+            options.Diagnostics?.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] fast path rejected: training={model.Count} < {options.MinTrainingPixels}");
             return false;
         }
 
+        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
         var confidence = CalculateModelConfidence(targetChannel, targetValues, guide1Values, guide2Values, defectMask, model);
-        if (confidence < options.LowConfidenceThreshold)
+        var softFastPath = options.AllowSoftFastPath &&
+                           options.QualityMode == AutoCleanQualityMode.Quality &&
+                           confidence < options.LowConfidenceThreshold;
+
+        if (confidence < options.LowConfidenceThreshold && !softFastPath)
         {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] fast path rejected: confidence={confidence:F2} < {options.LowConfidenceThreshold:F2} (training={model.Count:N0} px)");
             return false;
+        }
+
+        if (softFastPath)
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] fast path soft-accept: confidence={confidence:F2} < {options.LowConfidenceThreshold:F2}, alpha scaled");
+        }
+        else
+        {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[retouch] fast path ok: confidence={confidence:F2} (training={model.Count:N0} px)");
         }
 
         ReportProgress(progress, 35);
@@ -368,7 +392,10 @@ public static class ChannelHealer
 
         var backendLabel = usedBackend ? "accelerated" : "CPU";
 
-        var baseAlpha = predictionAlpha(confidence, options, isLarge: true);
+        var baseAlpha = softFastPath
+            ? predictionAlpha(confidence, options, isLarge: true) *
+              Math.Clamp(confidence / options.LowConfidenceThreshold, options.PredictionAlphaMin, 1.0f)
+            : predictionAlpha(confidence, options, isLarge: true);
         var usedFallback = false;
         var confidenceSum = 0.0;
         var confidenceCount = 0;
