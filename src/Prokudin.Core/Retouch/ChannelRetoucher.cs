@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using OpenCvSharp;
+using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Processing;
 
@@ -61,6 +62,10 @@ public static class ChannelRetoucher
         IProgress<double>? progress = null)
     {
         ReportProgress(progress, 0);
+        var diagnostics = settings.Diagnostics ?? NullProcessingDiagnostics.Instance;
+        using var scope = diagnostics.BeginScope(
+            $"auto-clean.detect.{target.Width}x{target.Height}",
+            ProcessingLogCategory.PipelineStage);
         ValidateSameDimensions(target, other1, nameof(other1));
         ValidateSameDimensions(target, other2, nameof(other2));
 
@@ -90,7 +95,7 @@ public static class ChannelRetoucher
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
         var rawMaskBytes = new byte[normalizedTarget.Length];
-        if (!ImageComputeBackendFactory.CreateBest().TryDetectDefectMask(
+        if (!ImageComputeBackendFactory.CreateBest(diagnostics).TryDetectDefectMask(
                 normalizedTarget,
                 normalizedOther1,
                 normalizedOther2,
@@ -106,6 +111,9 @@ public static class ChannelRetoucher
                 supportOffset,
                 rawMaskBytes))
         {
+            diagnostics.Log(
+                ProcessingLogCategory.ComputeBackend,
+                "[compute] DetectDefectMask: all backends failed → CPU inline");
             BuildRawMask(
                 normalizedTarget,
                 normalizedOther1,

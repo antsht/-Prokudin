@@ -1,6 +1,7 @@
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Crop;
+using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Processing;
 using Prokudin.Core.Transform;
@@ -24,12 +25,18 @@ public static class ReconstructionPipeline
         return channels;
     }
 
-    public static AlignedChannels RunAutoAlign(IReadOnlyDictionary<ChannelName, ImageBuffer> channels, AlignOptions settings)
+    public static AlignedChannels RunAutoAlign(
+        IReadOnlyDictionary<ChannelName, ImageBuffer> channels,
+        AlignOptions settings,
+        IProcessingDiagnostics? diagnostics = null)
     {
         if (!channels.TryGetValue(settings.Reference, out var reference))
         {
             throw new ArgumentException($"Unknown reference channel: {settings.Reference}", nameof(settings));
         }
+
+        diagnostics ??= NullProcessingDiagnostics.Instance;
+        using var alignScope = diagnostics.BeginScope("RunAutoAlign", ProcessingLogCategory.PipelineStage);
 
         var aligned = new Dictionary<ChannelName, (ImageBuffer Image, byte[] Mask)>();
         var metadata = new Dictionary<ChannelName, AlignChannelMetadata>();
@@ -43,10 +50,14 @@ public static class ReconstructionPipeline
                 aligned[name] = (reference.Clone(), (byte[])referenceMask.Clone());
                 metadata[name] = new AlignChannelMetadata("reference", 0);
                 transforms[name] = ChannelAlignmentTransform.Identity(reference.Width, reference.Height, "reference");
+                diagnostics.Log(ProcessingLogCategory.PipelineStage, $"[align] {name}: reference");
                 continue;
             }
 
-            var result = ChannelAligner.AlignChannel(reference, channels[name], settings);
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[align] {name}: aligning {channels[name].Width}x{channels[name].Height} to reference");
+            var result = ChannelAligner.AlignChannel(reference, channels[name], settings, diagnostics);
             aligned[name] = (result.Image, result.Mask);
             metadata[name] = new AlignChannelMetadata(result.TransformKind, result.InlierCount, result.SubpixelShifts);
             if (result.Transform is not null)
@@ -93,10 +104,14 @@ public static class ReconstructionPipeline
             aligned = ApplyManualToAligned(aligned, manual);
         }
 
-        var red = ChannelExposure.Apply(aligned.Red, settings.Exposure.RedStops);
-        var green = ChannelExposure.Apply(aligned.Green, settings.Exposure.GreenStops);
-        var blue = ChannelExposure.Apply(aligned.Blue, settings.Exposure.BlueStops);
+        var diagnostics = settings.Diagnostics ?? NullProcessingDiagnostics.Instance;
+        using var buildScope = diagnostics.BeginScope("BuildRgb", ProcessingLogCategory.PipelineStage);
 
+        var red = ChannelExposure.Apply(aligned.Red, settings.Exposure.RedStops, diagnostics);
+        var green = ChannelExposure.Apply(aligned.Green, settings.Exposure.GreenStops, diagnostics);
+        var blue = ChannelExposure.Apply(aligned.Blue, settings.Exposure.BlueStops, diagnostics);
+
+        using var mergeScope = diagnostics.BeginScope("BuildRgb.merge", ProcessingLogCategory.CpuParallel);
         var (rgb, overlap) = Cropper.MergeChannels(
             red,
             green,
@@ -141,7 +156,7 @@ public static class ReconstructionPipeline
             [ChannelName.Blue] = bluePath,
         };
         var channels = await LoadProjectChannelsAsync(paths, settings.Align.TrimBorders, cancellationToken);
-        var aligned = RunAutoAlign(channels, settings.Align);
+        var aligned = RunAutoAlign(channels, settings.Align, settings.Diagnostics);
         var (rgb, _) = BuildRgb(aligned, settings);
         await ImageLoader.SavePngAsync(outputPath, rgb, cancellationToken);
     }
@@ -155,7 +170,7 @@ public static class ReconstructionPipeline
     {
         var image = await ImageLoader.LoadGrayscaleAsync(triptychPath, cancellationToken);
         var channels = TriptychSplitter.SplitTriptych(image, order, settings.Align.TrimBorders);
-        var aligned = RunAutoAlign(channels, settings.Align);
+        var aligned = RunAutoAlign(channels, settings.Align, settings.Diagnostics);
         var (rgb, _) = BuildRgb(aligned, settings);
         await ImageLoader.SavePngAsync(outputPath, rgb, cancellationToken);
     }

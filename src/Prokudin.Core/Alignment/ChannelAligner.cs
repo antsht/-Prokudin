@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using OpenCvSharp;
 using OpenCvSharp.Features2D;
+using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Imaging;
 
 namespace Prokudin.Core.Alignment;
@@ -11,9 +12,14 @@ public static class ChannelAligner
     private const int MinimumAffineInliers = 8;
     private const double LowInlierRatio = 0.3;
 
-    public static AlignResult AlignChannel(ImageBuffer reference, ImageBuffer moving, AlignOptions? options = null)
+    public static AlignResult AlignChannel(
+        ImageBuffer reference,
+        ImageBuffer moving,
+        AlignOptions? options = null,
+        IProcessingDiagnostics? diagnostics = null)
     {
         options ??= new AlignOptions();
+        diagnostics ??= NullProcessingDiagnostics.Instance;
         var maxTranslation = options.ResolveMaxTranslation(reference.Width, reference.Height);
 
         using var refMat = ToMat(reference);
@@ -31,7 +37,8 @@ public static class ChannelAligner
             Math.Max(0, options.MaxFineIterations),
             maxTranslation,
             options.CoarseAlignmentMaxSide,
-            allowOrbRetry: true);
+            allowOrbRetry: true,
+            diagnostics);
     }
 
     public static (ImageBuffer Image, byte[] Mask) ApplyTransform(ImageBuffer moving, ChannelAlignmentTransform transform)
@@ -113,11 +120,19 @@ public static class ChannelAligner
         int maxFineIterations,
         int maxTranslation,
         int coarseAlignmentMaxSide,
-        bool allowOrbRetry)
+        bool allowOrbRetry,
+        IProcessingDiagnostics diagnostics)
     {
         detector = NormalizeDetector(detector);
+        diagnostics.Log(
+            ProcessingLogCategory.CpuParallel,
+            $"[parallel] align: OpenCV threads={Cv2.GetNumThreads()}");
+
         if (StandardDeviation(reference) < 1e-6 || StandardDeviation(moving) < 1e-6)
         {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                "[align] featureless identity (near-zero variance)");
             using var identityMask = Ones(reference.Rows, reference.Cols);
             return new AlignResult(
                 FromMat(moving, outputFormat),
@@ -144,6 +159,10 @@ public static class ChannelAligner
         searchReference.Dispose();
         searchMoving.Dispose();
 
+        diagnostics.Log(
+            ProcessingLogCategory.PipelineStage,
+            $"[align] coarse {detector}@{coarseAlignmentMaxSide} scale={searchScale:F3}, {matchCount} matches → {kind} {inliers} inliers");
+
         if (src.Length >= 4)
         {
             WarpChannel(moving, matrix, reference.Size(), kind, warped, mask);
@@ -159,6 +178,9 @@ public static class ChannelAligner
 
         if (allowOrbRetry && detector == "sift" && matchCount > 0 && inliers / (double)matchCount < LowInlierRatio)
         {
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[align] low inlier ratio ({inliers}/{matchCount}), retrying with ORB");
             return AlignChannel(
                 reference,
                 moving,
@@ -169,10 +191,21 @@ public static class ChannelAligner
                 maxFineIterations,
                 maxTranslation,
                 coarseAlignmentMaxSide,
-                allowOrbRetry: false);
+                allowOrbRetry: false,
+                diagnostics);
         }
 
         var (fineImage, fineMask, shifts) = FineAlign(reference, warped, mask, maxFineIterations, maxTranslation);
+        if (shifts.Count > 0)
+        {
+            var shiftText = string.Join(
+                ", ",
+                shifts.Select(shift => $"({shift.Dx:F1},{shift.Dy:F1})"));
+            diagnostics.Log(
+                ProcessingLogCategory.PipelineStage,
+                $"[align] fine phase-corr ×{shifts.Count} shifts {shiftText}");
+        }
+
         var transform = TransformFromMatrix(sourceWidth, sourceHeight, reference.Cols, reference.Rows, kind, matrix, shifts);
         using (fineImage)
         using (fineMask)

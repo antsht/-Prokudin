@@ -1,4 +1,5 @@
 using OpenCvSharp;
+using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Processing;
 
@@ -15,6 +16,8 @@ public static class ChannelHealer
         IProgress<double>? progress = null)
     {
         ReportProgress(progress, 0);
+        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
+        using var scope = diagnostics.BeginScope("HealChannel", ProcessingLogCategory.PipelineStage);
         ValidateMask(defectMask, targetChannel);
         if (!defectMask.Any(value => value > 0))
         {
@@ -111,6 +114,12 @@ public static class ChannelHealer
     {
         var defectPixelCount = CountMaskedPixels(defectMask);
         var useLargeMaskFastPath = defectPixelCount >= options.NormalizedLargeMaskFastPathPixelThreshold;
+        var diagnostics = options.Diagnostics ?? NullProcessingDiagnostics.Instance;
+        diagnostics.Log(
+            ProcessingLogCategory.PipelineStage,
+            useLargeMaskFastPath
+                ? $"[retouch] cross-channel large bulk path ({defectPixelCount} px)"
+                : $"[retouch] cross-channel component path ({defectPixelCount} px)");
 
         var result = targetChannel.Clone();
         var width = targetChannel.Width;
@@ -339,8 +348,7 @@ public static class ChannelHealer
 
         ReportProgress(progress, 35);
         var globalPrediction = new float[pixelCount];
-        var backend = ImageComputeBackendFactory.CreateBest();
-        var usedAcceleratedBackend = backend.Kind != AccelerationBackendKind.Cpu;
+        var backend = ImageComputeBackendFactory.CreateBest(options.Diagnostics);
         var usedBackend = backend.TryPredictMasked(
             targetValues,
             guide1Values,
@@ -352,9 +360,13 @@ public static class ChannelHealer
             globalPrediction);
         if (!usedBackend)
         {
-            usedAcceleratedBackend = false;
+            options.Diagnostics?.Log(
+                ProcessingLogCategory.ComputeBackend,
+                "[compute] PredictMasked: all backends failed → CPU inline");
             FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, globalPrediction);
         }
+
+        var backendLabel = usedBackend ? "accelerated" : "CPU";
 
         var baseAlpha = predictionAlpha(confidence, options, isLarge: true);
         var usedFallback = false;
@@ -504,7 +516,6 @@ public static class ChannelHealer
             });
         ReportProgress(progress, 95);
 
-        var backendLabel = usedAcceleratedBackend ? backend.Kind.ToString() : "CPU";
         healResult = new HealResult(
             result,
             defectMask,
