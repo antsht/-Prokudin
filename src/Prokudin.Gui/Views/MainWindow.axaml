@@ -420,18 +420,18 @@
                         IsChecked="{Binding LogTimings}"
                         ToolTip.Tip="Include elapsed milliseconds for accelerated operations" />
             </StackPanel>
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto">
-              <TextBox Text="{Binding ProcessingLogText}"
-                       IsReadOnly="True"
-                       AcceptsReturn="True"
-                       TextWrapping="Wrap"
-                       FontFamily="Consolas,Courier New,monospace"
-                       FontSize="12"
-                       MinHeight="100"
-                       BorderThickness="0"
-                       Background="Transparent" />
-            </ScrollViewer>
+            <TextBox x:Name="ProcessingLogTextBox"
+                     Text="{Binding ProcessingLogText}"
+                     IsReadOnly="True"
+                     IsTabStop="False"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas,Courier New,monospace"
+                     FontSize="12"
+                     MinHeight="72"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     TextChanged="ProcessingLogTextBox_OnTextChanged" />
           </StackPanel>
         </z:HeaderedContainer>
       </Grid>
