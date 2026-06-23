@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Prokudin.Core.Alignment;
@@ -19,11 +20,14 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private const int UndoLimit = 20;
     private const int WhiteBalancePipetteRadius = 3;
+    private const int MaxProcessingLogCharacters = 120_000;
     private readonly IFileDialogService fileDialogService;
     private readonly IExportSettingsStore exportSettingsStore;
     private readonly IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore;
     private readonly IAutoCleanSettingsStore autoCleanSettingsStore;
     private readonly StringBuilder processingLog = new();
+    private readonly object processingLogSync = new();
+    private bool processingLogRefreshScheduled;
     private readonly List<EditorSnapshot> undoHistory = [];
     private readonly List<EditorSnapshot> redoHistory = [];
     private AlignedChannels? lastAligned;
@@ -363,7 +367,16 @@ public sealed partial class MainViewModel : ObservableObject
     public string FitToWindowButtonText =>
         PreviewZoomMode == PreviewZoomMode.FitToWindow ? "1:1" : "Fit to window";
 
-    public string ProcessingLogText => processingLog.ToString();
+    public string ProcessingLogText
+    {
+        get
+        {
+            lock (processingLogSync)
+            {
+                return processingLog.ToString();
+            }
+        }
+    }
 
     public string PreviewImageContextKey => $"{SelectedSlot?.DisplayName ?? "none"}:{previewImageContextVersion}";
 
@@ -693,8 +706,12 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ClearLog()
     {
-        processingLog.Clear();
-        OnPropertyChanged(nameof(ProcessingLogText));
+        lock (processingLogSync)
+        {
+            processingLog.Clear();
+        }
+
+        NotifyProcessingLogChanged();
     }
 
     [RelayCommand]
@@ -2070,7 +2087,48 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void AppendLog(string message)
     {
-        processingLog.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+        lock (processingLogSync)
+        {
+            processingLog.AppendLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+            TrimProcessingLogIfNeeded();
+        }
+
+        ScheduleProcessingLogRefresh();
+    }
+
+    private void TrimProcessingLogIfNeeded()
+    {
+        if (processingLog.Length <= MaxProcessingLogCharacters)
+        {
+            return;
+        }
+
+        var dropLength = processingLog.Length - (MaxProcessingLogCharacters * 2 / 3);
+        var remainder = processingLog.ToString(dropLength, processingLog.Length - dropLength);
+        var firstLineBreak = remainder.IndexOf('\n');
+        if (firstLineBreak < 0)
+        {
+            processingLog.Clear();
+            return;
+        }
+
+        processingLog.Remove(0, dropLength + firstLineBreak + 1);
+    }
+
+    private void ScheduleProcessingLogRefresh()
+    {
+        if (processingLogRefreshScheduled)
+        {
+            return;
+        }
+
+        processingLogRefreshScheduled = true;
+        Dispatcher.UIThread.Post(NotifyProcessingLogChanged, DispatcherPriority.Background);
+    }
+
+    private void NotifyProcessingLogChanged()
+    {
+        processingLogRefreshScheduled = false;
         OnPropertyChanged(nameof(ProcessingLogText));
     }
 
