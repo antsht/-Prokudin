@@ -26,6 +26,8 @@ public sealed record HealOptions(
     int MaxComponentArea = 5000,
     int LargeMaskFastPathPixelThreshold = 20_000,
     float LowConfidenceThreshold = 0.35f,
+    AutoCleanQualityMode QualityMode = AutoCleanQualityMode.Quality,
+    bool AllowSoftFastPath = true,
     float LargeComponentConservativeScale = 0.5f,
     bool DebugOutput = false,
     string? DebugOutputDirectory = null,
