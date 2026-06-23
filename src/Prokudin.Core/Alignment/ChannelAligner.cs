@@ -30,6 +30,7 @@ public static class ChannelAligner
             options.Detector,
             Math.Max(0, options.MaxFineIterations),
             maxTranslation,
+            options.CoarseAlignmentMaxSide,
             allowOrbRetry: true);
     }
 
@@ -111,19 +112,37 @@ public static class ChannelAligner
         string detector,
         int maxFineIterations,
         int maxTranslation,
+        int coarseAlignmentMaxSide,
         bool allowOrbRetry)
     {
         detector = NormalizeDetector(detector);
-        var (src, dst, matchCount) = MatchFeatures(reference, moving, detector);
+        if (StandardDeviation(reference) < 1e-6 || StandardDeviation(moving) < 1e-6)
+        {
+            using var identityMask = Ones(reference.Rows, reference.Cols);
+            return new AlignResult(
+                FromMat(moving, outputFormat),
+                MaskFromMat(identityMask),
+                "identity",
+                0,
+                [],
+                IdentityTransform(sourceWidth, sourceHeight, reference.Cols, reference.Rows, "identity"));
+        }
+
+        var (searchReference, searchMoving, searchScale) = CreateCoarseSearchMats(reference, moving, coarseAlignmentMaxSide);
+        var scaledMaxTranslation = Math.Max(1, (int)Math.Ceiling(maxTranslation * searchScale));
+        var (src, dst, matchCount) = MatchFeatures(searchReference, searchMoving, detector);
 
         using var warped = new Mat();
         using var mask = new Mat();
         string kind = "identity";
         int inliers = 0;
 
-        using var matrix = src.Length >= 4
-            ? EstimateTransform(src, dst, maxTranslation, out kind, out inliers)
+        using var searchMatrix = src.Length >= 4
+            ? EstimateTransform(src, dst, scaledMaxTranslation, out kind, out inliers)
             : HomogeneousTranslationMatrix(0, 0);
+        using var matrix = ScaleCoarseTransformToFullResolution(searchMatrix, searchScale);
+        searchReference.Dispose();
+        searchMoving.Dispose();
 
         if (src.Length >= 4)
         {
@@ -140,7 +159,17 @@ public static class ChannelAligner
 
         if (allowOrbRetry && detector == "sift" && matchCount > 0 && inliers / (double)matchCount < LowInlierRatio)
         {
-            return AlignChannel(reference, moving, sourceWidth, sourceHeight, outputFormat, "orb", maxFineIterations, maxTranslation, allowOrbRetry: false);
+            return AlignChannel(
+                reference,
+                moving,
+                sourceWidth,
+                sourceHeight,
+                outputFormat,
+                "orb",
+                maxFineIterations,
+                maxTranslation,
+                coarseAlignmentMaxSide,
+                allowOrbRetry: false);
         }
 
         var (fineImage, fineMask, shifts) = FineAlign(reference, warped, mask, maxFineIterations, maxTranslation);
@@ -549,6 +578,51 @@ public static class ChannelAligner
         return resized;
     }
 
+    private static (Mat Reference, Mat Moving, double Scale) CreateCoarseSearchMats(Mat reference, Mat moving, int maxSide)
+    {
+        if (maxSide <= 0)
+        {
+            return (reference.Clone(), moving.Clone(), 1.0);
+        }
+
+        var currentMaxSide = Math.Max(reference.Cols, reference.Rows);
+        if (currentMaxSide <= maxSide)
+        {
+            return (reference.Clone(), moving.Clone(), 1.0);
+        }
+
+        var scale = maxSide / (double)currentMaxSide;
+        var width = Math.Max(1, (int)Math.Round(reference.Cols * scale));
+        var height = Math.Max(1, (int)Math.Round(reference.Rows * scale));
+        return (ResizeClone(reference, width, height), ResizeClone(moving, width, height), scale);
+    }
+
+    private static Mat ResizeClone(Mat source, int width, int height)
+    {
+        var resized = new Mat();
+        Cv2.Resize(source, resized, new Size(width, height), interpolation: InterpolationFlags.Area);
+        return resized;
+    }
+
+    private static Mat ScaleCoarseTransformToFullResolution(Mat matrix, double scale)
+    {
+        if (Math.Abs(scale - 1.0) < 1e-12)
+        {
+            return matrix.Clone();
+        }
+
+        using var homogeneous = matrix.Rows == 3 && matrix.Cols == 3
+            ? matrix.Clone()
+            : ToHomogeneous(matrix);
+        using var full = new Mat();
+        homogeneous.ConvertTo(full, MatType.CV_64FC1);
+        full.Set(0, 2, full.At<double>(0, 2) / scale);
+        full.Set(1, 2, full.At<double>(1, 2) / scale);
+        full.Set(2, 0, full.At<double>(2, 0) * scale);
+        full.Set(2, 1, full.At<double>(2, 1) * scale);
+        return full.Clone();
+    }
+
     private static ChannelAlignmentTransform TransformFromMatrix(
         int sourceWidth,
         int sourceHeight,
@@ -572,6 +646,25 @@ public static class ChannelAligner
             doubleMatrix.Cols,
             values,
             shifts.ToArray());
+    }
+
+    private static ChannelAlignmentTransform IdentityTransform(
+        int sourceWidth,
+        int sourceHeight,
+        int outputWidth,
+        int outputHeight,
+        string kind)
+    {
+        return new ChannelAlignmentTransform(
+            sourceWidth,
+            sourceHeight,
+            outputWidth,
+            outputHeight,
+            kind,
+            3,
+            3,
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            []);
     }
 
     private static Mat MatrixFromTransform(ChannelAlignmentTransform transform)

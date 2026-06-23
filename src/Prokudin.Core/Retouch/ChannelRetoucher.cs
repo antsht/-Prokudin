@@ -90,7 +90,7 @@ public static class ChannelRetoucher
         var supportMultiplier = 1.90 - (sensitivity * 0.90);
         var supportOffset = 0.020f - (float)(sensitivity * 0.015);
         var rawMaskBytes = new byte[normalizedTarget.Length];
-        if (!CudaNative.TryDetectDefectMask(
+        if (!ImageComputeBackendFactory.CreateBest().TryDetectDefectMask(
                 normalizedTarget,
                 normalizedOther1,
                 normalizedOther2,

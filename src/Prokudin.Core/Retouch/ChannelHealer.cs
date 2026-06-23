@@ -339,7 +339,9 @@ public static class ChannelHealer
 
         ReportProgress(progress, 35);
         var globalPrediction = new float[pixelCount];
-        var usedCuda = CudaNative.TryPredictMasked(
+        var backend = ImageComputeBackendFactory.CreateBest();
+        var usedAcceleratedBackend = backend.Kind != AccelerationBackendKind.Cpu;
+        var usedBackend = backend.TryPredictMasked(
             targetValues,
             guide1Values,
             guide2Values,
@@ -348,8 +350,9 @@ public static class ChannelHealer
             model.B,
             model.C,
             globalPrediction);
-        if (!usedCuda)
+        if (!usedBackend)
         {
+            usedAcceleratedBackend = false;
             FillMaskedPredictionCpu(targetValues, guide1Values, guide2Values, defectMask, model, globalPrediction);
         }
 
@@ -501,7 +504,7 @@ public static class ChannelHealer
             });
         ReportProgress(progress, 95);
 
-        var backend = usedCuda ? "CUDA" : "CPU";
+        var backendLabel = usedAcceleratedBackend ? backend.Kind.ToString() : "CPU";
         healResult = new HealResult(
             result,
             defectMask,
@@ -509,7 +512,7 @@ public static class ChannelHealer
             UsedCrossChannel: true,
             UsedFallback: usedFallback,
             StatusMessage:
-            $"Large auto-clean: {backend} prediction + parallel patch ({components.Count} components, {defectPixelCount} px).");
+            $"Large auto-clean: {backendLabel} prediction + parallel patch ({components.Count} components, {defectPixelCount} px).");
         return true;
     }
 

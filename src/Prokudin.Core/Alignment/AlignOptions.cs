@@ -7,7 +7,8 @@ public sealed record AlignOptions(
     string Detector = "sift",
     int MaxFineIterations = 3,
     bool TrimBorders = true,
-    int MaxTranslation = 128)
+    int MaxTranslation = 128,
+    int CoarseAlignmentMaxSide = 1024)
 {
     /// <summary>
     /// Scales with channel size for archival scans. Used when <see cref="MaxTranslation"/> is 0 (auto).

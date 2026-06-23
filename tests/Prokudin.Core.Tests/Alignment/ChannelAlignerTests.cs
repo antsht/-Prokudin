@@ -51,6 +51,20 @@ public sealed class ChannelAlignerTests
     }
 
     [Fact]
+    public void AlignChannel_UsesIdentityForFeaturelessSiftChannel()
+    {
+        var reference = ImageBuffer.Filled(8, 8, 0.25f);
+        var moving = ImageBuffer.Filled(8, 8, 0.50f);
+
+        var result = ChannelAligner.AlignChannel(reference, moving, new AlignOptions(Detector: "sift", MaxFineIterations: 3));
+
+        result.TransformKind.Should().Be("identity");
+        result.InlierCount.Should().Be(0);
+        result.Mask.Should().OnlyContain(value => value == 1);
+        Mean(result.Image).Should().BeApproximately(0.50f, 0.001f);
+    }
+
+    [Fact]
     public void AlignChannel_AlignsLargeArchivalShift_WhenMaxTranslationAllows()
     {
         var reference = SyntheticFeatureChannel();
@@ -63,9 +77,26 @@ public sealed class ChannelAlignerTests
 
         result.Image.Width.Should().Be(reference.Width);
         result.Image.Height.Should().Be(reference.Height);
-        result.Mask.Count(value => value > 0).Should().BeGreaterThan(reference.Width * reference.Height / 2);
+        result.Mask.Count(value => value > 0).Should().BeGreaterThan((reference.Width - 18) * (reference.Height - 78) * 9 / 10);
         MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeLessThan(0.08f);
         result.SubpixelShifts.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void AlignChannel_UsesDownsampledCoarseSearch_WhenMaxSideIsSmall()
+    {
+        var reference = SyntheticFeatureChannel();
+        var moving = ChannelAligner.WarpTranslation(reference, reference.Width, reference.Height, dx: 7, dy: -5).Image;
+
+        var result = ChannelAligner.AlignChannel(
+            reference,
+            moving,
+            new AlignOptions(Detector: "sift", MaxFineIterations: 3, MaxTranslation: 32, CoarseAlignmentMaxSide: 64));
+
+        result.Image.Width.Should().Be(reference.Width);
+        result.Image.Height.Should().Be(reference.Height);
+        result.Mask.Count(value => value > 0).Should().BeGreaterThan(reference.Width * reference.Height / 2);
+        MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeLessThan(0.08f);
     }
 
     [Fact]

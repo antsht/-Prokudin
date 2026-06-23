@@ -4,8 +4,6 @@ public static class CudaBackendProbe
 {
     public static AccelerationBackendKind GetBackendKind()
     {
-        return CudaNative.IsAvailable
-            ? AccelerationBackendKind.CudaAvailable
-            : AccelerationBackendKind.Cpu;
+        return ImageComputeBackendFactory.CreateBest().Kind;
     }
 }

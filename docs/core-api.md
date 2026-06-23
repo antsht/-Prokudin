@@ -109,7 +109,8 @@ public sealed record AlignOptions(
     string Detector = "sift",
     int MaxFineIterations = 3,
     bool TrimBorders = true,
-    int MaxTranslation = 128);
+    int MaxTranslation = 128,
+    int CoarseAlignmentMaxSide = 1024);
 ```
 
 | Member | Description |
@@ -119,6 +120,7 @@ public sealed record AlignOptions(
 | `MaxFineIterations` | Phase-correlation loop cap; scales ECC iterations |
 | `TrimBorders` | Trim dark borders on channel load (pipeline paths) |
 | `MaxTranslation` | Per-axis shift limit; `0` enables auto-scale |
+| `CoarseAlignmentMaxSide` | Downsample max side for coarse SIFT/ORB search; full-resolution warp and fine alignment are still applied |
 
 Static helpers:
 
@@ -233,8 +235,9 @@ square.
 - gentle levels
 
 `ChannelExposure.Apply(ImageBuffer, float stops)` multiplies normalized pixels
-by `2^stops`. `ChannelExposureSettings` bundles per-channel stop values for the
-pipeline and GUI.
+by `2^stops`. It routes through the internal image compute backend chain when
+available and preserves CPU fallback behavior. `ChannelExposureSettings` bundles
+per-channel stop values for the pipeline and GUI.
 
 ## Retouch
 

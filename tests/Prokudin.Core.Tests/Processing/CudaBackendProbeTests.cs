@@ -10,6 +10,11 @@ public sealed class CudaBackendProbeTests
     {
         var backend = CudaBackendProbe.GetBackendKind();
 
-        backend.Should().BeOneOf(AccelerationBackendKind.Cpu, AccelerationBackendKind.CudaAvailable);
+        backend.Should().BeOneOf(
+            AccelerationBackendKind.Cpu,
+            AccelerationBackendKind.NativeCuda,
+            AccelerationBackendKind.IlgpuCuda,
+            AccelerationBackendKind.IlgpuOpenCl,
+            AccelerationBackendKind.IlgpuCpu);
     }
 }

@@ -80,6 +80,7 @@ Important packages:
 
 - OpenCvSharp4
 - OpenCvSharp4.runtime.win
+- ILGPU
 - SixLabors.ImageSharp
 - Avalonia
 - Avalonia.Desktop
@@ -96,14 +97,15 @@ index or row. Keep ImageSharp/OpenCV accessor lifetimes and native operations
 outside parallel loops unless the code first snapshots the data into managed
 arrays.
 
-`CudaBackendProbe` detects whether the optional `Prokudin.Cuda.dll` native
-library can be loaded and can see a CUDA device. CUDA kernels are not required
-for development or tests, and every accelerated feature must keep a CPU
-fallback.
+The internal image compute backend chain detects native CUDA, ILGPU CUDA/OpenCL,
+and CPU support. Native CUDA and ILGPU kernels are not required for development
+or tests, and every accelerated feature must keep a CPU fallback.
+
 The native DLL exports kernels for auto-clean mask classification and large-mask
-bulk prediction during auto-clean apply. Rebuild the DLL after changing
-`native\Prokudin.Cuda\ProkudinCuda.cu`; an older DLL simply makes Core fall back
-to CPU paths.
+bulk prediction during auto-clean apply. ILGPU provides portable C# kernels for
+the same operations and normalized exposure gain. Rebuild the native DLL after
+changing `native\Prokudin.Cuda\ProkudinCuda.cu`; an older DLL simply makes Core
+fall back to ILGPU or CPU paths.
 
 Build the CUDA backend on Windows with:
 

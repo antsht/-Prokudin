@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="OpenCvSharp4" />
     <PackageReference Include="OpenCvSharp4.runtime.win" />
+    <PackageReference Include="ILGPU" />
     <PackageReference Include="SixLabors.ImageSharp" />
   </ItemGroup>
 

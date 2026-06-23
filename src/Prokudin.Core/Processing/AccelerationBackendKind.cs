@@ -3,5 +3,9 @@ namespace Prokudin.Core.Processing;
 public enum AccelerationBackendKind
 {
     Cpu,
-    CudaAvailable,
+    NativeCuda,
+    CudaAvailable = NativeCuda,
+    IlgpuCuda,
+    IlgpuOpenCl,
+    IlgpuCpu,
 }

@@ -99,20 +99,22 @@ format on output.
 
 CPU-bound pixel and row loops use `Prokudin.Core.Processing.PixelParallel`,
 which keeps small buffers sequential and uses `Parallel.For` for larger managed
-arrays. This covers format conversion, exposure, color transforms, manual
-transforms, RGB merge/resize, retouch mask preparation, and GUI preview byte
-generation.
+arrays. This covers format conversion, color transforms, manual transforms, RGB
+merge/resize, retouch mask preparation, and GUI preview byte generation.
+
+Portable compute acceleration is routed through an internal image compute
+backend chain. The current chain tries native `Prokudin.Cuda.dll` when present,
+then an ILGPU CUDA/OpenCL accelerator when available, and finally the CPU
+backend. The accelerated kernels cover auto-clean raw mask classification,
+large-mask cross-channel prediction, and normalized exposure gain. Every kernel
+keeps CPU fallback behavior, so no reconstruction or GUI workflow requires GPU
+hardware.
 
 OpenCV calls remain sequential at the call site because they execute in native
-code and may use OpenCV's own threading. CUDA is optional: `CudaBackendProbe`
-checks whether `Prokudin.Cuda.dll` can be loaded and can see a CUDA device.
-Auto-clean mask classification uses the CUDA backend when available and falls
-back to the CPU path when the native library, driver, or kernel launch is
-unavailable. Large auto-clean apply masks use a conservative bulk path before
-connected-component healing: CUDA or `PixelParallel` computes the cross-channel
-prediction, then masked pixels are blended with one whole-mask Telea pass so a
-broad false-positive mask cannot collapse a channel into one of its guides. No
-reconstruction or GUI workflow requires CUDA.
+code and may use OpenCV's own threading. Alignment search still uses OpenCV
+SIFT/ORB, phase correlation, and ECC on CPU. Full-resolution GPU warp and
+Avalonia/Skia preview rendering are deferred until benchmarks show those paths
+are the dominant bottleneck.
 
 ## Retouch and Healing
 
@@ -214,6 +216,10 @@ inlier count, fine shifts).
 
 `AlignOptions.MaxTranslation` limits the per-axis translation component of
 accepted coarse transforms and each fine-alignment step.
+
+Coarse SIFT/ORB search runs on a downsampled copy when either channel exceeds
+`AlignOptions.CoarseAlignmentMaxSide` (default 1024 px). The transform matrix is
+scaled back to full resolution before OpenCV warp, phase correlation, and ECC.
 
 | Setting | Effective limit |
 | --- | --- |
