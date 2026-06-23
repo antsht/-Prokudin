@@ -80,6 +80,9 @@ export operate on overlap-cropped working buffers without re-running alignment.
 
 Retouch strokes and auto-clean apply call `ChannelHealer.HealChannel` on
 `Task.Run`. Cross-channel mode passes the two sibling channels as guides.
+Auto-clean detection prepares the reviewed mask before apply in the fixed order
+raw auto mask -> merge nearby defects -> expand healing area -> final healing
+mask; `ChannelHealer` receives that final mask only.
 
 After auto-align, the status bar shows per-channel alignment metadata from
 `AlignChannelMetadata.FormatStatus`.
@@ -115,7 +118,10 @@ reconstruction or GUI workflow requires CUDA.
 
 ```mermaid
 flowchart TD
-  stroke[Heal brush or auto-clean apply]
+  auto[Auto-clean detect]
+  auto --> prep[Merge nearby + expand healing mask]
+  prep --> stroke[Heal brush or auto-clean apply]
+  brush[Heal brush] --> stroke
   stroke --> guides{Cross-channel guides available?}
   guides -->|yes| large{Large mask?}
   large -->|yes| bulk[Bulk CUDA/CPU prediction + Telea blend]

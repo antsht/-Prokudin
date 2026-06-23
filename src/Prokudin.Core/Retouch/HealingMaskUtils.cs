@@ -80,7 +80,16 @@ internal static class HealingMaskUtils
 
     public static Rect BoundingRect(Mat mask) => Cv2.BoundingRect(mask);
 
-    private static Mat Dilate(Mat mask, int radius)
+    public static Mat MorphologicalClose(Mat mask, int radius)
+    {
+        var size = Math.Max(1, radius * 2 + 1);
+        using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(size, size));
+        var closed = new Mat();
+        Cv2.MorphologyEx(mask, closed, MorphTypes.Close, kernel);
+        return closed;
+    }
+
+    public static Mat Dilate(Mat mask, int radius)
     {
         var size = Math.Max(1, radius * 2 + 1);
         using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(size, size));

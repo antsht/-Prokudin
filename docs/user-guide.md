@@ -74,9 +74,12 @@ Toolbar controls:
 | --- | --- | --- |
 | **Brush** | — | Brush diameter for heal and stamp strokes. |
 | **Radius** | 3 | Inpaint/patch radius passed to `HealOptions`. |
+| **Merge** | on | Merge nearby auto-clean defects into one healing area. |
+| **Gap** | 3 | Maximum nearby-defect merge distance in pixels. |
+| **Expand** | 2 | Expand the final auto-clean healing mask in pixels. |
 | **Cross-channel** | on | Use aligned sibling channels as healing guides. |
 | **Telea** | off | When cross-channel is off, use OpenCV Telea instead of patch healing. |
-| **Debug heal** | off | Write debug PNGs to `debug/heal/{timestamp}/` under the working directory. |
+| **Debug heal** | off | Write healing debug PNGs and auto-clean mask-stage PNGs under the working directory. |
 
 Heal strokes run asynchronously (`Task.Run`). The status bar reports pixel counts
 and fallback messages (for example when guides are unavailable).
@@ -130,6 +133,9 @@ While a mask is pending:
   dust and scratch candidates; manual mask edits are preserved over the redraw.
 - **Radius** sets the heal/inpaint radius used when the mask is applied (shared
   with the heal brush).
+- **Merge**, **Gap**, and **Expand** prepare the reviewed healing mask in this
+  order: raw auto mask -> merge nearby defects -> expand healing area -> final
+  healing mask.
 - `Ctrl+click` adds a brush-sized spot to the mask.
 - `Alt+click` removes a brush-sized spot from the mask.
 - `Ctrl+drag` adds a rectangular mask area.

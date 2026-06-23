@@ -273,6 +273,19 @@ Normalized radius helpers: `NormalizedPatchRadius`, `NormalizedInpaintRadius`, e
 
 ### `ChannelRetoucher`
 
+Auto-clean detection prepares its healing mask before review or healing:
+
+```text
+raw auto mask -> merge nearby defects -> expand healing area -> final healing mask
+```
+
+`ChannelHealer` receives only the final healing mask. Merge and expand operations
+modify mask data only; source image channels are not changed during mask
+preparation.
+
+`PrepareAutoCleanMask(rawAutoMask, width, height, settings)` is available for
+synthetic tests and callers that already have a raw auto-clean mask.
+
 - `InpaintMask(image, mask, radius)` — OpenCV Telea inpaint
 - `DetectSingleChannelDefects(target, other1, other2, settings)` — auto-clean mask
 - `AutoClean(image, settings)` — legacy detect-and-inpaint
@@ -281,8 +294,45 @@ Normalized radius helpers: `NormalizedPatchRadius`, `NormalizedInpaintRadius`, e
 
 ### `AutoCleanSettings`
 
+Additional auto-clean mask preparation fields:
+
+- `AutoExpandHealingAreaPx` defaults to 2 and is normalized to 0-10 px.
+- `AutoMergeNearbyDefects` defaults to true.
+- `AutoMergeDistancePx` defaults to 3 and is normalized to 0-20 px.
+- `MaxAutoExpandedComponentArea` defaults to 10000; if preparation creates a
+  larger component, merge/expand radii are reduced until the component fits or
+  both radii reach zero.
+- `DebugOutput`, `DebugOutputDirectory`, and `DebugMaskPrefix` control raw,
+  merged, expanded, and final mask PNG output.
+
+### `AutoCleanMaskResult`
+
+`Mask` remains the backward-compatible final mask. `CandidatePixels` counts
+pixels in the final mask.
+
 ```csharp
-public sealed record AutoCleanSettings(int Sensitivity = 50, int InpaintRadius = 3);
+public sealed record AutoCleanMaskResult(byte[] Mask, int CandidatePixels)
+{
+    public byte[] RawMask { get; init; }
+    public byte[] MergedMask { get; init; }
+    public byte[] ExpandedMask { get; init; }
+    public byte[] FinalMask { get; init; }
+}
+```
+
+### `AutoCleanSettings` signature
+
+```csharp
+public sealed record AutoCleanSettings(
+    int Sensitivity = 50,
+    int InpaintRadius = 3,
+    int AutoExpandHealingAreaPx = 2,
+    bool AutoMergeNearbyDefects = true,
+    int AutoMergeDistancePx = 3,
+    int MaxAutoExpandedComponentArea = 10000,
+    bool DebugOutput = false,
+    string? DebugOutputDirectory = null,
+    string? DebugMaskPrefix = null);
 ```
 
 `Sensitivity` is 0–100 (GUI **Agg** slider). `InpaintRadius` is 1–24.

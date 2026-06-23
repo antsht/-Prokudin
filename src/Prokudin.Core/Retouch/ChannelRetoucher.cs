@@ -44,7 +44,8 @@ public static class ChannelRetoucher
         Cv2.Threshold(residual, rawMask, threshold, 255, ThresholdTypes.Binary);
 
         using var filteredMask = FilterSmallDefects(rawMask, image.Width, image.Height);
-        var mask = MaskFromMat(filteredMask);
+        var preparedMask = PrepareAutoCleanMask(MaskFromMat(filteredMask), image.Width, image.Height, settings);
+        var mask = preparedMask.FinalMask;
         var cleaned = mask.Any(value => value > 0)
             ? InpaintMask(image, mask, settings.NormalizedInpaintRadius)
             : image.Clone();
@@ -123,9 +124,49 @@ public static class ChannelRetoucher
         ReportProgress(progress, 96);
         using var rawMask = MaskToMat(rawMaskBytes, target.Width, target.Height);
         using var filteredMask = FilterSmallDefects(rawMask, target.Width, target.Height, sensitivity);
-        var mask = MaskFromMat(filteredMask);
+        var result = PrepareAutoCleanMask(MaskFromMat(filteredMask), target.Width, target.Height, settings);
         ReportProgress(progress, 100);
-        return new AutoCleanMaskResult(mask, mask.Count(value => value > 0));
+        return result;
+    }
+
+    public static AutoCleanMaskResult PrepareAutoCleanMask(
+        byte[] rawAutoMask,
+        int width,
+        int height,
+        AutoCleanSettings settings)
+    {
+        ValidateMaskDimensions(rawAutoMask, width, height);
+
+        var raw = NormalizeMask(rawAutoMask);
+        var mergeRadius = settings.AutoMergeNearbyDefects ? settings.NormalizedAutoMergeDistancePx : 0;
+        var expandRadius = settings.NormalizedAutoExpandHealingAreaPx;
+        AutoCleanMaskResult result;
+        do
+        {
+            result = PrepareAutoCleanMask(raw, width, height, mergeRadius, expandRadius);
+            if (!HasOversizedComponent(result.FinalMask, width, height, settings.NormalizedMaxAutoExpandedComponentArea) ||
+                (mergeRadius == 0 && expandRadius == 0))
+            {
+                break;
+            }
+
+            if (expandRadius > 0)
+            {
+                expandRadius--;
+            }
+            else
+            {
+                mergeRadius--;
+            }
+        }
+        while (true);
+
+        if (settings.DebugOutput)
+        {
+            HealingDebugWriter.SaveAutoCleanMaskDebug(settings, result, width, height);
+        }
+
+        return result;
     }
 
     public static byte[] CreateBrushMask(int width, int height, IReadOnlyList<RetouchStroke> strokes)
@@ -555,6 +596,104 @@ public static class ChannelRetoucher
     }
 
     private static Mat ToU8(ImageBuffer image) => ImageMatConverter.ToUInt8MatForInpaint(image);
+
+    private static AutoCleanMaskResult PrepareAutoCleanMask(
+        byte[] raw,
+        int width,
+        int height,
+        int mergeRadius,
+        int expandRadius)
+    {
+        using var rawMat = MaskToMat(raw, width, height);
+        using var mergedMat = mergeRadius > 0
+            ? MergeNearbyDefects(rawMat, mergeRadius)
+            : rawMat.Clone();
+        using var expandedMat = expandRadius > 0
+            ? HealingMaskUtils.Dilate(mergedMat, expandRadius)
+            : mergedMat.Clone();
+
+        var merged = MaskFromMat(mergedMat);
+        var expanded = MaskFromMat(expandedMat);
+        var final = (byte[])expanded.Clone();
+        return new AutoCleanMaskResult(final, final.Count(value => value > 0))
+        {
+            RawMask = (byte[])raw.Clone(),
+            MergedMask = merged,
+            ExpandedMask = expanded,
+            FinalMask = final,
+        };
+    }
+
+    private static Mat MergeNearbyDefects(Mat rawMask, int radius)
+    {
+        var originalComponentCount = CountConnectedComponents(rawMask);
+        var closed = HealingMaskUtils.MorphologicalClose(rawMask, radius);
+        if (CountConnectedComponents(closed) < originalComponentCount)
+        {
+            return closed;
+        }
+
+        var dilated = HealingMaskUtils.Dilate(rawMask, radius);
+        if (CountConnectedComponents(dilated) < originalComponentCount)
+        {
+            closed.Dispose();
+            return dilated;
+        }
+
+        dilated.Dispose();
+        return closed;
+    }
+
+    private static int CountConnectedComponents(Mat mask)
+    {
+        using var labels = new Mat();
+        return Cv2.ConnectedComponents(mask, labels, PixelConnectivity.Connectivity8, MatType.CV_32S) - 1;
+    }
+
+    private static bool HasOversizedComponent(byte[] mask, int width, int height, int maxArea)
+    {
+        var components = HealingMaskUtils.FindComponents(mask, width, height);
+        try
+        {
+            return components.Any(component => HealingMaskUtils.CountNonZero(component) > maxArea);
+        }
+        finally
+        {
+            foreach (var component in components)
+            {
+                component.Dispose();
+            }
+        }
+    }
+
+    private static void ValidateMaskDimensions(byte[] mask, int width, int height)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height));
+        }
+
+        if (mask.Length != width * height)
+        {
+            throw new ArgumentException("Mask dimensions must match the image.", nameof(mask));
+        }
+    }
+
+    private static byte[] NormalizeMask(byte[] mask)
+    {
+        var normalized = new byte[mask.Length];
+        PixelParallel.For(0, mask.Length, i =>
+        {
+            normalized[i] = mask[i] > 0 ? (byte)1 : (byte)0;
+        });
+
+        return normalized;
+    }
 
     private static void ReportProgress(IProgress<double>? progress, double value)
     {

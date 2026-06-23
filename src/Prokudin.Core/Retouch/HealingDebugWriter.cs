@@ -40,6 +40,24 @@ internal static class HealingDebugWriter
         SaveBuffer(Path.Combine(directory, "original_channel.png"), original);
     }
 
+    public static void SaveAutoCleanMaskDebug(
+        AutoCleanSettings settings,
+        AutoCleanMaskResult result,
+        int width,
+        int height)
+    {
+        var directory = string.IsNullOrWhiteSpace(settings.DebugOutputDirectory)
+            ? Path.Combine(Directory.GetCurrentDirectory(), "debug", "auto-clean", DateTime.Now.ToString("yyyyMMdd-HHmmss"))
+            : settings.DebugOutputDirectory;
+        Directory.CreateDirectory(directory);
+
+        var prefix = settings.DebugMaskPrefix ?? string.Empty;
+        SaveMask(Path.Combine(directory, $"{prefix}auto_defect_mask_raw.png"), result.RawMask, width, height);
+        SaveMask(Path.Combine(directory, $"{prefix}auto_defect_mask_merged.png"), result.MergedMask, width, height);
+        SaveMask(Path.Combine(directory, $"{prefix}auto_defect_mask_expanded.png"), result.ExpandedMask, width, height);
+        SaveMask(Path.Combine(directory, $"{prefix}final_healing_mask.png"), result.FinalMask, width, height);
+    }
+
     private static string EnsureSessionDirectory(HealOptions options)
     {
         if (_sessionDirectory is not null && Directory.Exists(_sessionDirectory))
@@ -70,6 +88,12 @@ internal static class HealingDebugWriter
         using var u8 = new Mat();
         mat.ConvertTo(u8, MatType.CV_8UC1, 255.0);
         Cv2.ImWrite(path, u8);
+    }
+
+    private static void SaveMask(string path, byte[] mask, int width, int height)
+    {
+        using var maskMat = HealingMaskUtils.MaskToMat(mask, width, height);
+        Cv2.ImWrite(path, maskMat);
     }
 
     private static float[] BuildConfidenceMap(int pixelCount, float confidence)

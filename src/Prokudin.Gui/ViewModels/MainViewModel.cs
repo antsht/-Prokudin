@@ -156,6 +156,15 @@ public sealed partial class MainViewModel : ObservableObject
     private int autoCleanRadius = 3;
 
     [ObservableProperty]
+    private int autoExpandHealingAreaPx = 2;
+
+    [ObservableProperty]
+    private bool autoMergeNearbyDefects = true;
+
+    [ObservableProperty]
+    private int autoMergeDistancePx = 3;
+
+    [ObservableProperty]
     private bool isAutoCleanProgressVisible;
 
     [ObservableProperty]
@@ -436,7 +445,7 @@ public sealed partial class MainViewModel : ObservableObject
                 }
 
                 Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
-                var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
+                var settings = CreateAutoCleanSettings(channelName);
                 var progress = CreateAutoCleanProgress(progressScope);
                 var result = await Task.Run(
                     () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress));
@@ -997,6 +1006,29 @@ public sealed partial class MainViewModel : ObservableObject
             DebugOutput: DebugHealOutput);
     }
 
+    private AutoCleanSettings CreateAutoCleanSettings(ChannelName channelName)
+    {
+        return new AutoCleanSettings(
+            Sensitivity: AutoCleanSensitivity,
+            InpaintRadius: AutoCleanRadius,
+            AutoExpandHealingAreaPx: AutoExpandHealingAreaPx,
+            AutoMergeNearbyDefects: AutoMergeNearbyDefects,
+            AutoMergeDistancePx: AutoMergeDistancePx,
+            DebugOutput: DebugHealOutput,
+            DebugMaskPrefix: $"{ChannelDebugPrefix(channelName)}_");
+    }
+
+    private static string ChannelDebugPrefix(ChannelName channelName)
+    {
+        return channelName switch
+        {
+            ChannelName.Red => "R",
+            ChannelName.Green => "G",
+            ChannelName.Blue => "B",
+            _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
+        };
+    }
+
     private bool TryGetHealingGuides(ChannelName channelName, out ImageBuffer? guide1, out ImageBuffer? guide2)
     {
         guide1 = null;
@@ -1134,7 +1166,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             progressScope = BeginAutoCleanProgress();
             var progress = CreateAutoCleanProgress(progressScope);
-            var settings = new AutoCleanSettings(AutoCleanSensitivity, AutoCleanRadius);
+            var settings = CreateAutoCleanSettings(channelName);
             var result = await Task.Run(
                 () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress),
                 cancellationToken);
@@ -1583,6 +1615,21 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     partial void OnAutoCleanSensitivityChanged(int value)
+    {
+        SchedulePendingAutoCleanMaskRefresh();
+    }
+
+    partial void OnAutoExpandHealingAreaPxChanged(int value)
+    {
+        SchedulePendingAutoCleanMaskRefresh();
+    }
+
+    partial void OnAutoMergeNearbyDefectsChanged(bool value)
+    {
+        SchedulePendingAutoCleanMaskRefresh();
+    }
+
+    partial void OnAutoMergeDistancePxChanged(int value)
     {
         SchedulePendingAutoCleanMaskRefresh();
     }

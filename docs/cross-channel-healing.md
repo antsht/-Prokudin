@@ -20,7 +20,9 @@ See also: [User Guide](user-guide.md#cross-channel-healing), [Core API](core-api
 3. Internal `CrossChannelGuided` fallback → **Patch**; external fallback (guides unavailable) → **Telea**.
 4. Conservative mode for components > 5000 px: capped alpha, Patch-heavy — no separate UI warning (status bar only when guides unavailable).
 5. Debug output → `debug/heal/{timestamp}/` relative to cwd; directory listed in `.gitignore`.
-6. `DetectSingleChannelDefects` unchanged in v1; only Heal Brush and Auto-clean Apply paths change.
+6. Auto-clean detection prepares a final healing mask before review/apply:
+   raw auto mask -> merge nearby defects -> expand healing area -> final healing mask.
+   Mask preparation never mutates source image channels.
 7. Patch donor selection v1: **one best donor per connected component** (not per-pixel sliding).
 
 ## Decision Log
@@ -104,6 +106,24 @@ flowchart TD
 
 ## Algorithm
 
+### Auto-clean mask preparation
+
+Automatic defect detection returns a prepared healing mask in this fixed order:
+
+```text
+raw auto mask -> merge nearby defects -> expand healing area -> final healing mask
+```
+
+After raw detection and existing small-component filtering, nearby defects are
+merged with morphological close when `AutoMergeNearbyDefects` is enabled and
+`AutoMergeDistancePx > 0`. The healing area is then expanded with dilation by
+`AutoExpandHealingAreaPx`.
+
+If a prepared component exceeds `MaxAutoExpandedComponentArea`, preparation
+retries with smaller merge/expand radii until the component fits or both radii
+reach zero. `ChannelHealer` receives only the final healing mask, and pixels
+outside that mask remain unchanged.
+
 ### A. Local Cross-Channel Prediction
 
 Per connected component:
@@ -183,6 +203,9 @@ Key `HealOptions` fields:
 |---------|---------|---------|
 | Use cross-channel healing | ON | No |
 | Healing sub-mode (Telea/Patch) | Patch | No |
+| Merge nearby defects | ON | No |
+| Auto-clean merge distance | 3 px | No |
+| Auto-clean healing expansion | 2 px | No |
 | Debug heal output | OFF | No |
 
 Guide resolution by selected channel:
@@ -199,6 +222,10 @@ B → guides R, G
 
 When `debugOutput = true`, write to `debug/heal/{yyyyMMdd-HHmmss}/`:
 
+- `R_auto_defect_mask_raw.png`, `G_...`, `B_...`
+- `R_auto_defect_mask_merged.png`, `G_...`, `B_...`
+- `R_auto_defect_mask_expanded.png`, `G_...`, `B_...`
+- `R_final_healing_mask.png`, `G_...`, `B_...`
 - `mask_target.png`
 - `component_debug.png`
 - `prediction_channel.png`
