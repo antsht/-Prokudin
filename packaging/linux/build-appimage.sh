@@ -35,12 +35,13 @@ if [[ ! -f "$APPIMAGETOOL" ]]; then
 fi
 
 export ARCH=x86_64
+export APPIMAGE_EXTRACT_AND_RUN=1
 
 # Build AppDir only. Do not use linuxdeploy --output appimage here: its plugin
 # tries to execute the AppImage after packaging, which fails on CI without FUSE.
 ./"$LINUXDEPLOY" --appdir "$APPDIR" --desktop-file="$APPDIR/prokudin.desktop" --icon-file="$APPDIR/prokudin.png"
 
 export VERSION="$VERSION"
-./"$APPIMAGETOOL" "$APPDIR" "$OUTPUT_APPIMAGE"
+./"$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT_APPIMAGE"
 
 echo "Created $OUTPUT_APPIMAGE"

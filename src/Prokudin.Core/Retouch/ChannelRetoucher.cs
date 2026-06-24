@@ -27,7 +27,7 @@ public static class ChannelRetoucher
         using var source = ImageMatConverter.ToUInt8MatForInpaint(image);
         using var maskMat = MaskToMat(mask, image.Width, image.Height);
         using var cleaned = new Mat();
-        Cv2.Inpaint(source, maskMat, cleaned, Math.Clamp(radius, 1, 24), InpaintMethod.Telea);
+        Cv2.Inpaint(source, maskMat, cleaned, Math.Clamp(radius, 1, 24), InpaintTypes.Telea);
         return ImageMatConverter.FromMat(cleaned, format);
     }
 

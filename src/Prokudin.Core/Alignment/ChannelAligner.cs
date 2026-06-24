@@ -491,7 +491,7 @@ public static class ChannelAligner
     {
         using var refPositive = new Mat();
         var overlap = new Mat();
-        Cv2.Compare(reference, Scalar.Black, refPositive, CmpType.GT);
+        Cv2.Compare(reference, Scalar.Black, refPositive, CmpTypes.GT);
         Cv2.BitwiseAnd(refPositive, mask, overlap);
         Cv2.Threshold(overlap, overlap, 0, 1, ThresholdTypes.Binary);
         return overlap;
