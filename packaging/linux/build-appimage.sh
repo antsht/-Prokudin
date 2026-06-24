@@ -41,7 +41,6 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 # tries to execute the AppImage after packaging, which fails on CI without FUSE.
 ./"$LINUXDEPLOY" --appdir "$APPDIR" --desktop-file="$APPDIR/prokudin.desktop" --icon-file="$APPDIR/prokudin.png"
 
-export VERSION="$VERSION"
 ./"$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUTPUT_APPIMAGE"
 
 echo "Created $OUTPUT_APPIMAGE"

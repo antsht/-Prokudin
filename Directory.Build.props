@@ -9,5 +9,6 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <NuGetAudit>false</NuGetAudit>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
 </Project>

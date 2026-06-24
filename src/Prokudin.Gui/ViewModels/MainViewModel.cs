@@ -1801,7 +1801,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private string FormatAlignSummary(ChannelName channelName)
     {
-        if (lastAligned?.AlignMetadata.TryGetValue(channelName, out var info) != true)
+        if (lastAligned is null ||
+            !lastAligned.AlignMetadata.TryGetValue(channelName, out var info))
         {
             return $"{FormatAlignSummaryLabel(channelName)}: —";
         }
