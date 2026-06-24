@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Prokudin
+Comment=RGB reconstruction for Prokudin-Gorskii channel images
+Exec=Prokudin
+Icon=prokudin
+Categories=Graphics;
+Terminal=false

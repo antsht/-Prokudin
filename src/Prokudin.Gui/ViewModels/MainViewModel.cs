@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
@@ -31,6 +32,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore;
     private readonly IAutoCleanSettingsStore autoCleanSettingsStore;
     private readonly IUiSettingsStore uiSettingsStore;
+    private readonly IUpdateChecker updateChecker;
     private readonly StringBuilder processingLog = new();
     private readonly object processingLogSync = new();
     private bool processingLogRefreshScheduled;
@@ -102,12 +104,24 @@ public sealed partial class MainViewModel : ObservableObject
         IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
         IAutoCleanSettingsStore autoCleanSettingsStore,
         IUiSettingsStore uiSettingsStore)
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, autoCleanSettingsStore, uiSettingsStore, new GitHubReleaseUpdateChecker())
+    {
+    }
+
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IExportSettingsStore exportSettingsStore,
+        IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
+        IAutoCleanSettingsStore autoCleanSettingsStore,
+        IUiSettingsStore uiSettingsStore,
+        IUpdateChecker updateChecker)
     {
         this.fileDialogService = fileDialogService;
         this.exportSettingsStore = exportSettingsStore;
         this.diagnosticsSettingsStore = diagnosticsSettingsStore;
         this.autoCleanSettingsStore = autoCleanSettingsStore;
         this.uiSettingsStore = uiSettingsStore;
+        this.updateChecker = updateChecker;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -1097,6 +1111,39 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         await new AboutDialog().ShowDialog(ownerWindow);
+    }
+
+    [RelayCommand]
+    private async Task CheckForUpdates()
+    {
+        if (ownerWindow is null)
+        {
+            return;
+        }
+
+        Status = "Checking for updates...";
+        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0, 0);
+        var result = await Task.Run(() => updateChecker.CheckForUpdatesAsync(currentVersion)).ConfigureAwait(true);
+
+        if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            Status = $"Update check failed: {result.ErrorMessage}";
+            AppendLog(Status);
+            return;
+        }
+
+        if (!result.IsUpdateAvailable)
+        {
+            Status = "You are up to date.";
+            AppendLog(Status);
+            return;
+        }
+
+        Status = result.LatestVersion is null
+            ? "A newer release is available on GitHub."
+            : $"Update available: {result.LatestVersion}.";
+        AppendLog(Status);
+        await new UpdateAvailableDialog(result).ShowDialog(ownerWindow);
     }
 
     [RelayCommand]

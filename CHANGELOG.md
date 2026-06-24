@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-24
+
+### Added
+
+- GitHub Actions CI (Windows + Linux) and release workflow for `win-x64` and `linux-x64`
+- Windows installer (Inno Setup), portable GUI zip, and CLI zip
+- Linux AppImage, portable GUI tar.gz, and CLI tar.gz
+- Help → Check for updates (GitHub Releases API, opens release page)
+- RID-specific OpenCvSharp native runtimes (`win` + `linux-x64.slim`)
+- Packaging scripts under `packaging/` and release maintainer guide `docs/release.md`
+
+### Changed
+
+- Published GUI binary name: `Prokudin.exe` / `Prokudin`
+- Published CLI binary name: `prokudin.exe` / `prokudin`
+
 ## [0.8.0] - 2026-06-24
 
 ### Added

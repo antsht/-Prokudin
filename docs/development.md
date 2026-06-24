@@ -71,6 +71,23 @@ dotnet run --project src\Prokudin.Cli\Prokudin.Cli.csproj -- reconstruct --tript
 dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 ```
 
+Published GUI binary name: `Prokudin` / `Prokudin.exe`.
+
+## CI And Releases
+
+- **CI:** `.github/workflows/ci.yml` — `dotnet test` on `ubuntu-latest` and `windows-latest` for every push/PR to `main`/`master`.
+- **Release:** `.github/workflows/release.yml` — triggered by `v*` tags (or manual dispatch). Builds GUI + CLI for `win-x64` and `linux-x64`, packages installer/AppImage/portable archives, publishes GitHub Release with `SHA256SUMS.txt`.
+- Maintainer checklist: [`docs/release.md`](release.md)
+- Design spec: [`docs/superpowers/specs/2026-06-24-distribution-design.md`](superpowers/specs/2026-06-24-distribution-design.md)
+
+Local publish example:
+
+```powershell
+dotnet publish src/Prokudin.Gui/Prokudin.Gui.csproj -c Release -r win-x64 -o dist/gui
+```
+
+Publish properties (`SelfContained`, single-file, native extract) apply automatically when `-r` is set via `packaging/Directory.Build.props`.
+
 ## Package Management
 
 Package versions are centralized in `Directory.Packages.props`.
@@ -78,7 +95,8 @@ Package versions are centralized in `Directory.Packages.props`.
 Important packages:
 
 - OpenCvSharp4
-- OpenCvSharp4.runtime.win
+- OpenCvSharp4.runtime.win (Windows / `win-x64` publish)
+- OpenCvSharp4.official.runtime.linux-x64.slim (`linux-x64` publish and Linux CI)
 - ILGPU
 - SixLabors.ImageSharp
 - Avalonia
@@ -146,6 +164,5 @@ The app builds and runs; modern `DataTransfer` drag/drop can be adopted later.
 
 - Add golden comparison tests using archived sample channels.
 - Expose `MaxTranslation` and manual alignment nudge in the Avalonia UI.
-- Validate OpenCvSharp native runtime packages for Linux and macOS.
-- Add publish profiles or CI jobs for Windows first.
+- macOS distribution: OpenCV osx runtime, signed DMG, notarization.
 - Expose loupe, pipette balance, and temperature/tint controls in Avalonia.

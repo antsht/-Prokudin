@@ -1,4 +1,6 @@
 *.png
+!assets/*.png
+!assets/*.ico
 *.tiff
 *.tif
 bin/
@@ -8,3 +10,7 @@ test_images/
 debug/heal/
 .vscode/*
 .vscode/settings.json
+dist/
+.tmp-publish/
+linuxdeploy*.AppImage
+appimagetool*.AppImage

@@ -83,6 +83,7 @@
       <MenuItem Header="_Help">
         <MenuItem Header="_User Guide" Command="{Binding OpenUserGuideCommand}" />
         <MenuItem Header="_Keyboard Shortcuts" Command="{Binding ShowKeyboardShortcutsCommand}" />
+        <MenuItem Header="Check for _Updates..." Command="{Binding CheckForUpdatesCommand}" />
         <MenuItem Header="_About Prokudin" Command="{Binding ShowAboutCommand}" />
       </MenuItem>
     </Menu>

@@ -105,7 +105,7 @@ context command bar (quick actions) and a right **inspector** (detailed paramete
 - fit-to-window / 1:1 preview zoom
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
 - View menu: Light/Dark/System theme, panel visibility toggles
-- Help menu: user guide, keyboard shortcuts, About dialog
+- Help menu: user guide, keyboard shortcuts, check for updates, About dialog
 
 Keep GUI actions asynchronous for image load, alignment, and export. Avoid doing
 large image work on the UI thread. Context bar controls bind `IsUiEnabled` when
@@ -143,13 +143,30 @@ dotnet test Prokudin.slnx
 dotnet build src\Prokudin.Gui\Prokudin.Gui.csproj
 ```
 
+CI: `.github/workflows/ci.yml` runs tests on `ubuntu-latest` and `windows-latest` for push/PR.
+
+## Distribution Facts
+
+- **Releases:** GitHub Releases via `.github/workflows/release.yml` on `v*` tags.
+- **Phase 1 platforms:** `win-x64`, `linux-x64` (GUI + CLI).
+- **Windows artifacts:** Inno Setup installer, portable GUI zip, CLI zip.
+- **Linux artifacts:** AppImage, portable GUI tar.gz, CLI tar.gz.
+- **Publish:** self-contained single-file when `-r` is set (`packaging/Directory.Build.props`).
+- **Binary names:** GUI `Prokudin` / `Prokudin.exe`; CLI `prokudin` / `prokudin.exe`.
+- **Update check:** Help → Check for updates → GitHub `releases/latest` → open release page (`GitHubReleaseUpdateChecker`).
+- **Maintainer guide:** `docs/release.md`; design spec `docs/superpowers/specs/2026-06-24-distribution-design.md`.
+- **macOS:** not released yet (codesign/notarization deferred).
+
 Known warning: `NU1903` for Avalonia transitive `Tmds.DBus.Protocol`.
 
 ## Runtime Caveat
 
-OpenCvSharp native runtime is currently wired with `OpenCvSharp4.runtime.win`.
-Do not claim Linux/macOS release support until native OpenCV runtime packaging
-has been validated for those RIDs.
+OpenCvSharp native runtimes are RID-specific:
+
+- Windows / `win-x64`: `OpenCvSharp4.runtime.win`
+- Linux / `linux-x64`: `OpenCvSharp4.official.runtime.linux-x64.slim`
+
+Do not claim macOS release support until osx runtime packaging and notarization are validated.
 
 ## Imaging Facts
 

@@ -31,14 +31,29 @@ made from those negatives.
 
 ## Requirements
 
-- .NET SDK 10
-- Windows for the currently wired OpenCvSharp native runtime package
+- .NET SDK 10 for building from source
 - PNG, JPEG, TIFF input images
 
-OpenCV alignment is implemented through OpenCvSharp. The current native runtime
-package is Windows-specific. Linux and macOS publishing still need RID-specific
-OpenCV runtime validation before they should be treated as supported release
-targets.
+**Prebuilt releases** (no SDK required): Windows x64 and Linux x64 — see
+[GitHub Releases](https://github.com/antsht/-Prokudin/releases).
+
+OpenCV alignment uses OpenCvSharp with RID-specific native runtimes:
+
+- Windows: `OpenCvSharp4.runtime.win`
+- Linux: `OpenCvSharp4.official.runtime.linux-x64.slim`
+
+macOS releases are not published yet (codesign/notarization pending).
+
+## Download
+
+| Platform | GUI | CLI |
+| --- | --- | --- |
+| Windows x64 | `Prokudin-{version}-win-x64-setup.exe` or portable zip | `Prokudin-Cli-{version}-win-x64.zip` |
+| Linux x64 | `Prokudin-{version}-linux-x64.AppImage` or portable tar.gz | `Prokudin-Cli-{version}-linux-x64.tar.gz` |
+
+Checksums: `SHA256SUMS.txt` on each release page.
+
+In the GUI: **Help → Check for updates** compares your build to the latest GitHub release.
 
 ## Build And Test
 
@@ -79,6 +94,8 @@ Three separate channel files:
 dotnet run --project src\Prokudin.Cli\Prokudin.Cli.csproj -- reconstruct red.png green.png blue.png -o output.png
 ```
 
+Published CLI binary name: `prokudin` / `prokudin.exe`.
+
 Single triptych:
 
 ```powershell
@@ -106,4 +123,5 @@ Supported options:
 - [Architecture](docs/architecture.md)
 - [Core API Reference](docs/core-api.md)
 - [Development Guide](docs/development.md)
+- [Release Process](docs/release.md)
 - [Cross-Channel Guided Healing](docs/cross-channel-healing.md)
