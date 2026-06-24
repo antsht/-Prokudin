@@ -9,6 +9,10 @@
   #define PublishDir "..\..\dist\gui"
 #endif
 
+#ifndef OutputDir
+  #define OutputDir "..\..\dist\installer"
+#endif
+
 #define MyAppName "Prokudin"
 #define MyAppPublisher "Prokudin"
 #define MyAppExeName "Prokudin.exe"
@@ -26,7 +30,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=
-OutputDir=..\..\dist\installer
+OutputDir={#OutputDir}
 OutputBaseFilename=Prokudin-{#MyAppVersion}-win-x64-setup
 Compression=lzma2/ultra64
 SolidCompression=yes

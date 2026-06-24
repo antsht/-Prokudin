@@ -8,9 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ASSETS_DIR="$REPO_ROOT/assets"
 APPDIR="$OUTPUT_DIR/Prokudin.AppDir"
+OUTPUT_APPIMAGE="$OUTPUT_DIR/Prokudin-${VERSION}-linux-x64.AppImage"
 
 rm -rf "$APPDIR"
-mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$OUTPUT_DIR" "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 
 cp "$PUBLISH_DIR/Prokudin" "$APPDIR/usr/bin/Prokudin"
 chmod +x "$APPDIR/usr/bin/Prokudin"
@@ -34,16 +35,12 @@ if [[ ! -f "$APPIMAGETOOL" ]]; then
 fi
 
 export ARCH=x86_64
+
+# Build AppDir only. Do not use linuxdeploy --output appimage here: its plugin
+# tries to execute the AppImage after packaging, which fails on CI without FUSE.
+./"$LINUXDEPLOY" --appdir "$APPDIR" --desktop-file="$APPDIR/prokudin.desktop" --icon-file="$APPDIR/prokudin.png"
+
 export VERSION="$VERSION"
+./"$APPIMAGETOOL" "$APPDIR" "$OUTPUT_APPIMAGE"
 
-./"$LINUXDEPLOY" --appdir "$APPDIR" --desktop-file="$APPDIR/prokudin.desktop" --icon-file="$APPDIR/prokudin.png" --output appimage
-
-APPIMAGE_FILE="$(find "$OUTPUT_DIR" -maxdepth 1 -name 'Prokudin-*.AppImage' -print -quit)"
-if [[ -z "$APPIMAGE_FILE" ]]; then
-  ./"$APPIMAGETOOL" "$APPDIR" "$OUTPUT_DIR/Prokudin-${VERSION}-linux-x64.AppImage"
-  APPIMAGE_FILE="$OUTPUT_DIR/Prokudin-${VERSION}-linux-x64.AppImage"
-else
-  mv "$APPIMAGE_FILE" "$OUTPUT_DIR/Prokudin-${VERSION}-linux-x64.AppImage"
-fi
-
-echo "Created $OUTPUT_DIR/Prokudin-${VERSION}-linux-x64.AppImage"
+echo "Created $OUTPUT_APPIMAGE"
