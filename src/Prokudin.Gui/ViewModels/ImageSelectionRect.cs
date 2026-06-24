@@ -6,8 +6,24 @@ public readonly record struct ImageSelectionRect(int X, int Y, int Width, int He
 
     public bool IsEmpty => Width <= 0 || Height <= 0;
 
-    public static ImageSelectionRect FromPoints(double x0, double y0, double x1, double y1)
+    public static ImageSelectionRect FromPoints(double x0, double y0, double x1, double y1, bool forceSquare = false)
     {
+        if (forceSquare)
+        {
+            var dx = x1 - x0;
+            var dy = y1 - y0;
+            var size = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            if (size < 1)
+            {
+                size = 1;
+            }
+
+            var signX = dx >= 0 ? 1 : -1;
+            var signY = dy >= 0 ? 1 : -1;
+            x1 = x0 + (signX * size);
+            y1 = y0 + (signY * size);
+        }
+
         var left = (int)Math.Floor(Math.Min(x0, x1));
         var top = (int)Math.Floor(Math.Min(y0, y1));
         var right = (int)Math.Ceiling(Math.Max(x0, x1));

@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Prokudin.Gui.Views.AboutDialog"
+        Title="About Prokudin"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <StackPanel Margin="24"
+              Spacing="8"
+              MinWidth="320">
+    <TextBlock Text="Prokudin"
+               FontSize="20"
+               FontWeight="SemiBold" />
+    <TextBlock Text="RGB reconstruction tool for Prokudin-Gorskii channel images."
+               TextWrapping="Wrap" />
+    <TextBlock x:Name="VersionTextBlock"
+               Classes="MutedCaption" />
+    <TextBlock Text=".NET / Avalonia desktop application."
+               Classes="MutedCaption" />
+    <Button Content="OK"
+            HorizontalAlignment="Right"
+            Margin="0,8,0,0"
+            Click="OnClose"
+            IsDefault="True" />
+  </StackPanel>
+</Window>

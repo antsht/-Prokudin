@@ -19,7 +19,9 @@ public sealed partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new MainWindow();
-            window.DataContext = new MainViewModel(new StorageFileDialogService(window));
+            var viewModel = new MainViewModel(new StorageFileDialogService(window));
+            window.DataContext = viewModel;
+            viewModel.AttachOwnerWindow(window);
             desktop.MainWindow = window;
         }
 

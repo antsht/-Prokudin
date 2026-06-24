@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:bars="using:Prokudin.Gui.Views.ContextBars"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextCommandBar"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Disabled">
+    <Panel>
+      <bars:ImportContextBar IsVisible="{Binding IsImportWorkflow}" />
+      <bars:AlignContextBar IsVisible="{Binding IsAlignWorkflow}" />
+      <bars:CropContextBar IsVisible="{Binding IsCropWorkflow}" />
+      <bars:CleanContextBar IsVisible="{Binding IsCleanWorkflow}" />
+      <bars:ColorContextBar IsVisible="{Binding IsColorWorkflow}" />
+      <bars:ExportContextBar IsVisible="{Binding IsExportWorkflow}" />
+    </Panel>
+  </ScrollViewer>
+</UserControl>

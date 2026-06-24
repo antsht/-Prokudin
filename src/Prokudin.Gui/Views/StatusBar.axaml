@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.StatusBar"
+             x:DataType="vm:MainViewModel">
+  <Border Classes="ChromeBar bottom" Padding="8,4">
+    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+      <TextBlock Text="{Binding Status}"
+                 TextTrimming="CharacterEllipsis"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1"
+                 Text="{Binding SelectedSlotSummary}"
+                 Classes="MutedCaption"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2"
+                 Text="{Binding BusyIndicatorText}"
+                 Classes="MutedCaption"
+                 VerticalAlignment="Center" />
+    </Grid>
+  </Border>
+</UserControl>

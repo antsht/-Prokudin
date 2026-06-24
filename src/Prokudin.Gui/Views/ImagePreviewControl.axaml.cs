@@ -27,6 +27,9 @@ public sealed partial class ImagePreviewControl : UserControl
             nameof(SelectionRect),
             defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> LockSquareSelectionProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(LockSquareSelection));
+
     public static readonly StyledProperty<bool> HasImageProperty =
         AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(HasImage));
 
@@ -108,6 +111,12 @@ public sealed partial class ImagePreviewControl : UserControl
     {
         get => GetValue(SelectionRectProperty);
         set => SetValue(SelectionRectProperty, value);
+    }
+
+    public bool LockSquareSelection
+    {
+        get => GetValue(LockSquareSelectionProperty);
+        set => SetValue(LockSquareSelectionProperty, value);
     }
 
     public bool HasImage
@@ -854,7 +863,7 @@ public sealed partial class ImagePreviewControl : UserControl
             imagePoint = ClampPointToImage(point);
         }
 
-        SelectionRect = ImageSelectionRect.FromPoints(start.X, start.Y, imagePoint.X, imagePoint.Y)
+        SelectionRect = ImageSelectionRect.FromPoints(start.X, start.Y, imagePoint.X, imagePoint.Y, LockSquareSelection)
             .Clamp(DisplayBitmap!.PixelSize.Width, DisplayBitmap.PixelSize.Height);
         e.Handled = true;
     }

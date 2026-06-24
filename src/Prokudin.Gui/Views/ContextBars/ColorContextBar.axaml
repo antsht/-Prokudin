@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:primitives="using:Avalonia.Controls.Primitives"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextBars.ColorContextBar"
+             x:DataType="vm:MainViewModel">
+  <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <CheckBox Content="Auto WB"
+              IsChecked="{Binding AutoWhiteBalance}"
+              IsEnabled="{Binding IsUiEnabled}"
+              VerticalAlignment="Center"
+              Margin="0,0,8,0" />
+    <primitives:ToggleButton Classes="IconButton"
+                              IsChecked="{Binding IsWhiteBalancePickerToolMode}"
+                              IsEnabled="{Binding CanUseWhiteBalancePicker}"
+                              Content="{StaticResource IconEyedropper}"
+                              ToolTip.Tip="Pick white balance from result"
+                              automation:AutomationProperties.Name="White balance picker"
+                              Margin="0,0,8,0" />
+    <Button Classes="IconButton"
+            Command="{Binding ResetExposureCommand}"
+            Content="{StaticResource IconWhiteBalance}"
+            ToolTip.Tip="Reset exposure"
+            automation:AutomationProperties.Name="Reset exposure" />
+  </WrapPanel>
+</UserControl>

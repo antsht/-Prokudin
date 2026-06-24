@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,6 +17,7 @@ using Prokudin.Core.Retouch;
 using Prokudin.Gui.Diagnostics;
 using Prokudin.Gui.Imaging;
 using Prokudin.Gui.Services;
+using Prokudin.Gui.Views;
 
 namespace Prokudin.Gui.ViewModels;
 
@@ -25,6 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IExportSettingsStore exportSettingsStore;
     private readonly IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore;
     private readonly IAutoCleanSettingsStore autoCleanSettingsStore;
+    private readonly IUiSettingsStore uiSettingsStore;
     private readonly StringBuilder processingLog = new();
     private readonly object processingLogSync = new();
     private bool processingLogRefreshScheduled;
@@ -38,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool suppressExportSettingsSave;
     private bool suppressDiagnosticsSettingsSave;
     private bool suppressAutoCleanSettingsSave;
+    private bool suppressUiSettingsSave;
     private int exposureChangeVersion;
     private int previewImageContextVersion;
     private Bitmap? autoCleanMaskOverlayBitmap;
@@ -49,14 +56,26 @@ public sealed partial class MainViewModel : ObservableObject
     private int whiteBalancePipetteX = -1;
     private int whiteBalancePipetteY = -1;
     private readonly AutoCleanSessionCache autoCleanSessionCache = new();
+    private Window? ownerWindow;
+
+    private void SetLastAligned(AlignedChannels? aligned)
+    {
+        lastAligned = aligned;
+        RebuildResultCommand.NotifyCanExecuteChanged();
+        CropOverlapCommand.NotifyCanExecuteChanged();
+        RefreshChannelStates();
+        OnPropertyChanged(nameof(RedAlignSummary));
+        OnPropertyChanged(nameof(GreenAlignSummary));
+        OnPropertyChanged(nameof(BlueAlignSummary));
+    }
 
     public MainViewModel(IFileDialogService fileDialogService)
-        : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore())
+        : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore(), new JsonUiSettingsStore())
     {
     }
 
     public MainViewModel(IFileDialogService fileDialogService, IExportSettingsStore exportSettingsStore)
-        : this(fileDialogService, exportSettingsStore, new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore())
+        : this(fileDialogService, exportSettingsStore, new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore(), new JsonUiSettingsStore())
     {
     }
 
@@ -64,7 +83,7 @@ public sealed partial class MainViewModel : ObservableObject
         IFileDialogService fileDialogService,
         IExportSettingsStore exportSettingsStore,
         IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore)
-        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, new JsonAutoCleanSettingsStore())
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, new JsonAutoCleanSettingsStore(), new JsonUiSettingsStore())
     {
     }
 
@@ -73,11 +92,22 @@ public sealed partial class MainViewModel : ObservableObject
         IExportSettingsStore exportSettingsStore,
         IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
         IAutoCleanSettingsStore autoCleanSettingsStore)
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, autoCleanSettingsStore, new JsonUiSettingsStore())
+    {
+    }
+
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IExportSettingsStore exportSettingsStore,
+        IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
+        IAutoCleanSettingsStore autoCleanSettingsStore,
+        IUiSettingsStore uiSettingsStore)
     {
         this.fileDialogService = fileDialogService;
         this.exportSettingsStore = exportSettingsStore;
         this.diagnosticsSettingsStore = diagnosticsSettingsStore;
         this.autoCleanSettingsStore = autoCleanSettingsStore;
+        this.uiSettingsStore = uiSettingsStore;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -101,7 +131,52 @@ public sealed partial class MainViewModel : ObservableObject
         LoadExportSettings(exportSettingsStore.Load());
         LoadDiagnosticsSettings(diagnosticsSettingsStore.Load());
         LoadAutoCleanSettings(autoCleanSettingsStore.Load());
+        LoadUiSettings(uiSettingsStore.Load());
         SelectedSlot = RedSlot;
+    }
+
+    public void AttachOwnerWindow(Window window) => ownerWindow = window;
+
+    public double LeftPanelWidthClamped => Math.Clamp(LeftPanelWidth, 220, 420);
+
+    public double RightInspectorWidthClamped => Math.Clamp(RightInspectorWidth, 300, 520);
+
+    public double ProcessingLogHeightClamped => Math.Clamp(ProcessingLogHeight, 44, 360);
+
+    public bool IsLightThemeSelected
+    {
+        get => AppThemeMode == AppThemeMode.Light;
+        set
+        {
+            if (value && AppThemeMode != AppThemeMode.Light)
+            {
+                AppThemeMode = AppThemeMode.Light;
+            }
+        }
+    }
+
+    public bool IsDarkThemeSelected
+    {
+        get => AppThemeMode == AppThemeMode.Dark;
+        set
+        {
+            if (value && AppThemeMode != AppThemeMode.Dark)
+            {
+                AppThemeMode = AppThemeMode.Dark;
+            }
+        }
+    }
+
+    public bool IsSystemThemeSelected
+    {
+        get => AppThemeMode == AppThemeMode.System;
+        set
+        {
+            if (value && AppThemeMode != AppThemeMode.System)
+            {
+                AppThemeMode = AppThemeMode.System;
+            }
+        }
     }
 
     public ChannelSlotViewModel RedSlot { get; }
@@ -115,6 +190,8 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ChannelSlotViewModel> Slots { get; }
 
     public IReadOnlyList<string> TriptychOrders { get; } = ["RGB", "BGR"];
+
+    public IReadOnlyList<LevelsMode> LevelsModes { get; } = Enum.GetValues<LevelsMode>();
 
     public IReadOnlyList<RgbExportFormat> ExportFormats { get; } =
         [RgbExportFormat.Png, RgbExportFormat.Jpeg, RgbExportFormat.Tiff];
@@ -141,6 +218,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PreviewImageContextKey))]
     [NotifyPropertyChangedFor(nameof(PreviewDisplayBitmap))]
     [NotifyPropertyChangedFor(nameof(PreviewHasImage))]
+    [NotifyPropertyChangedFor(nameof(SelectedSlotSummary))]
     private ChannelSlotViewModel? selectedSlot;
 
     [ObservableProperty]
@@ -163,11 +241,246 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportChannelsCommand))]
     [NotifyCanExecuteChangedFor(nameof(PickWhiteBalanceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RebuildResultCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CropOverlapCommand))]
     [NotifyPropertyChangedFor(nameof(CanUseWhiteBalancePicker))]
+    [NotifyPropertyChangedFor(nameof(SelectedSlotSummary))]
+    [NotifyPropertyChangedFor(nameof(BusyIndicatorText))]
+    [NotifyPropertyChangedFor(nameof(IsUiEnabled))]
     private bool isBusy;
+
+    public bool IsUiEnabled => !IsBusy;
 
     [ObservableProperty]
     private string status = "Open three channels or a triptych to begin.";
+
+    public string SelectedSlotSummary =>
+        SelectedSlot is { } slot
+            ? $"Selected: {slot.DisplayName} {slot.Dimensions}"
+            : "Selected: —";
+
+    public string BusyIndicatorText => IsBusy ? "Busy" : "Ready";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsImportWorkflow))]
+    [NotifyPropertyChangedFor(nameof(IsAlignWorkflow))]
+    [NotifyPropertyChangedFor(nameof(IsCropWorkflow))]
+    [NotifyPropertyChangedFor(nameof(IsCleanWorkflow))]
+    [NotifyPropertyChangedFor(nameof(IsColorWorkflow))]
+    [NotifyPropertyChangedFor(nameof(IsExportWorkflow))]
+    private WorkflowTool selectedWorkflowTool = WorkflowTool.Import;
+
+    public bool IsImportWorkflow => SelectedWorkflowTool == WorkflowTool.Import;
+
+    public bool IsAlignWorkflow => SelectedWorkflowTool == WorkflowTool.Align;
+
+    public bool IsCropWorkflow => SelectedWorkflowTool == WorkflowTool.Crop;
+
+    public bool IsCleanWorkflow => SelectedWorkflowTool == WorkflowTool.Clean;
+
+    public bool IsColorWorkflow => SelectedWorkflowTool == WorkflowTool.Color;
+
+    public bool IsExportWorkflow => SelectedWorkflowTool == WorkflowTool.Export;
+
+    [ObservableProperty]
+    private ChannelName alignReference = ChannelName.Green;
+
+    [ObservableProperty]
+    private string alignDetector = "sift";
+
+    [ObservableProperty]
+    private int alignMaxTranslation = 128;
+
+    [ObservableProperty]
+    private int alignMaxFineIterations = 3;
+
+    [ObservableProperty]
+    private int alignCoarseMaxSide = 1024;
+
+    [ObservableProperty]
+    private bool trimDarkBorders;
+
+    [ObservableProperty]
+    private LevelsMode levelsMode = LevelsMode.AutoPercentile;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManualLevels))]
+    private double levelsBlackPoint;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManualLevels))]
+    private double levelsWhitePoint = 1.0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManualLevels))]
+    private double levelsGamma = 1.0;
+
+    [ObservableProperty]
+    private bool openOutputFolderAfterExport;
+
+    [ObservableProperty]
+    private bool showHealMaskOverlay = true;
+
+    [ObservableProperty]
+    private bool useLocalLinearPrediction = true;
+
+    [ObservableProperty]
+    private bool useGuidedPatchSearch = true;
+
+    [ObservableProperty]
+    private bool useRobustFit = true;
+
+    [ObservableProperty]
+    private int healPatchRadius = 3;
+
+    [ObservableProperty]
+    private int healSearchRadius = 48;
+
+    [ObservableProperty]
+    private int healSafetyRadius = 2;
+
+    [ObservableProperty]
+    private int healContextRadius = 16;
+
+    [ObservableProperty]
+    private int healMinTrainingPixels = 64;
+
+    [ObservableProperty]
+    private int healMaxComponentArea = 5000;
+
+    [ObservableProperty]
+    private double healPredictionAlphaMin = 0.15;
+
+    [ObservableProperty]
+    private double healPredictionAlphaMax = 0.75;
+
+    [ObservableProperty]
+    private double healFeatherSigma = 1.5;
+
+    [ObservableProperty]
+    private double healMaxAllowedError = 0.12;
+
+    [ObservableProperty]
+    private double healLargeComponentConservativeScale = 0.5;
+
+    [ObservableProperty]
+    private AppThemeMode appThemeMode = AppThemeMode.System;
+
+    [ObservableProperty]
+    private bool isLeftPanelVisible = true;
+
+    [ObservableProperty]
+    private bool isRightInspectorVisible = true;
+
+    [ObservableProperty]
+    private bool isProcessingLogVisible = true;
+
+    [ObservableProperty]
+    private double leftPanelWidth = 260;
+
+    [ObservableProperty]
+    private double rightInspectorWidth = 360;
+
+    [ObservableProperty]
+    private double processingLogHeight = 150;
+
+    public bool IsManualLevels => LevelsMode == LevelsMode.Manual;
+
+    public string InspectorChannelLabel => SelectedSlot?.DisplayName ?? "—";
+
+    public string InspectorSizeLabel => SelectedSlot?.Dimensions ?? "—";
+
+    public string InspectorStateLabel => SelectedSlot?.StateLabel ?? "—";
+
+    public string InputModeLabel =>
+        RedSlot.SourcePath is { Length: > 0 } path &&
+        path == GreenSlot.SourcePath &&
+        path == BlueSlot.SourcePath
+            ? "Triptych"
+            : RedSlot.HasImage || GreenSlot.HasImage || BlueSlot.HasImage
+                ? "Separate channels"
+                : "—";
+
+    public string SelectedSlotSourceBitDepth =>
+        SelectedSlot?.Image?.Format.ToString()
+        ?? (SelectedSlot?.Result is not null ? "UInt8 (RGB pipeline)" : "—");
+
+    public string CropBehaviorHint =>
+        SelectedSlot?.IsResultSlot == true
+            ? "Cropping result also crops prepared R/G/B channels."
+            : SelectedSlot?.Image is not null
+                ? "Cropping applies to the selected channel only."
+                : "Select a channel or result, then draw a selection on the preview.";
+
+    public string RedAlignSummary => FormatAlignSummary(ChannelName.Red);
+
+    public string GreenAlignSummary => FormatAlignSummary(ChannelName.Green);
+
+    public string BlueAlignSummary => FormatAlignSummary(ChannelName.Blue);
+
+    public int SelectionX
+    {
+        get => SelectionRect.X;
+        set
+        {
+            if (SelectionRect.X == value)
+            {
+                return;
+            }
+
+            SelectionRect = SelectionRect with { X = value };
+        }
+    }
+
+    public int SelectionY
+    {
+        get => SelectionRect.Y;
+        set
+        {
+            if (SelectionRect.Y == value)
+            {
+                return;
+            }
+
+            SelectionRect = SelectionRect with { Y = value };
+        }
+    }
+
+    public int SelectionWidth
+    {
+        get => SelectionRect.Width;
+        set
+        {
+            if (SelectionRect.Width == value)
+            {
+                return;
+            }
+
+            SelectionRect = SelectionRect with { Width = value };
+        }
+    }
+
+    public int SelectionHeight
+    {
+        get => SelectionRect.Height;
+        set
+        {
+            if (SelectionRect.Height == value)
+            {
+                return;
+            }
+
+            SelectionRect = SelectionRect with { Height = value };
+        }
+    }
+
+    [ObservableProperty]
+    private bool lockSquareSelection;
+
+    public IReadOnlyList<ChannelName> AlignReferenceChannels { get; } =
+        [ChannelName.Red, ChannelName.Green, ChannelName.Blue];
+
+    public IReadOnlyList<string> AlignDetectors { get; } = ["sift", "orb"];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FitToWindowButtonText))]
@@ -411,6 +724,57 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanRebuildResult))]
+    private void RebuildResult()
+    {
+        ScheduleResultRebuild();
+        Status = "Rebuilding result from aligned channels...";
+    }
+
+    [RelayCommand]
+    private void ResetCropSelection()
+    {
+        SelectionRect = ImageSelectionRect.Empty;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCropOverlap))]
+    private async Task CropOverlap()
+    {
+        if (lastAligned is null)
+        {
+            return;
+        }
+
+        await RunOperation(async () =>
+        {
+            PushUndo();
+            var (cropped, rgb, cropInfo) = await Task.Run(() =>
+            {
+                var (aligned, info) = AlignedChannelCropper.CropToLargestFullOverlap(lastAligned);
+                var built = ReconstructionPipeline.BuildRgb(aligned, CurrentPipelineSettings());
+                return (aligned, built.Rgb, info);
+            });
+
+            SetPreparedChannels(cropped);
+            SetLastAligned(cropped);
+            ResultSlot.Result = rgb;
+            SelectedSlot = ResultSlot;
+            SelectionRect = ImageSelectionRect.Empty;
+            Status = $"Cropped to largest overlap: {ResultSlot.Result!.Width} x {ResultSlot.Result.Height}.";
+            AppendLog(FormatCropInfo(cropInfo));
+        });
+    }
+
+    private bool CanRebuildResult() => !IsBusy && lastAligned is not null;
+
+    private bool CanCropOverlap() => !IsBusy && lastAligned is not null;
+
+    [RelayCommand]
+    private void SelectWorkflowTool(WorkflowTool tool)
+    {
+        SelectedWorkflowTool = tool;
+    }
+
     [RelayCommand]
     private void ToggleFitToWindow()
     {
@@ -487,6 +851,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SelectionRect = ImageSelectionRect.Empty;
         RefreshPreviewImageContext();
+        RefreshChannelStates();
     }
 
     [RelayCommand(CanExecute = nameof(CanDetectAutoCleanMask))]
@@ -715,6 +1080,106 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void Exit()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowAbout()
+    {
+        if (ownerWindow is null)
+        {
+            return;
+        }
+
+        await new AboutDialog().ShowDialog(ownerWindow);
+    }
+
+    [RelayCommand]
+    private async Task ShowKeyboardShortcuts()
+    {
+        if (ownerWindow is null)
+        {
+            return;
+        }
+
+        await new KeyboardShortcutsDialog().ShowDialog(ownerWindow);
+    }
+
+    [RelayCommand]
+    private void OpenUserGuide()
+    {
+        foreach (var path in EnumerateUserGuideCandidates())
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                });
+                AppendLog($"Opened user guide: {path}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not open user guide: {ex.Message}");
+                Status = ex.Message;
+                return;
+            }
+        }
+
+        Status = "User guide not found. See docs/user-guide.md in the repository.";
+        AppendLog(Status);
+    }
+
+    [RelayCommand]
+    private void SetPreviewFitToWindow()
+    {
+        PreviewZoomMode = PreviewZoomMode.FitToWindow;
+        AppendLog($"Preview zoom: {PreviewZoomMode}.");
+    }
+
+    [RelayCommand]
+    private void SetPreviewOneToOne()
+    {
+        PreviewZoomMode = PreviewZoomMode.OneToOne;
+        AppendLog($"Preview zoom: {PreviewZoomMode}.");
+    }
+
+    [RelayCommand]
+    private void SelectTool(EditorToolMode mode)
+    {
+        if (mode == EditorToolMode.WhiteBalancePicker && !CanUseWhiteBalancePicker)
+        {
+            return;
+        }
+
+        ToolMode = mode;
+    }
+
+    private static IEnumerable<string> EnumerateUserGuideCandidates()
+    {
+        yield return Path.Combine(AppContext.BaseDirectory, "docs", "user-guide.md");
+
+        var directory = AppContext.BaseDirectory;
+        for (var depth = 0; depth < 6; depth++)
+        {
+            directory = Path.GetFullPath(Path.Combine(directory, ".."));
+            yield return Path.Combine(directory, "docs", "user-guide.md");
+        }
+    }
+
+    [RelayCommand]
     private void ToggleExportSettings()
     {
         IsExportSettingsOpen = !IsExportSettingsOpen;
@@ -764,7 +1229,7 @@ public sealed partial class MainViewModel : ObservableObject
             SetChannel(RedSlot, channels[ChannelName.Red], path);
             SetChannel(GreenSlot, channels[ChannelName.Green], path);
             SetChannel(BlueSlot, channels[ChannelName.Blue], path);
-            lastAligned = null;
+            SetLastAligned(null);
             ResultSlot.Result = null;
             SelectedSlot = RedSlot;
             Status = $"Loaded triptych as {SelectedTriptychOrder}.";
@@ -801,7 +1266,7 @@ public sealed partial class MainViewModel : ObservableObject
             PushUndo();
             autoCleanSessionCache.Clear();
             SetPreparedChannels(result.Aligned);
-            lastAligned = result.Aligned;
+            SetLastAligned(result.Aligned);
             ResultSlot.Result = result.Rgb;
             SelectedSlot = ResultSlot;
             Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata)}";
@@ -830,6 +1295,10 @@ public sealed partial class MainViewModel : ObservableObject
             await Task.Run(async () => await ImageLoader.SaveRgbAsync(path, result, settings));
             Status = $"Exported {path}.";
             AppendLog($"Export complete: {path}");
+            if (OpenOutputFolderAfterExport)
+            {
+                TryOpenExportFolder(path);
+            }
         });
     }
 
@@ -858,6 +1327,10 @@ public sealed partial class MainViewModel : ObservableObject
 
             Status = $"Exported channels to {folder}.";
             AppendLog($"Channel export complete: {folder}");
+            if (OpenOutputFolderAfterExport)
+            {
+                TryOpenExportFolder(folder);
+            }
         });
     }
 
@@ -872,7 +1345,7 @@ public sealed partial class MainViewModel : ObservableObject
         PushUndo();
         (source.Image, target.Image) = (target.Image, source.Image);
         (source.SourcePath, target.SourcePath) = (target.SourcePath, source.SourcePath);
-        lastAligned = null;
+        SetLastAligned(null);
         ResultSlot.Result = null;
         SelectedSlot = target;
         Status = $"Swapped {source.DisplayName} and {target.DisplayName}. Run Auto-align again.";
@@ -900,7 +1373,7 @@ public sealed partial class MainViewModel : ObservableObject
             var slot = GetSlot(channelName);
             PushUndo();
             SetChannel(slot, image, path);
-            lastAligned = null;
+            SetLastAligned(null);
             ResultSlot.Result = null;
             SelectedSlot = slot;
             Status = $"Loaded {channelName} from {Path.GetFileName(path)}.";
@@ -948,6 +1421,7 @@ public sealed partial class MainViewModel : ObservableObject
         slot.Image = image;
         slot.SourcePath = sourcePath;
         RefreshPreviewImageContext();
+        RefreshChannelStates();
     }
 
     private void SetPreparedChannels(AlignedChannels aligned)
@@ -957,6 +1431,7 @@ public sealed partial class MainViewModel : ObservableObject
         GreenSlot.Image = aligned.Green;
         BlueSlot.Image = aligned.Blue;
         RefreshPreviewImageContext();
+        RefreshChannelStates();
     }
 
     private void CropPreparedChannelsToResultSelection(int sourceWidth, int sourceHeight, ImageSelectionRect rect)
@@ -971,7 +1446,7 @@ public sealed partial class MainViewModel : ObservableObject
             green.Height != sourceHeight ||
             blue.Height != sourceHeight)
         {
-            lastAligned = null;
+            SetLastAligned(null);
             return;
         }
 
@@ -992,11 +1467,11 @@ public sealed partial class MainViewModel : ObservableObject
             aligned.Red.Width == sourceWidth &&
             aligned.Red.Height == sourceHeight)
         {
-            lastAligned = AlignedChannelCropper.Crop(aligned, cropInfo);
+            SetLastAligned(AlignedChannelCropper.Crop(aligned, cropInfo));
         }
         else
         {
-            lastAligned = null;
+            SetLastAligned(null);
         }
     }
 
@@ -1065,7 +1540,21 @@ public sealed partial class MainViewModel : ObservableObject
         return new HealOptions(
             Mode: UseCrossChannelHealing ? HealingMode.CrossChannelGuided : HealingMode.CurrentChannelOnly,
             SubMode: UseTeleaHealing ? HealingSubMode.Telea : HealingSubMode.Patch,
-            PatchRadius: AutoCleanRadius,
+            PatchRadius: HealPatchRadius,
+            SearchRadius: HealSearchRadius,
+            SafetyRadius: HealSafetyRadius,
+            ContextRadius: HealContextRadius,
+            MinTrainingPixels: HealMinTrainingPixels,
+            UseLocalLinearPrediction: UseLocalLinearPrediction,
+            UseGuidedPatchSearch: UseGuidedPatchSearch,
+            UseRobustFit: UseRobustFit,
+            PredictionAlphaMin: (float)HealPredictionAlphaMin,
+            PredictionAlphaMax: (float)HealPredictionAlphaMax,
+            FeatherSigma: (float)HealFeatherSigma,
+            MaxAllowedErrorFloat: (float)HealMaxAllowedError,
+            MaxComponentArea: HealMaxComponentArea,
+            LargeComponentConservativeScale: (float)HealLargeComponentConservativeScale,
+            QualityMode: AutoCleanQualityMode,
             DebugOutput: DebugHealOutput,
             Diagnostics: CreateDiagnostics());
     }
@@ -1204,7 +1693,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshAutoCleanMaskOverlay()
     {
-        if (PendingAutoCleanMask is not { } mask ||
+        if (!ShowHealMaskOverlay ||
+            PendingAutoCleanMask is not { } mask ||
             SelectedSlot?.Image is not { } image ||
             mask.Length != image.Width * image.Height)
         {
@@ -1213,6 +1703,101 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         AutoCleanMaskOverlayBitmap = AvaloniaBitmapFactory.FromMaskOverlay(mask, image.Width, image.Height);
+    }
+
+    private void RefreshChannelStates()
+    {
+        RedSlot.State = ComputeChannelState(RedSlot);
+        GreenSlot.State = ComputeChannelState(GreenSlot);
+        BlueSlot.State = ComputeChannelState(BlueSlot);
+        ResultSlot.State = ResultSlot.HasImage ? ChannelSlotState.Result : ChannelSlotState.Empty;
+        OnPropertyChanged(nameof(InspectorStateLabel));
+    }
+
+    private ChannelSlotState ComputeChannelState(ChannelSlotViewModel slot)
+    {
+        if (!slot.HasImage)
+        {
+            return ChannelSlotState.Empty;
+        }
+
+        if (slot.IsResultSlot)
+        {
+            return ChannelSlotState.Result;
+        }
+
+        if (lastAligned is null || slot.ChannelName is not { } channelName || slot.Image is not { } current)
+        {
+            return ChannelSlotState.Loaded;
+        }
+
+        var prepared = channelName switch
+        {
+            ChannelName.Red => lastAligned.Red,
+            ChannelName.Green => lastAligned.Green,
+            ChannelName.Blue => lastAligned.Blue,
+            _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
+        };
+
+        if (ReferenceEquals(current, prepared))
+        {
+            return ChannelSlotState.Aligned;
+        }
+
+        if (current.Width == prepared.Width && current.Height == prepared.Height)
+        {
+            return ChannelSlotState.Retouched;
+        }
+
+        return ChannelSlotState.Loaded;
+    }
+
+    private string FormatAlignSummary(ChannelName channelName)
+    {
+        if (lastAligned?.AlignMetadata.TryGetValue(channelName, out var info) != true)
+        {
+            return $"{FormatAlignSummaryLabel(channelName)}: —";
+        }
+
+        if (info.Shifts is null or { Count: 0 })
+        {
+            return $"{FormatAlignSummaryLabel(channelName)}: {info.Kind} ({info.Inliers} inliers)";
+        }
+
+        var shiftText = string.Join(
+            ", ",
+            info.Shifts.Select(shift => $"({shift.Dx:F1},{shift.Dy:F1})"));
+        return $"{FormatAlignSummaryLabel(channelName)}: {info.Kind} ({info.Inliers} inliers, shifts {shiftText})";
+    }
+
+    private static string FormatAlignSummaryLabel(ChannelName channelName) =>
+        channelName switch
+        {
+            ChannelName.Red => "Red",
+            ChannelName.Green => "Green",
+            ChannelName.Blue => "Blue",
+            _ => channelName.ToString(),
+        };
+
+    private static void TryOpenExportFolder(string path)
+    {
+        try
+        {
+            var folder = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            {
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = folder,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private void SchedulePendingAutoCleanMaskRefresh()
@@ -1413,7 +1998,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         return new PipelineSettings
         {
-            Align = new AlignOptions(TrimBorders: false),
+            Align = new AlignOptions(
+                Reference: AlignReference,
+                Detector: AlignDetector,
+                MaxTranslation: AlignMaxTranslation,
+                MaxFineIterations: AlignMaxFineIterations,
+                TrimBorders: TrimDarkBorders,
+                CoarseAlignmentMaxSide: AlignCoarseMaxSide),
             Color = new ColorSettings(
                 AutoWhiteBalance: AutoWhiteBalance,
                 PipetteActive: HasPipetteWhiteBalance && !AutoWhiteBalance,
@@ -1424,6 +2015,11 @@ public sealed partial class MainViewModel : ObservableObject
                 (float)RedExposureStops,
                 (float)GreenExposureStops,
                 (float)BlueExposureStops),
+            Levels = new LevelsSettings(
+                Mode: LevelsMode,
+                BlackPoint: (float)LevelsBlackPoint,
+                WhitePoint: (float)LevelsWhitePoint,
+                Gamma: (float)LevelsGamma),
             Crop = new CropSettings { SkipCrop = skipCrop },
             Diagnostics = CreateDiagnostics(),
         };
@@ -1461,6 +2057,29 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             AutoCleanQualityMode = settings.QualityMode;
+            AutoCleanSensitivity = settings.Sensitivity;
+            AutoCleanRadius = settings.InpaintRadius;
+            HealPatchRadius = settings.PatchRadius;
+            HealSearchRadius = settings.SearchRadius;
+            HealSafetyRadius = settings.SafetyRadius;
+            HealContextRadius = settings.ContextRadius;
+            HealMinTrainingPixels = settings.MinTrainingPixels;
+            UseCrossChannelHealing = settings.UseCrossChannelHealing;
+            UseTeleaHealing = settings.UseTeleaHealing;
+            UseLocalLinearPrediction = settings.UseLocalLinearPrediction;
+            UseGuidedPatchSearch = settings.UseGuidedPatchSearch;
+            UseRobustFit = settings.UseRobustFit;
+            AutoMergeNearbyDefects = settings.AutoMergeNearbyDefects;
+            AutoMergeDistancePx = settings.AutoMergeDistancePx;
+            AutoExpandHealingAreaPx = settings.AutoExpandHealingAreaPx;
+            HealMaxComponentArea = settings.MaxComponentArea;
+            HealPredictionAlphaMin = settings.PredictionAlphaMin;
+            HealPredictionAlphaMax = settings.PredictionAlphaMax;
+            HealFeatherSigma = settings.FeatherSigma;
+            HealMaxAllowedError = settings.MaxAllowedError;
+            HealLargeComponentConservativeScale = settings.LargeComponentConservativeScale;
+            DebugHealOutput = settings.DebugHealOutput;
+            ShowHealMaskOverlay = settings.ShowHealMaskOverlay;
         }
         finally
         {
@@ -1477,7 +2096,31 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            autoCleanSettingsStore.Save(new AutoCleanSettingsSnapshot(AutoCleanQualityMode));
+            autoCleanSettingsStore.Save(new AutoCleanSettingsSnapshot(
+                QualityMode: AutoCleanQualityMode,
+                Sensitivity: AutoCleanSensitivity,
+                InpaintRadius: AutoCleanRadius,
+                PatchRadius: HealPatchRadius,
+                SearchRadius: HealSearchRadius,
+                SafetyRadius: HealSafetyRadius,
+                ContextRadius: HealContextRadius,
+                MinTrainingPixels: HealMinTrainingPixels,
+                UseCrossChannelHealing: UseCrossChannelHealing,
+                UseTeleaHealing: UseTeleaHealing,
+                UseLocalLinearPrediction: UseLocalLinearPrediction,
+                UseGuidedPatchSearch: UseGuidedPatchSearch,
+                UseRobustFit: UseRobustFit,
+                AutoMergeNearbyDefects: AutoMergeNearbyDefects,
+                AutoMergeDistancePx: AutoMergeDistancePx,
+                AutoExpandHealingAreaPx: AutoExpandHealingAreaPx,
+                MaxComponentArea: HealMaxComponentArea,
+                PredictionAlphaMin: (float)HealPredictionAlphaMin,
+                PredictionAlphaMax: (float)HealPredictionAlphaMax,
+                FeatherSigma: (float)HealFeatherSigma,
+                MaxAllowedError: (float)HealMaxAllowedError,
+                LargeComponentConservativeScale: (float)HealLargeComponentConservativeScale,
+                DebugHealOutput: DebugHealOutput,
+                ShowHealMaskOverlay: ShowHealMaskOverlay));
         }
         catch (IOException ex)
         {
@@ -1487,6 +2130,70 @@ public sealed partial class MainViewModel : ObservableObject
         {
             AppendLog($"Failed to save auto-clean settings: {ex.Message}");
         }
+    }
+
+    private void LoadUiSettings(UiSettings settings)
+    {
+        settings = settings.Normalize();
+        suppressUiSettingsSave = true;
+        try
+        {
+            AppThemeMode = settings.ThemeMode;
+            LeftPanelWidth = settings.LeftPanelWidth;
+            RightInspectorWidth = settings.RightInspectorWidth;
+            ProcessingLogHeight = settings.ProcessingLogHeight;
+            IsProcessingLogVisible = settings.IsProcessingLogVisible;
+            IsRightInspectorVisible = settings.IsRightInspectorVisible;
+            IsLeftPanelVisible = settings.IsLeftPanelVisible;
+            SelectedWorkflowTool = settings.SelectedWorkflowTool;
+            ThemeService.Apply(AppThemeMode);
+            NotifyThemeMenuSelection();
+        }
+        finally
+        {
+            suppressUiSettingsSave = false;
+        }
+    }
+
+    public void SaveUiSettings()
+    {
+        if (suppressUiSettingsSave)
+        {
+            return;
+        }
+
+        try
+        {
+            uiSettingsStore.Save(CurrentUiSettings());
+        }
+        catch (IOException ex)
+        {
+            AppendLog($"Failed to save UI settings: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppendLog($"Failed to save UI settings: {ex.Message}");
+        }
+    }
+
+    private UiSettings CurrentUiSettings() =>
+        new UiSettings
+        {
+            ThemeMode = AppThemeMode,
+            LeftPanelWidth = LeftPanelWidth,
+            RightInspectorWidth = RightInspectorWidth,
+            ProcessingLogHeight = ProcessingLogHeight,
+            IsProcessingLogVisible = IsProcessingLogVisible,
+            IsRightInspectorVisible = IsRightInspectorVisible,
+            IsLeftPanelVisible = IsLeftPanelVisible,
+            SelectedWorkflowTool = SelectedWorkflowTool,
+        }.Normalize();
+
+    private void NotifyThemeMenuSelection()
+    {
+        OnPropertyChanged(nameof(IsLightThemeSelected));
+        OnPropertyChanged(nameof(IsDarkThemeSelected));
+        OnPropertyChanged(nameof(IsSystemThemeSelected));
     }
 
     private void SaveDiagnosticsSettings()
@@ -1537,7 +2244,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (CanReplacePreparedChannel(aligned, channelName, image))
         {
-            lastAligned = ReplaceAlignedChannel(aligned, channelName, image);
+            SetLastAligned(ReplaceAlignedChannel(aligned, channelName, image));
             ScheduleResultRebuild();
             return;
         }
@@ -1551,20 +2258,20 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var transformed = ChannelAligner.ApplyTransform(image, transform);
-        lastAligned = channelName switch
+        SetLastAligned(channelName switch
         {
             ChannelName.Red => aligned with { Red = transformed.Image, MaskRed = transformed.Mask },
             ChannelName.Green => aligned with { Green = transformed.Image, MaskGreen = transformed.Mask },
             ChannelName.Blue => aligned with { Blue = transformed.Image, MaskBlue = transformed.Mask },
             _ => aligned,
-        };
+        });
 
         ScheduleResultRebuild();
     }
 
     private void ClearAlignedAfterInputEdit()
     {
-        lastAligned = null;
+        SetLastAligned(null);
         ResultSlot.Result = null;
         Status = "Input channel changed. Run Auto-align again.";
     }
@@ -1602,6 +2309,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             ResultSlot.Result = result.Rgb;
             RefreshPreviewBindings();
+            RefreshChannelStates();
             AppendLog($"Result rebuilt from cached alignment: {result.Rgb.Width}x{result.Rgb.Height}.");
         }
         catch (OperationCanceledException)
@@ -1764,11 +2472,21 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyStampStrokeCommand.NotifyCanExecuteChanged();
         PickWhiteBalanceCommand.NotifyCanExecuteChanged();
         RefreshPreviewBindings();
+        OnPropertyChanged(nameof(InspectorChannelLabel));
+        OnPropertyChanged(nameof(InspectorSizeLabel));
+        OnPropertyChanged(nameof(InspectorStateLabel));
+        OnPropertyChanged(nameof(SelectedSlotSourceBitDepth));
+        OnPropertyChanged(nameof(CropBehaviorHint));
+        OnPropertyChanged(nameof(InputModeLabel));
     }
 
     partial void OnSelectionRectChanged(ImageSelectionRect value)
     {
         CropToSelectionCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(SelectionX));
+        OnPropertyChanged(nameof(SelectionY));
+        OnPropertyChanged(nameof(SelectionWidth));
+        OnPropertyChanged(nameof(SelectionHeight));
     }
 
     partial void OnToolModeChanged(EditorToolMode value)
@@ -1780,10 +2498,26 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsWhiteBalancePickerToolMode));
     }
 
-    partial void OnAutoCleanSensitivityChanged(int value)
+    partial void OnAppThemeModeChanged(AppThemeMode value)
     {
-        SchedulePendingAutoCleanMaskRefresh();
+        ThemeService.Apply(value);
+        NotifyThemeMenuSelection();
+        SaveUiSettings();
     }
+
+    partial void OnIsLeftPanelVisibleChanged(bool value) => SaveUiSettings();
+
+    partial void OnIsRightInspectorVisibleChanged(bool value) => SaveUiSettings();
+
+    partial void OnIsProcessingLogVisibleChanged(bool value) => SaveUiSettings();
+
+    partial void OnSelectedWorkflowToolChanged(WorkflowTool value) => SaveUiSettings();
+
+    partial void OnLeftPanelWidthChanged(double value) => SaveUiSettings();
+
+    partial void OnRightInspectorWidthChanged(double value) => SaveUiSettings();
+
+    partial void OnProcessingLogHeightChanged(double value) => SaveUiSettings();
 
     partial void OnAutoCleanQualityModeChanged(AutoCleanQualityMode value)
     {
@@ -1791,20 +2525,86 @@ public sealed partial class MainViewModel : ObservableObject
         SchedulePendingAutoCleanMaskRefresh();
     }
 
+    partial void OnShowHealMaskOverlayChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        RefreshAutoCleanMaskOverlay();
+    }
+
+    partial void OnDebugHealOutputChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnUseCrossChannelHealingChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnUseTeleaHealingChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnUseLocalLinearPredictionChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnUseGuidedPatchSearchChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnUseRobustFitChanged(bool value) => SaveAutoCleanSettings();
+
+    partial void OnHealPatchRadiusChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealSearchRadiusChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealSafetyRadiusChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealContextRadiusChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealMinTrainingPixelsChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealMaxComponentAreaChanged(int value) => SaveAutoCleanSettings();
+
+    partial void OnHealPredictionAlphaMinChanged(double value) => SaveAutoCleanSettings();
+
+    partial void OnHealPredictionAlphaMaxChanged(double value) => SaveAutoCleanSettings();
+
+    partial void OnHealFeatherSigmaChanged(double value) => SaveAutoCleanSettings();
+
+    partial void OnHealMaxAllowedErrorChanged(double value) => SaveAutoCleanSettings();
+
+    partial void OnHealLargeComponentConservativeScaleChanged(double value) => SaveAutoCleanSettings();
+
+    partial void OnAutoCleanRadiusChanged(int value)
+    {
+        SaveAutoCleanSettings();
+    }
+
+    partial void OnAutoCleanSensitivityChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        SchedulePendingAutoCleanMaskRefresh();
+    }
+
     partial void OnAutoExpandHealingAreaPxChanged(int value)
     {
+        SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
     }
 
     partial void OnAutoMergeNearbyDefectsChanged(bool value)
     {
+        SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
     }
 
     partial void OnAutoMergeDistancePxChanged(int value)
     {
+        SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
     }
+
+    partial void OnLevelsModeChanged(LevelsMode value)
+    {
+        OnPropertyChanged(nameof(IsManualLevels));
+        ScheduleResultRebuild();
+    }
+
+    partial void OnLevelsBlackPointChanged(double value) => ScheduleResultRebuild();
+
+    partial void OnLevelsWhitePointChanged(double value) => ScheduleResultRebuild();
+
+    partial void OnLevelsGammaChanged(double value) => ScheduleResultRebuild();
 
     partial void OnPendingAutoCleanMaskChanged(byte[]? value)
     {
@@ -1985,7 +2785,7 @@ public sealed partial class MainViewModel : ObservableObject
             GreenSlot.SourcePath = snapshot.GreenSourcePath;
             BlueSlot.SourcePath = snapshot.BlueSourcePath;
             ResultSlot.Result = snapshot.Result?.Clone();
-            lastAligned = CloneAligned(snapshot.LastAligned);
+            SetLastAligned(CloneAligned(snapshot.LastAligned));
             RedExposureStops = snapshot.RedExposureStops;
             GreenExposureStops = snapshot.GreenExposureStops;
             BlueExposureStops = snapshot.BlueExposureStops;

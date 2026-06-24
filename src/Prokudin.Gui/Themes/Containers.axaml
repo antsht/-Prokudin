@@ -80,10 +80,23 @@
     <Setter Property="IconOptions.Size" Value="14" />
   </Style>
 
-  <Style Selector="Border.SidebarToolbar">
-    <Setter Property="Padding" Value="8,8,8,4" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
-    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  <Style Selector="Button.WorkflowToolButton">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="6,8" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="IconOptions.Size" Value="18" />
+    <Setter Property="IconOptions.Fill" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+  </Style>
+
+  <Style Selector="Button.WorkflowToolButton.selected">
+    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
   </Style>
 
   <Style Selector="Border.ExportSettingsPopup">
@@ -93,5 +106,40 @@
     <Setter Property="Padding" Value="12" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="BoxShadow" Value="0 8 24 0 #55000000" />
+  </Style>
+
+  <Style Selector="Border.InspectorHeader">
+    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+  </Style>
+
+  <Style Selector="Border.InspectorPanel">
+    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderThickness" Value="1,0,0,0" />
+    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+  </Style>
+
+  <Style Selector="HeaderedContainer.InspectorSection">
+    <Setter Property="Margin" Value="0,0,0,12" />
+    <Setter Property="ContentPadding" Value="0,4,0,0" />
+  </Style>
+
+  <Style Selector="Border.ChannelStateBadge">
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorLight1}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Border.ChannelStateBadge TextBlock">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+  </Style>
+
+  <Style Selector="HeaderedContainer.Sidebar ListBoxItem:selected">
+    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight3}" />
+    <Setter Property="CornerRadius" Value="4" />
   </Style>
 </Styles>

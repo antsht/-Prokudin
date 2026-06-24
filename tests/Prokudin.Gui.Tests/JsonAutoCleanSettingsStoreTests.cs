@@ -15,4 +15,20 @@ public sealed class JsonAutoCleanSettingsStoreTests
         store.Load().QualityMode.Should().Be(AutoCleanQualityMode.Balanced);
         File.Delete(path);
     }
+
+    [Fact]
+    public void RoundTrip_PreservesHealSettings()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"autoclean-{Guid.NewGuid():N}.json");
+        var store = new JsonAutoCleanSettingsStore(path);
+        var settings = new AutoCleanSettingsSnapshot(
+            QualityMode: AutoCleanQualityMode.Fast,
+            Sensitivity: 72,
+            PatchRadius: 5,
+            SearchRadius: 64,
+            ShowHealMaskOverlay: false);
+        store.Save(settings);
+        store.Load().Should().BeEquivalentTo(settings);
+        File.Delete(path);
+    }
 }

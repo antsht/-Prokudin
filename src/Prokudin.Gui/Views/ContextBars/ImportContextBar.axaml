@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextBars.ImportContextBar"
+             x:DataType="vm:MainViewModel">
+  <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <Button Content="Open Red"
+            Command="{Binding OpenRedCommand}"
+            Margin="0,0,6,0"
+            automation:AutomationProperties.Name="Open red channel" />
+    <Button Content="Open Green"
+            Command="{Binding OpenGreenCommand}"
+            Margin="0,0,6,0"
+            automation:AutomationProperties.Name="Open green channel" />
+    <Button Content="Open Blue"
+            Command="{Binding OpenBlueCommand}"
+            Margin="0,0,6,0"
+            automation:AutomationProperties.Name="Open blue channel" />
+    <Button Content="Open Triptych"
+            Command="{Binding OpenTriptychCommand}"
+            Margin="0,0,10,0"
+            automation:AutomationProperties.Name="Open triptych" />
+    <TextBlock Text="Order:"
+               Classes="MutedCaption"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0" />
+    <ComboBox MinWidth="86"
+              ItemsSource="{Binding TriptychOrders}"
+              SelectedItem="{Binding SelectedTriptychOrder}"
+              IsEnabled="{Binding IsUiEnabled}"
+              ToolTip.Tip="Triptych channel order" />
+  </WrapPanel>
+</UserControl>

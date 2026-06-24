@@ -108,6 +108,31 @@ public static class ColorCorrection
         return output;
     }
 
+    public static RgbImageBuffer ApplyLevelsSettings(RgbImageBuffer rgb, LevelsSettings settings) =>
+        settings.Mode switch
+        {
+            LevelsMode.Off => rgb,
+            LevelsMode.Manual => ApplyManualLevelsAndGamma(
+                rgb,
+                Math.Clamp(settings.BlackPoint, 0f, 1f),
+                Math.Clamp(settings.WhitePoint, settings.BlackPoint + 1e-4f, 1f),
+                Math.Clamp(settings.Gamma, 0.1f, 5f)),
+            _ => ApplyGentleLevels(rgb, settings.AutoLowPercent, settings.AutoHighPercent, settings.AutoMaxGain),
+        };
+
+    public static RgbImageBuffer ApplyManualLevelsAndGamma(RgbImageBuffer rgb, float black, float white, float gamma)
+    {
+        var output = rgb.Clone();
+        var invRange = 1.0f / Math.Max(white - black, 1e-6f);
+        PixelParallel.For(0, output.Pixels.Length, i =>
+        {
+            var stretched = Math.Clamp((output.Pixels[i] - black) * invRange, 0f, 1f);
+            output.Pixels[i] = MathF.Pow(stretched, gamma);
+        });
+
+        return output;
+    }
+
     private static RgbImageBuffer ApplyNeutralRegionBalance(RgbImageBuffer rgb, float brightnessPercent = 85.0f, float varianceThreshold = 0.08f)
     {
         var brightness = new float[rgb.Width * rgb.Height];

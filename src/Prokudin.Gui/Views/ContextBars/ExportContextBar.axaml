@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextBars.ExportContextBar"
+             x:DataType="vm:MainViewModel">
+  <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <Button Content="Export result"
+            Command="{Binding ExportCommand}"
+            Margin="0,0,6,0"
+            automation:AutomationProperties.Name="Export result" />
+    <Button Content="Export channels"
+            Command="{Binding ExportChannelsCommand}"
+            Margin="0,0,10,0"
+            automation:AutomationProperties.Name="Export channels" />
+    <TextBlock Text="Format:"
+               Classes="MutedCaption"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0" />
+    <ComboBox MinWidth="88"
+              ItemsSource="{Binding ExportFormats}"
+              SelectedItem="{Binding ExportFormat}"
+              IsEnabled="{Binding IsUiEnabled}"
+              Margin="0,0,8,0" />
+    <Button Classes="IconButton"
+            Command="{Binding ToggleExportSettingsCommand}"
+            Content="{StaticResource IconSettings}"
+            ToolTip.Tip="Export settings"
+            automation:AutomationProperties.Name="Export settings" />
+  </WrapPanel>
+</UserControl>

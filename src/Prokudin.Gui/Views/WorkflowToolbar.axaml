@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.WorkflowToolbar"
+             x:DataType="vm:MainViewModel"
+             MinWidth="72"
+             MaxWidth="120">
+  <Border Classes="ChromeBar sidebar" Padding="4">
+    <StackPanel Spacing="4">
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsImportWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Import}"
+              ToolTip.Tip="Import channels or triptych"
+              automation:AutomationProperties.Name="Import workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconOpenImage}" HorizontalAlignment="Center" />
+          <TextBlock Text="Import" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsAlignWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Align}"
+              ToolTip.Tip="Align channels and rebuild result"
+              automation:AutomationProperties.Name="Align workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconAlign}" HorizontalAlignment="Center" />
+          <TextBlock Text="Align" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsCropWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Crop}"
+              ToolTip.Tip="Crop channels or result"
+              automation:AutomationProperties.Name="Crop workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconCrop}" HorizontalAlignment="Center" />
+          <TextBlock Text="Crop" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsCleanWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Clean}"
+              ToolTip.Tip="Heal, clone stamp, and auto-clean"
+              automation:AutomationProperties.Name="Clean workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconClean}" HorizontalAlignment="Center" />
+          <TextBlock Text="Clean" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsColorWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Color}"
+              ToolTip.Tip="White balance and exposure"
+              automation:AutomationProperties.Name="Color workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconWhiteBalance}" HorizontalAlignment="Center" />
+          <TextBlock Text="Color" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="WorkflowToolButton"
+              Classes.selected="{Binding IsExportWorkflow}"
+              Command="{Binding SelectWorkflowToolCommand}"
+              CommandParameter="{x:Static vm:WorkflowTool.Export}"
+              ToolTip.Tip="Export result and channels"
+              automation:AutomationProperties.Name="Export workflow">
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <ContentControl Content="{StaticResource IconExport}" HorizontalAlignment="Center" />
+          <TextBlock Text="Export" FontSize="10" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+  </Border>
+</UserControl>

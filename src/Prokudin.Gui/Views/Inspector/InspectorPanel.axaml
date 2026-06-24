@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.Inspector.InspectorPanel"
+             x:DataType="vm:MainViewModel">
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0"
+            Classes="InspectorHeader"
+            Padding="12,10">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Selected"
+                   FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="72,*"
+              RowDefinitions="Auto,Auto,Auto"
+              RowSpacing="4">
+          <TextBlock Text="Channel"
+                     Classes="MutedCaption" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding InspectorChannelLabel}" />
+          <TextBlock Grid.Row="1"
+                     Text="Size"
+                     Classes="MutedCaption" />
+          <TextBlock Grid.Row="1"
+                     Grid.Column="1"
+                     Text="{Binding InspectorSizeLabel}" />
+          <TextBlock Grid.Row="2"
+                     Text="State"
+                     Classes="MutedCaption" />
+          <Border Grid.Row="2"
+                  Grid.Column="1"
+                  Classes="ChannelStateBadge"
+                  HorizontalAlignment="Left"
+                  IsVisible="{Binding SelectedSlot.HasImage}">
+            <TextBlock Text="{Binding InspectorStateLabel}" />
+          </Border>
+        </Grid>
+        <Button Content="{Binding FitToWindowButtonText}"
+                Command="{Binding ToggleFitToWindowCommand}"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Border>
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+      <Panel Margin="12,8,12,12">
+        <inspector:ImportInspector IsVisible="{Binding IsImportWorkflow}" />
+        <inspector:AlignInspector IsVisible="{Binding IsAlignWorkflow}" />
+        <inspector:CropInspector IsVisible="{Binding IsCropWorkflow}" />
+        <inspector:CleanInspector IsVisible="{Binding IsCleanWorkflow}" />
+        <inspector:ColorInspector IsVisible="{Binding IsColorWorkflow}" />
+        <inspector:ExportInspector IsVisible="{Binding IsExportWorkflow}" />
+      </Panel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

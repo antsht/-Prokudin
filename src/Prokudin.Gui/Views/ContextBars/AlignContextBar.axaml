@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextBars.AlignContextBar"
+             x:DataType="vm:MainViewModel">
+  <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <Button Classes="IconButton"
+            Command="{Binding AutoAlignCommand}"
+            Content="{StaticResource IconAlign}"
+            ToolTip.Tip="Auto-align channels"
+            automation:AutomationProperties.Name="Auto-align"
+            Margin="0,0,10,0" />
+    <TextBlock Text="Reference:"
+               Classes="MutedCaption"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0" />
+    <ComboBox MinWidth="88"
+              ItemsSource="{Binding AlignReferenceChannels}"
+              SelectedItem="{Binding AlignReference}"
+              IsEnabled="{Binding IsUiEnabled}"
+              Margin="0,0,8,0" />
+    <TextBlock Text="Detector:"
+               Classes="MutedCaption"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0" />
+    <ComboBox MinWidth="72"
+              ItemsSource="{Binding AlignDetectors}"
+              SelectedItem="{Binding AlignDetector}"
+              IsEnabled="{Binding IsUiEnabled}"
+              Margin="0,0,8,0" />
+    <TextBlock Text="Max shift:"
+               Classes="MutedCaption"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0" />
+    <NumericUpDown Minimum="0"
+                   Maximum="512"
+                   Increment="8"
+                   Width="88"
+                   Value="{Binding AlignMaxTranslation}"
+                   IsEnabled="{Binding IsUiEnabled}"
+                   ToolTip.Tip="Per-axis alignment shift limit (0 = auto-scale)"
+                   Margin="0,0,10,0" />
+    <Button Content="Rebuild result"
+            Command="{Binding RebuildResultCommand}"
+            ToolTip.Tip="Rebuild RGB result from aligned channels"
+            automation:AutomationProperties.Name="Rebuild result" />
+  </WrapPanel>
+</UserControl>

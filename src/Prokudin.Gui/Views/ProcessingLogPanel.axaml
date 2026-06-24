@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             xmlns:z="using:Zafiro.Avalonia.Controls"
+             x:Class="Prokudin.Gui.Views.ProcessingLogPanel"
+             x:DataType="vm:MainViewModel"
+             MinHeight="44"
+             MaxHeight="360">
+  <z:HeaderedContainer Header="Processing log" Classes="LogPanel">
+    <DockPanel LastChildFill="True">
+      <StackPanel DockPanel.Dock="Top"
+                  Orientation="Horizontal"
+                  Spacing="8"
+                  Margin="0,0,0,4">
+        <CheckBox Content="Backends"
+                  IsChecked="{Binding LogComputeBackends}"
+                  ToolTip.Tip="Log compute backend chain (Native CUDA, ILGPU, CPU fallback)" />
+        <CheckBox Content="Pipeline"
+                  IsChecked="{Binding LogPipelineStages}"
+                  ToolTip.Tip="Log alignment, reconstruction, and retouch stages" />
+        <CheckBox Content="CPU parallel"
+                  IsChecked="{Binding LogCpuParallel}"
+                  ToolTip.Tip="Log PixelParallel and OpenCV threading decisions" />
+        <CheckBox Content="Timings"
+                  IsChecked="{Binding LogTimings}"
+                  ToolTip.Tip="Include elapsed milliseconds for accelerated operations" />
+        <Button Classes="IconButton"
+                Command="{Binding ClearLogCommand}"
+                Content="{StaticResource IconClear}"
+                ToolTip.Tip="Clear log" />
+      </StackPanel>
+      <ScrollViewer x:Name="ProcessingLogScrollViewer"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Auto"
+                    Focusable="True"
+                    ScrollChanged="ProcessingLogScrollViewer_OnScrollChanged">
+        <TextBlock Text="{Binding ProcessingLogText}"
+                   FontFamily="Consolas,Courier New,monospace"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+      </ScrollViewer>
+    </DockPanel>
+  </z:HeaderedContainer>
+</UserControl>

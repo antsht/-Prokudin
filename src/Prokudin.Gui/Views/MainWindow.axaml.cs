@@ -1,59 +1,76 @@
-using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Prokudin.Gui.ViewModels;
 
 namespace Prokudin.Gui.Views;
 
 public sealed partial class MainWindow : Window
 {
-    private bool stickLogToBottom = true;
-    private MainViewModel? viewModel;
-
     public MainWindow()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
+        Loaded += OnLoaded;
     }
 
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    private void OnLoaded(object? sender, EventArgs e)
     {
-        if (viewModel is not null)
+        if (DataContext is MainViewModel viewModel)
         {
-            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-
-        viewModel = DataContext as MainViewModel;
-        if (viewModel is not null)
-        {
-            viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            ApplyPanelLayout(viewModel);
         }
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnLeftColumnSplitterDragCompleted(object? sender, RoutedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.ProcessingLogText) || !stickLogToBottom)
+        if (DataContext is not MainViewModel viewModel)
         {
             return;
         }
 
-        ScrollLogToEnd();
+        viewModel.LeftPanelWidth = GetColumnWidth(WorkspaceGrid, 0);
     }
 
-    private void ProcessingLogScrollViewer_OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    private void OnRightColumnSplitterDragCompleted(object? sender, RoutedEventArgs e)
     {
-        var maxOffset = Math.Max(0, ProcessingLogScrollViewer.Extent.Height - ProcessingLogScrollViewer.Viewport.Height);
-        stickLogToBottom = ProcessingLogScrollViewer.Offset.Y >= maxOffset - 4.0;
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.RightInspectorWidth = GetColumnWidth(WorkspaceGrid, 5);
     }
 
-    private void ScrollLogToEnd()
+    private void OnLogRowSplitterDragCompleted(object? sender, RoutedEventArgs e)
     {
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                ProcessingLogScrollViewer.ScrollToEnd();
-            },
-            DispatcherPriority.Loaded);
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.ProcessingLogHeight = GetRowHeight(RootGrid, 4);
+    }
+
+    private void ApplyPanelLayout(MainViewModel viewModel)
+    {
+        WorkspaceGrid.ColumnDefinitions[0].Width = new GridLength(viewModel.LeftPanelWidthClamped);
+        WorkspaceGrid.ColumnDefinitions[5].Width = new GridLength(viewModel.RightInspectorWidthClamped);
+        RootGrid.RowDefinitions[4].Height = new GridLength(viewModel.ProcessingLogHeightClamped);
+    }
+
+    private static double GetColumnWidth(Grid grid, int columnIndex)
+    {
+        var definition = grid.ColumnDefinitions[columnIndex];
+        return definition.Width.IsAbsolute
+            ? definition.Width.Value
+            : definition.ActualWidth;
+    }
+
+    private static double GetRowHeight(Grid grid, int rowIndex)
+    {
+        var definition = grid.RowDefinitions[rowIndex];
+        return definition.Height.IsAbsolute
+            ? definition.Height.Value
+            : definition.ActualHeight;
     }
 }

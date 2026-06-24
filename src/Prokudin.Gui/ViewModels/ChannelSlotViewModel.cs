@@ -51,6 +51,20 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private Bitmap? thumbnailBitmap;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StateLabel))]
+    private ChannelSlotState state;
+
+    public string StateLabel => State switch
+    {
+        ChannelSlotState.Empty => "Empty",
+        ChannelSlotState.Loaded => "Loaded",
+        ChannelSlotState.Aligned => "Aligned",
+        ChannelSlotState.Retouched => "Retouched",
+        ChannelSlotState.Result => "Result",
+        _ => "—",
+    };
+
     public bool HasImage => Image is not null || Result is not null;
 
     public string Dimensions

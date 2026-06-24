@@ -125,7 +125,7 @@ public static class ReconstructionPipeline
         var (cropped, cropInfo) = ApplyCrop(rgb, overlap, settings.Crop);
         var croppedOverlap = Cropper.CropMask(overlap, sourceWidth, sourceHeight, cropInfo);
         var corrected = ColorCorrection.ApplyColorSettings(cropped, settings.Color);
-        corrected = ColorCorrection.ApplyGentleLevels(corrected);
+        corrected = ColorCorrection.ApplyLevelsSettings(corrected, settings.Levels);
         corrected = Cropper.EnforceGrayscaleOutsideOverlap(corrected, croppedOverlap);
 
         if (settings.OutputSize is { } size)

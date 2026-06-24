@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:primitives="using:Avalonia.Controls.Primitives"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:Class="Prokudin.Gui.Views.ContextBars.CropContextBar"
+             x:DataType="vm:MainViewModel">
+  <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+    <primitives:ToggleButton Classes="IconButton"
+                              IsChecked="{Binding IsSelectToolMode}"
+                              IsEnabled="{Binding IsUiEnabled}"
+                              Content="{StaticResource IconPointer}"
+                              ToolTip.Tip="Selection mode"
+                              automation:AutomationProperties.Name="Selection mode"
+                              Margin="0,0,6,0" />
+    <Button Classes="IconButton"
+            Command="{Binding CropToSelectionCommand}"
+            Content="{StaticResource IconCrop}"
+            ToolTip.Tip="Crop to selection"
+            automation:AutomationProperties.Name="Crop to selection"
+            Margin="0,0,6,0" />
+    <Button Content="Crop overlap"
+            Command="{Binding CropOverlapCommand}"
+            ToolTip.Tip="Crop aligned channels to largest full overlap"
+            automation:AutomationProperties.Name="Crop overlap"
+            Margin="0,0,8,0" />
+    <CheckBox Content="Square crop"
+              IsChecked="{Binding LockSquareSelection}"
+              IsEnabled="{Binding IsUiEnabled}"
+              VerticalAlignment="Center"
+              ToolTip.Tip="Lock selection to a square"
+              Margin="0,0,8,0" />
+    <Button Content="Reset crop"
+            Command="{Binding ResetCropSelectionCommand}"
+            ToolTip.Tip="Clear selection"
+            automation:AutomationProperties.Name="Reset crop selection" />
+  </WrapPanel>
+</UserControl>

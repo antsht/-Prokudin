@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             xmlns:z="using:Zafiro.Avalonia.Controls"
+             x:Class="Prokudin.Gui.Views.Inspector.ExportInspector"
+             x:DataType="vm:MainViewModel">
+  <z:HeaderedContainer Header="Export"
+                       Classes="InspectorSection">
+    <StackPanel Spacing="10">
+      <Grid ColumnDefinitions="120,*"
+            RowDefinitions="Auto,Auto,Auto"
+            RowSpacing="6">
+        <TextBlock Text="Format"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1"
+                  ItemsSource="{Binding ExportFormats}"
+                  SelectedItem="{Binding ExportFormat}" />
+        <TextBlock Grid.Row="1"
+                   Text="Max side"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <StackPanel Grid.Row="1"
+                    Grid.Column="1"
+                    Spacing="4">
+          <CheckBox Content="Limit max side"
+                    IsChecked="{Binding LimitExportSize}" />
+          <NumericUpDown Minimum="1"
+                         Maximum="20000"
+                         Increment="100"
+                         Value="{Binding ExportMaxSide}"
+                         IsEnabled="{Binding LimitExportSize}" />
+        </StackPanel>
+        <TextBlock Grid.Row="2"
+                   Text="Summary"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Top" />
+        <TextBlock Grid.Row="2"
+                   Grid.Column="1"
+                   Text="{Binding ExportSettingsSummary}"
+                   TextWrapping="Wrap" />
+      </Grid>
+      <StackPanel Spacing="4"
+                  IsVisible="{Binding IsPngExport}">
+        <TextBlock Text="PNG compression"
+                   Classes="MutedCaption" />
+        <NumericUpDown Minimum="0"
+                       Maximum="9"
+                       Increment="1"
+                       Value="{Binding PngCompression}" />
+      </StackPanel>
+      <StackPanel Spacing="4"
+                  IsVisible="{Binding IsJpegExport}">
+        <TextBlock Text="JPEG quality"
+                   Classes="MutedCaption" />
+        <NumericUpDown Minimum="1"
+                       Maximum="100"
+                       Increment="1"
+                       Value="{Binding JpegQuality}" />
+      </StackPanel>
+      <StackPanel Spacing="6"
+                  IsVisible="{Binding IsTiffExport}">
+        <TextBlock Text="TIFF compression"
+                   Classes="MutedCaption" />
+        <ComboBox ItemsSource="{Binding TiffCompressions}"
+                  SelectedItem="{Binding TiffCompression}" />
+        <StackPanel Spacing="4"
+                    IsVisible="{Binding IsTiffDeflate}">
+          <TextBlock Text="Deflate level"
+                     Classes="MutedCaption" />
+          <NumericUpDown Minimum="1"
+                         Maximum="9"
+                         Increment="1"
+                         Value="{Binding TiffDeflateLevel}" />
+        </StackPanel>
+      </StackPanel>
+      <CheckBox Content="Open output folder after export"
+                IsChecked="{Binding OpenOutputFolderAfterExport}" />
+      <StackPanel Spacing="6">
+        <Button Content="Export result"
+                Command="{Binding ExportCommand}"
+                HorizontalAlignment="Stretch"
+                automation:AutomationProperties.Name="Export result" />
+        <Button Content="Export prepared channels"
+                Command="{Binding ExportChannelsCommand}"
+                HorizontalAlignment="Stretch"
+                automation:AutomationProperties.Name="Export channels" />
+      </StackPanel>
+    </StackPanel>
+  </z:HeaderedContainer>
+</UserControl>

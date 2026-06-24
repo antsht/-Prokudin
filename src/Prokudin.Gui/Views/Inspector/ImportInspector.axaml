@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Prokudin.Gui.ViewModels"
+             xmlns:z="using:Zafiro.Avalonia.Controls"
+             x:Class="Prokudin.Gui.Views.Inspector.ImportInspector"
+             x:DataType="vm:MainViewModel">
+  <z:HeaderedContainer Header="Input"
+                       Classes="InspectorSection">
+    <StackPanel Spacing="8">
+      <Grid ColumnDefinitions="120,*"
+            RowDefinitions="Auto,Auto,Auto,Auto"
+            RowSpacing="6">
+        <TextBlock Text="Triptych order"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1"
+                  ItemsSource="{Binding TriptychOrders}"
+                  SelectedItem="{Binding SelectedTriptychOrder}" />
+        <TextBlock Grid.Row="1"
+                   Text="Input mode"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Row="1"
+                   Grid.Column="1"
+                   Text="{Binding InputModeLabel}"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Row="2"
+                   Text="Source bit depth"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Row="2"
+                   Grid.Column="1"
+                   Text="{Binding SelectedSlotSourceBitDepth}"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Row="3"
+                   Text="Trim dark borders"
+                   Classes="MutedCaption"
+                   VerticalAlignment="Center" />
+        <CheckBox Grid.Row="3"
+                  Grid.Column="1"
+                  Content="Enabled"
+                  IsChecked="{Binding TrimDarkBorders}"
+                  VerticalAlignment="Center" />
+      </Grid>
+    </StackPanel>
+  </z:HeaderedContainer>
+</UserControl>

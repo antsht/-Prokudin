@@ -4,14 +4,15 @@
                  xmlns:controls="using:Avalonia.Controls"
                  xmlns:input="using:Avalonia.Input"
                  xmlns:primitives="using:Avalonia.Controls.Primitives"
+                 xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
                  xmlns:views="using:Prokudin.Gui.Views"
                  xmlns:vm="using:Prokudin.Gui.ViewModels"
                  xmlns:z="using:Zafiro.Avalonia.Controls"
                  x:Class="Prokudin.Gui.Views.MainWindow"
                  x:DataType="vm:MainViewModel"
                  Title="Prokudin"
-                 Width="1180"
-                 Height="780"
+                 Width="1280"
+                 Height="800"
                  MinWidth="920"
                  MinHeight="560">
   <controls:Window.KeyBindings>
@@ -19,8 +20,10 @@
     <input:KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
   </controls:Window.KeyBindings>
 
-  <DockPanel Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-    <Menu DockPanel.Dock="Top">
+  <Grid x:Name="RootGrid"
+        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+        RowDefinitions="Auto,Auto,*,4,150,Auto">
+    <Menu Grid.Row="0">
       <MenuItem Header="_File">
         <MenuItem Header="Open _Red..." Command="{Binding OpenRedCommand}" />
         <MenuItem Header="Open _Green..." Command="{Binding OpenGreenCommand}" />
@@ -28,73 +31,89 @@
         <Separator />
         <MenuItem Header="Open _Triptych..." Command="{Binding OpenTriptychCommand}" />
         <Separator />
-        <MenuItem Header="_Export result..." Command="{Binding ExportCommand}" />
+        <MenuItem Header="Export _Result..." Command="{Binding ExportCommand}" />
         <MenuItem Header="Export _Channels..." Command="{Binding ExportChannelsCommand}" />
+        <Separator />
+        <MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
       </MenuItem>
       <MenuItem Header="_Edit">
-        <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
-        <MenuItem Header="_Redo" Command="{Binding RedoCommand}" />
+        <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+        <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="_Theme">
+          <MenuItem Header="_Light"
+                    ToggleType="Radio"
+                    IsChecked="{Binding IsLightThemeSelected}" />
+          <MenuItem Header="_Dark"
+                    ToggleType="Radio"
+                    IsChecked="{Binding IsDarkThemeSelected}" />
+          <MenuItem Header="_System"
+                    ToggleType="Radio"
+                    IsChecked="{Binding IsSystemThemeSelected}" />
+        </MenuItem>
+        <Separator />
+        <MenuItem Header="Fit to _Window" Command="{Binding SetPreviewFitToWindowCommand}" />
+        <MenuItem Header="_1:1" Command="{Binding SetPreviewOneToOneCommand}" />
+        <Separator />
+        <MenuItem Header="Show _Left Channel Panel"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsLeftPanelVisible}" />
+        <MenuItem Header="Show _Right Inspector"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsRightInspectorVisible}" />
+        <MenuItem Header="Show _Processing Log"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsProcessingLogVisible}" />
       </MenuItem>
       <MenuItem Header="_Process">
         <MenuItem Header="_Auto-align" Command="{Binding AutoAlignCommand}" />
-        <MenuItem Header="Detect auto-clean mask" Command="{Binding AutoCleanSelectedChannelCommand}" />
-        <MenuItem Header="Apply auto-clean mask" Command="{Binding ApplyAutoCleanMaskCommand}" />
-        <MenuItem Header="Cancel auto-clean mask" Command="{Binding CancelAutoCleanMaskCommand}" />
+        <MenuItem Header="_Rebuild Result" Command="{Binding RebuildResultCommand}" />
+        <Separator />
+        <MenuItem Header="Detect _Auto-clean Mask" Command="{Binding AutoCleanSelectedChannelCommand}" />
+        <MenuItem Header="_Apply Auto-clean Mask" Command="{Binding ApplyAutoCleanMaskCommand}" />
+        <MenuItem Header="_Cancel Auto-clean Mask" Command="{Binding CancelAutoCleanMaskCommand}" />
+      </MenuItem>
+      <MenuItem Header="_Tools">
+        <MenuItem Header="_Selection" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Select}" />
+        <MenuItem Header="_Heal Brush" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Heal}" />
+        <MenuItem Header="_Clone Stamp" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Clone}" />
+        <MenuItem Header="_White Balance Picker" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.WhiteBalancePicker}" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="_User Guide" Command="{Binding OpenUserGuideCommand}" />
+        <MenuItem Header="_Keyboard Shortcuts" Command="{Binding ShowKeyboardShortcutsCommand}" />
+        <MenuItem Header="_About Prokudin" Command="{Binding ShowAboutCommand}" />
       </MenuItem>
     </Menu>
 
-    <Border DockPanel.Dock="Top" Classes="ChromeBar top" Padding="8,5">
-      <z:EdgePanel>
-        <z:EdgePanel.StartContent>
-          <TextBlock Text="Prokudin" FontWeight="SemiBold" VerticalAlignment="Center" />
-        </z:EdgePanel.StartContent>
-        <z:EdgePanel.EndContent>
-          <TextBlock Text="{Binding Status}" Classes="StatusText" />
-        </z:EdgePanel.EndContent>
-      </z:EdgePanel>
+    <Border Grid.Row="1"
+            x:Name="ContextBarHost"
+            Classes="ChromeBar top"
+            Padding="8,6">
+      <views:ContextCommandBar DataContext="{Binding}" />
     </Border>
 
-    <Grid ColumnDefinitions="260,*">
-      <Grid x:Name="SidebarHost" Grid.Column="0">
+    <Grid Grid.Row="2"
+          x:Name="WorkspaceGrid"
+          ColumnDefinitions="260,4,88,*,4,360">
+      <Grid x:Name="SidebarHost"
+            Grid.Column="0"
+            MinWidth="220"
+            MaxWidth="420"
+            IsVisible="{Binding IsLeftPanelVisible}">
         <z:HeaderedContainer Header="Channels" Classes="Sidebar">
-          <Grid RowDefinitions="Auto,*">
-            <Border Grid.Row="0" Classes="SidebarToolbar">
-              <Grid ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="6">
-                <Button Classes="IconButton"
-                        Command="{Binding OpenTriptychCommand}"
-                        Content="{StaticResource IconTriptych}"
-                        ToolTip.Tip="Load triptych"
-                        automation:AutomationProperties.Name="Load triptych" />
-                <ComboBox Grid.Column="1"
-                          ItemsSource="{Binding TriptychOrders}"
-                          SelectedItem="{Binding SelectedTriptychOrder}"
-                          MinWidth="86"
-                          HorizontalAlignment="Stretch"
-                          ToolTip.Tip="Triptych channel order" />
-                <Button Grid.Column="2"
-                        Classes="IconButton"
-                        Command="{Binding ExportChannelsCommand}"
-                        Content="{StaticResource IconExport}"
-                        ToolTip.Tip="Export working channels"
-                        automation:AutomationProperties.Name="Export working channels" />
-              </Grid>
-            </Border>
-
-            <ListBox Grid.Row="1"
-                     ItemsSource="{Binding Slots}"
-                     SelectedItem="{Binding SelectedSlot}"
-                     Padding="8"
-                     Background="Transparent">
-              <ListBox.ItemTemplate>
-                <DataTemplate DataType="vm:ChannelSlotViewModel">
-                  <views:ChannelSlotCard />
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </Grid>
+          <ListBox ItemsSource="{Binding Slots}"
+                   SelectedItem="{Binding SelectedSlot}"
+                   Padding="8"
+                   Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="vm:ChannelSlotViewModel">
+                <views:ChannelSlotCard />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
         </z:HeaderedContainer>
-
         <Popup IsOpen="{Binding IsExportSettingsOpen}"
                PlacementTarget="{Binding #SidebarHost}"
                Placement="Right"
@@ -105,18 +124,15 @@
             <StackPanel Spacing="8">
               <TextBlock Text="Export settings" FontWeight="SemiBold" />
               <TextBlock Text="{Binding ExportSettingsSummary}" Classes="MutedCaption" />
-
               <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                 <TextBlock Text="Format" Classes="MutedCaption" VerticalAlignment="Center" />
                 <ComboBox Grid.Column="1"
                           ItemsSource="{Binding ExportFormats}"
                           SelectedItem="{Binding ExportFormat}" />
-
                 <CheckBox Grid.Row="1"
                           Grid.ColumnSpan="2"
                           Content="Limit max side"
                           IsChecked="{Binding LimitExportSize}" />
-
                 <TextBlock Grid.Row="2"
                            Text="Max side"
                            Classes="MutedCaption"
@@ -129,7 +145,6 @@
                                Value="{Binding ExportMaxSide}"
                                IsEnabled="{Binding LimitExportSize}" />
               </Grid>
-
               <StackPanel Spacing="4" IsVisible="{Binding IsPngExport}">
                 <TextBlock Text="PNG compression" Classes="MutedCaption" />
                 <NumericUpDown Minimum="0"
@@ -137,7 +152,6 @@
                                Increment="1"
                                Value="{Binding PngCompression}" />
               </StackPanel>
-
               <StackPanel Spacing="4" IsVisible="{Binding IsJpegExport}">
                 <TextBlock Text="JPEG quality" Classes="MutedCaption" />
                 <NumericUpDown Minimum="1"
@@ -145,7 +159,6 @@
                                Increment="1"
                                Value="{Binding JpegQuality}" />
               </StackPanel>
-
               <StackPanel Spacing="6" IsVisible="{Binding IsTiffExport}">
                 <TextBlock Text="TIFF compression" Classes="MutedCaption" />
                 <ComboBox ItemsSource="{Binding TiffCompressions}"
@@ -163,280 +176,62 @@
         </Popup>
       </Grid>
 
-      <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,120">
-        <Border Grid.Row="0" Classes="ChromeBar top" Padding="8,6">
-          <WrapPanel Orientation="Horizontal"
-                     VerticalAlignment="Center">
-            <Button Classes="IconButton"
-                    Command="{Binding ToggleFitToWindowCommand}"
-                    Content="{StaticResource IconZoomFit}"
-                    ToolTip.Tip="{Binding FitToWindowButtonText}"
-                    automation:AutomationProperties.Name="Toggle preview zoom"
-                    Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding CropToSelectionCommand}"
-                    Content="{StaticResource IconCrop}"
-                    ToolTip.Tip="Crop to selection"
-                    automation:AutomationProperties.Name="Crop to selection"
-                    Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding UndoCommand}"
-                    Content="{StaticResource IconUndo}"
-                    ToolTip.Tip="Undo"
-                    automation:AutomationProperties.Name="Undo"
-                    Margin="0,0,4,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding RedoCommand}"
-                    Content="{StaticResource IconRedo}"
-                    ToolTip.Tip="Redo"
-                    automation:AutomationProperties.Name="Redo"
-                    Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding AutoAlignCommand}"
-                    Content="{StaticResource IconAlign}"
-                    ToolTip.Tip="Auto-align"
-                    automation:AutomationProperties.Name="Auto-align"
-                    Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding AutoCleanSelectedChannelCommand}"
-                    Content="{StaticResource IconClean}"
-                    ToolTip.Tip="Detect auto-clean mask"
-                    automation:AutomationProperties.Name="Detect auto-clean mask"
-                    Margin="0,0,4,0" />
-            <ProgressBar Width="128"
-                         Height="10"
-                         Minimum="0"
-                         Maximum="100"
-                         Value="{Binding AutoCleanProgress}"
-                         IsVisible="{Binding IsAutoCleanProgressVisible}"
-                         VerticalAlignment="Center"
-                         Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding ApplyAutoCleanMaskCommand}"
-                    Content="{StaticResource IconApply}"
-                    ToolTip.Tip="Apply auto-clean mask"
-                    automation:AutomationProperties.Name="Apply auto-clean mask"
-                    IsVisible="{Binding IsAutoCleanMaskPending}"
-                    Margin="0,0,4,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding CancelAutoCleanMaskCommand}"
-                    Content="{StaticResource IconCancel}"
-                    ToolTip.Tip="Cancel auto-clean mask"
-                    automation:AutomationProperties.Name="Cancel auto-clean mask"
-                    IsVisible="{Binding IsAutoCleanMaskPending}"
-                    Margin="0,0,4,0" />
-            <primitives:ToggleButton Classes="IconButton"
-                                      IsChecked="{Binding ShowAutoCleanResultPreview}"
-                                      Content="{StaticResource IconPreview}"
-                                      ToolTip.Tip="Review mask on result"
-                                      automation:AutomationProperties.Name="Review mask on result"
-                                      IsVisible="{Binding IsAutoCleanMaskPending}"
-                                      Margin="0,0,10,0" />
+      <GridSplitter x:Name="LeftColumnSplitter"
+                    Grid.Column="1"
+                    ResizeDirection="Columns"
+                    Background="Transparent"
+                    DragCompleted="OnLeftColumnSplitterDragCompleted"
+                    IsVisible="{Binding IsLeftPanelVisible}" />
 
-            <primitives:ToggleButton Classes="IconButton"
-                                      IsChecked="{Binding IsSelectToolMode}"
-                                      Content="{StaticResource IconPointer}"
-                                      ToolTip.Tip="Selection mode"
-                                      automation:AutomationProperties.Name="Selection mode"
-                                      Margin="0,0,4,0" />
-            <primitives:ToggleButton Classes="IconButton"
-                                      IsChecked="{Binding IsHealToolMode}"
-                                      Content="{StaticResource IconHeal}"
-                                      ToolTip.Tip="Heal retouch mode"
-                                      automation:AutomationProperties.Name="Heal retouch mode"
-                                      Margin="0,0,4,0" />
-            <primitives:ToggleButton Classes="IconButton"
-                                      IsChecked="{Binding IsCloneToolMode}"
-                                      Content="{StaticResource IconClone}"
-                                      ToolTip.Tip="Clone stamp mode"
-                                      automation:AutomationProperties.Name="Clone stamp mode"
-                                      Margin="0,0,10,0" />
+      <views:WorkflowToolbar Grid.Column="2"
+                             DataContext="{Binding}" />
 
-            <TextBlock Text="Brush"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="80"
-                    Minimum="1"
-                    Maximum="64"
-                    Value="{Binding BrushSize}"
-                    Margin="0,0,8,0" />
-            <TextBlock Text="Agg"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <ComboBox MinWidth="96"
-                      ItemsSource="{Binding AutoCleanQualityModes}"
-                      SelectedItem="{Binding AutoCleanQualityMode}"
-                      ToolTip.Tip="Quality: best result. Balanced: faster. Fast: preview speed."
-                      Margin="0,0,8,0" />
-            <Slider Width="80"
-                    Minimum="0"
-                    Maximum="100"
-                    Value="{Binding AutoCleanSensitivity}"
-                    ToolTip.Tip="Auto-clean mask aggression"
-                    Margin="0,0,8,0" />
-            <TextBlock Text="Radius"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="64"
-                    Minimum="1"
-                    Maximum="12"
-                    Value="{Binding AutoCleanRadius}"
-                    Margin="0,0,8,0" />
-            <CheckBox Content="Merge"
-                      IsChecked="{Binding AutoMergeNearbyDefects}"
-                      VerticalAlignment="Center"
-                      ToolTip.Tip="Merge nearby auto-clean defects"
-                      Margin="0,0,6,0" />
-            <TextBlock Text="Gap"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="56"
-                    Minimum="0"
-                    Maximum="20"
-                    Value="{Binding AutoMergeDistancePx}"
-                    ToolTip.Tip="Auto-clean merge distance"
-                    Margin="0,0,8,0" />
-            <TextBlock Text="Expand"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="56"
-                    Minimum="0"
-                    Maximum="10"
-                    Value="{Binding AutoExpandHealingAreaPx}"
-                    ToolTip.Tip="Auto-clean healing mask expansion"
-                    Margin="0,0,8,0" />
-            <CheckBox Content="Cross-channel"
-                      IsChecked="{Binding UseCrossChannelHealing}"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
-            <CheckBox Content="Telea"
-                      IsChecked="{Binding UseTeleaHealing}"
-                      VerticalAlignment="Center"
-                      ToolTip.Tip="Use Telea inpaint when cross-channel is off"
-                      Margin="0,0,8,0" />
-            <CheckBox Content="Debug heal"
-                      IsChecked="{Binding DebugHealOutput}"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
-            <CheckBox Content="Auto WB"
-                      IsChecked="{Binding AutoWhiteBalance}"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0" />
-            <primitives:ToggleButton Classes="IconButton"
-                                      IsChecked="{Binding IsWhiteBalancePickerToolMode}"
-                                      IsEnabled="{Binding CanUseWhiteBalancePicker}"
-                                      Content="{StaticResource IconEyedropper}"
-                                      ToolTip.Tip="Pick white balance from result"
-                                      automation:AutomationProperties.Name="Pick white balance from result"
-                                      Margin="0,0,8,0" />
-            <TextBlock Text="R"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="72"
-                    Minimum="-2"
-                    Maximum="2"
-                    Value="{Binding RedExposureStops}"
-                    Margin="0,0,8,0" />
-            <TextBlock Text="G"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="72"
-                    Minimum="-2"
-                    Maximum="2"
-                    Value="{Binding GreenExposureStops}"
-                    Margin="0,0,8,0" />
-            <TextBlock Text="B"
-                       Classes="MutedCaption"
-                       VerticalAlignment="Center"
-                       Margin="0,0,4,0" />
-            <Slider Width="72"
-                    Minimum="-2"
-                    Maximum="2"
-                    Value="{Binding BlueExposureStops}"
-                    Margin="0,0,8,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding ResetExposureCommand}"
-                    Content="{StaticResource IconWhiteBalance}"
-                    ToolTip.Tip="Reset exposure"
-                    automation:AutomationProperties.Name="Reset exposure"
-                    Margin="0,0,6,0" />
-            <Button Classes="IconButton"
-                    Command="{Binding ClearLogCommand}"
-                    Content="{StaticResource IconClear}"
-                    ToolTip.Tip="Clear log"
-                    automation:AutomationProperties.Name="Clear log" />
-          </WrapPanel>
-        </Border>
+      <views:ImagePreviewControl Grid.Column="3"
+                                 DisplayBitmap="{Binding PreviewDisplayBitmap}"
+                                 MaskOverlayBitmap="{Binding AutoCleanMaskOverlayBitmap}"
+                                 ZoomMode="{Binding PreviewZoomMode}"
+                                 SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
+                                 LockSquareSelection="{Binding LockSquareSelection}"
+                                 HasImage="{Binding PreviewHasImage}"
+                                 InteractionMode="{Binding PreviewInteractionMode}"
+                                 RetouchTool="{Binding SelectedRetouchTool}"
+                                 PreviewImageContextKey="{Binding PreviewImageContextKey}"
+                                 BrushSize="{Binding BrushSize}"
+                                 InpaintRadius="{Binding AutoCleanRadius}"
+                                 RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
+                                 StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
+                                 MaskEditCommand="{Binding EditAutoCleanMaskCommand}"
+                                 WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}" />
 
-        <views:ImagePreviewControl Grid.Row="1"
-                                   DisplayBitmap="{Binding PreviewDisplayBitmap}"
-                                   MaskOverlayBitmap="{Binding AutoCleanMaskOverlayBitmap}"
-                                   ZoomMode="{Binding PreviewZoomMode}"
-                                   SelectionRect="{Binding SelectionRect, Mode=TwoWay}"
-                                   HasImage="{Binding PreviewHasImage}"
-                                   InteractionMode="{Binding PreviewInteractionMode}"
-                                   RetouchTool="{Binding SelectedRetouchTool}"
-                                   PreviewImageContextKey="{Binding PreviewImageContextKey}"
-                                   BrushSize="{Binding BrushSize}"
-                                   InpaintRadius="{Binding AutoCleanRadius}"
-                                   RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
-                                   StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
-                                   MaskEditCommand="{Binding EditAutoCleanMaskCommand}"
-                                   WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}" />
+      <GridSplitter x:Name="RightColumnSplitter"
+                    Grid.Column="4"
+                    ResizeDirection="Columns"
+                    Background="Transparent"
+                    DragCompleted="OnRightColumnSplitterDragCompleted"
+                    IsVisible="{Binding IsRightInspectorVisible}" />
 
-        <Border Grid.Row="2" Classes="ChromeBar bottom" Padding="8,0">
-          <z:EdgePanel>
-            <z:EdgePanel.StartContent>
-              <TextBlock Text="Dimensions" Classes="MutedCaption" />
-            </z:EdgePanel.StartContent>
-            <z:EdgePanel.EndContent>
-              <TextBlock Text="{Binding SelectedSlot.Dimensions}" Classes="MutedCaption" />
-            </z:EdgePanel.EndContent>
-          </z:EdgePanel>
-        </Border>
-
-        <z:HeaderedContainer Grid.Row="3"
-                             Header="Processing log"
-                             Classes="LogPanel">
-          <DockPanel LastChildFill="True">
-            <StackPanel DockPanel.Dock="Top"
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Margin="0,0,0,4">
-              <CheckBox Content="Backends"
-                        IsChecked="{Binding LogComputeBackends}"
-                        ToolTip.Tip="Log compute backend chain (Native CUDA, ILGPU, CPU fallback)" />
-              <CheckBox Content="Pipeline"
-                        IsChecked="{Binding LogPipelineStages}"
-                        ToolTip.Tip="Log alignment, reconstruction, and retouch stages" />
-              <CheckBox Content="CPU parallel"
-                        IsChecked="{Binding LogCpuParallel}"
-                        ToolTip.Tip="Log PixelParallel and OpenCV threading decisions" />
-              <CheckBox Content="Timings"
-                        IsChecked="{Binding LogTimings}"
-                        ToolTip.Tip="Include elapsed milliseconds for accelerated operations" />
-            </StackPanel>
-            <ScrollViewer x:Name="ProcessingLogScrollViewer"
-                          MaxHeight="88"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto"
-                          Focusable="True"
-                          ScrollChanged="ProcessingLogScrollViewer_OnScrollChanged">
-              <TextBlock Text="{Binding ProcessingLogText}"
-                         FontFamily="Consolas,Courier New,monospace"
-                         FontSize="12"
-                         TextWrapping="Wrap" />
-            </ScrollViewer>
-          </DockPanel>
-        </z:HeaderedContainer>
-      </Grid>
+      <Border Grid.Column="5"
+              x:Name="InspectorHost"
+              Classes="InspectorPanel"
+              MinWidth="300"
+              MaxWidth="520"
+              IsVisible="{Binding IsRightInspectorVisible}">
+        <inspector:InspectorPanel DataContext="{Binding}" />
+      </Border>
     </Grid>
-  </DockPanel>
+
+    <GridSplitter x:Name="LogRowSplitter"
+                  Grid.Row="3"
+                  ResizeDirection="Rows"
+                  Background="Transparent"
+                  DragCompleted="OnLogRowSplitterDragCompleted"
+                  IsVisible="{Binding IsProcessingLogVisible}" />
+
+    <views:ProcessingLogPanel Grid.Row="4"
+                              DataContext="{Binding}"
+                              IsVisible="{Binding IsProcessingLogVisible}" />
+
+    <views:StatusBar Grid.Row="5"
+                     DataContext="{Binding}" />
+  </Grid>
 </controls:Window>

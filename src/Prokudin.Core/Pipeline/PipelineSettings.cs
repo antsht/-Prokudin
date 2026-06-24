@@ -14,6 +14,8 @@ public sealed record PipelineSettings
 
     public CropSettings Crop { get; init; } = new();
 
+    public LevelsSettings Levels { get; init; } = new();
+
     public bool Sharpen { get; init; } = true;
 
     public int? OutputSize { get; init; }
