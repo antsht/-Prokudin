@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="using:Avalonia.Automation"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              x:Class="Prokudin.Gui.Views.Inspector.ExportInspector"
@@ -11,26 +12,34 @@
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Format"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="ExportFormatLabel"
+                                           Caption="Format"
+                                           ShortTip="{StaticResource Tips.Export.Format.Short}"
+                                           LongTip="{StaticResource Tips.Export.Format.Long}" />
         <ComboBox Grid.Column="1"
                   ItemsSource="{Binding ExportFormats}"
-                  SelectedItem="{Binding ExportFormat}" />
-        <TextBlock Grid.Row="1"
-                   Text="Max side"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                  SelectedItem="{Binding ExportFormat}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=ExportFormatLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="LimitExportSizeLabel"
+                                           Caption="Max side"
+                                           ShortTip="{StaticResource Tips.Export.LimitExportSize.Short}"
+                                           LongTip="{StaticResource Tips.Export.LimitExportSize.Long}" />
         <StackPanel Grid.Row="1"
                     Grid.Column="1"
                     Spacing="4">
           <CheckBox Content="Limit max side"
-                    IsChecked="{Binding LimitExportSize}" />
+                    IsChecked="{Binding LimitExportSize}"
+                    ToolTip.ShowDelay="400"
+                    ToolTip.Tip="{Binding ShortTip, ElementName=LimitExportSizeLabel}" />
           <NumericUpDown Minimum="1"
                          Maximum="20000"
                          Increment="100"
                          Value="{Binding ExportMaxSide}"
-                         IsEnabled="{Binding LimitExportSize}" />
+                         IsEnabled="{Binding LimitExportSize}"
+                         ToolTip.ShowDelay="400"
+                         ToolTip.Tip="{StaticResource Tips.Export.ExportMaxSide.Short}" />
         </StackPanel>
         <TextBlock Grid.Row="2"
                    Text="Summary"
@@ -43,49 +52,102 @@
       </Grid>
       <StackPanel Spacing="4"
                   IsVisible="{Binding IsPngExport}">
-        <TextBlock Text="PNG compression"
-                   Classes="MutedCaption" />
+        <inspector:InspectorParameterLabel x:Name="PngCompressionLabel"
+                                           Caption="PNG compression"
+                                           ShortTip="{StaticResource Tips.Export.PngCompression.Short}"
+                                           LongTip="{StaticResource Tips.Export.PngCompression.Long}" />
         <NumericUpDown Minimum="0"
                        Maximum="9"
                        Increment="1"
-                       Value="{Binding PngCompression}" />
+                       Value="{Binding PngCompression}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=PngCompressionLabel}" />
       </StackPanel>
       <StackPanel Spacing="4"
                   IsVisible="{Binding IsJpegExport}">
-        <TextBlock Text="JPEG quality"
-                   Classes="MutedCaption" />
+        <inspector:InspectorParameterLabel x:Name="JpegQualityLabel"
+                                           Caption="JPEG quality"
+                                           ShortTip="{StaticResource Tips.Export.JpegQuality.Short}"
+                                           LongTip="{StaticResource Tips.Export.JpegQuality.Long}" />
         <NumericUpDown Minimum="1"
                        Maximum="100"
                        Increment="1"
-                       Value="{Binding JpegQuality}" />
+                       Value="{Binding JpegQuality}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=JpegQualityLabel}" />
       </StackPanel>
       <StackPanel Spacing="6"
                   IsVisible="{Binding IsTiffExport}">
-        <TextBlock Text="TIFF compression"
-                   Classes="MutedCaption" />
+        <inspector:InspectorParameterLabel x:Name="TiffCompressionLabel"
+                                           Caption="TIFF compression"
+                                           ShortTip="{StaticResource Tips.Export.TiffCompression.Short}"
+                                           LongTip="{StaticResource Tips.Export.TiffCompression.Long}" />
         <ComboBox ItemsSource="{Binding TiffCompressions}"
-                  SelectedItem="{Binding TiffCompression}" />
+                  SelectedItem="{Binding TiffCompression}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=TiffCompressionLabel}" />
         <StackPanel Spacing="4"
                     IsVisible="{Binding IsTiffDeflate}">
-          <TextBlock Text="Deflate level"
-                     Classes="MutedCaption" />
+          <inspector:InspectorParameterLabel x:Name="TiffDeflateLevelLabel"
+                                           Caption="Deflate level"
+                                           ShortTip="{StaticResource Tips.Export.TiffDeflateLevel.Short}"
+                                           LongTip="{StaticResource Tips.Export.TiffDeflateLevel.Long}" />
           <NumericUpDown Minimum="1"
                          Maximum="9"
                          Increment="1"
-                         Value="{Binding TiffDeflateLevel}" />
+                         Value="{Binding TiffDeflateLevel}"
+                         ToolTip.ShowDelay="400"
+                         ToolTip.Tip="{Binding ShortTip, ElementName=TiffDeflateLevelLabel}" />
         </StackPanel>
       </StackPanel>
-      <CheckBox Content="Open output folder after export"
-                IsChecked="{Binding OpenOutputFolderAfterExport}" />
+      <inspector:InspectorParameterCheckBox x:Name="OpenOutputFolderBox"
+                                            Label="Open output folder after export"
+                                            IsChecked="{Binding OpenOutputFolderAfterExport}"
+                                            ShortTip="{StaticResource Tips.Export.OpenOutputFolder.Short}"
+                                            LongTip="{StaticResource Tips.Export.OpenOutputFolder.Long}" />
       <StackPanel Spacing="6">
-        <Button Content="Export result"
-                Command="{Binding ExportCommand}"
-                HorizontalAlignment="Stretch"
-                automation:AutomationProperties.Name="Export result" />
-        <Button Content="Export prepared channels"
-                Command="{Binding ExportChannelsCommand}"
-                HorizontalAlignment="Stretch"
-                automation:AutomationProperties.Name="Export channels" />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="4">
+          <Button Content="Export result"
+                  Command="{Binding ExportCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  automation:AutomationProperties.Name="Export result"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{StaticResource Tips.Export.ExportResult.Short}" />
+          <Button Classes="HelpIconButton"
+                  Content="?"
+                  ToolTip.ShowDelay="200"
+                  IsTabStop="False">
+            <ToolTip.Tip>
+              <ToolTip MaxWidth="300">
+                <TextBlock Text="{StaticResource Tips.Export.ExportResult.Long}"
+                           TextWrapping="Wrap" />
+              </ToolTip>
+            </ToolTip.Tip>
+          </Button>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal"
+                    Spacing="4">
+          <Button Content="Export prepared channels"
+                  Command="{Binding ExportChannelsCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  automation:AutomationProperties.Name="Export channels"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{StaticResource Tips.Export.ExportChannels.Short}" />
+          <Button Classes="HelpIconButton"
+                  Content="?"
+                  ToolTip.ShowDelay="200"
+                  IsTabStop="False">
+            <ToolTip.Tip>
+              <ToolTip MaxWidth="300">
+                <TextBlock Text="{StaticResource Tips.Export.ExportChannels.Long}"
+                           TextWrapping="Wrap" />
+              </ToolTip>
+            </ToolTip.Tip>
+          </Button>
+        </StackPanel>
       </StackPanel>
     </StackPanel>
   </z:HeaderedContainer>

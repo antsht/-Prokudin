@@ -152,6 +152,24 @@ unchanged. Preset choice persists in
 
 Diagnostics toggles persist in `%LocalAppData%/Prokudin/diagnostics-settings.json`.
 
+## Inspector parameter tooltips
+
+Workflow inspector parameters use two-tier English help:
+
+- **Short tip** — `ToolTip.Tip` on the caption (`InspectorParameterLabel`) and input control
+- **Long tip** — **?** button on the caption row; also exposed as `AutomationProperties.HelpText` on shared label/checkbox controls
+
+Text lives in `src/Prokudin.Gui/Themes/InspectorTooltips.axaml` with keys `Tips.{Workflow}.{Param}.Short|Long`.
+
+When adding a new inspector control:
+
+1. Add Short and Long strings to `InspectorTooltips.axaml`
+2. Replace the caption `TextBlock` with `InspectorParameterLabel` (or `InspectorParameterCheckBox` for full-width toggles)
+3. Bind the input's short tip via `{Binding ShortTip, ElementName=...Label}`
+4. Set `inspector:InspectorTipProperties.LongHelp="{StaticResource Tips....Long}"` on sliders, combo boxes, and numeric inputs for screen-reader help
+
+Design spec: `docs/superpowers/specs/2026-06-25-inspector-tooltips-design.md`.
+
 ## Known Warnings
 
 `dotnet test` can report `NU1903` for Avalonia's transitive

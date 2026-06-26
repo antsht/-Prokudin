@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              x:Class="Prokudin.Gui.Views.Inspector.AlignInspector"
@@ -11,51 +12,70 @@
         <Grid ColumnDefinitions="140,*"
               RowDefinitions="Auto,Auto,Auto,Auto,Auto"
               RowSpacing="6">
-          <TextBlock Text="Reference channel"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+          <inspector:InspectorParameterLabel x:Name="ReferenceChannelLabel"
+                                             Caption="Reference channel"
+                                             ShortTip="{StaticResource Tips.Align.ReferenceChannel.Short}"
+                                             LongTip="{StaticResource Tips.Align.ReferenceChannel.Long}" />
           <ComboBox Grid.Column="1"
                     ItemsSource="{Binding AlignReferenceChannels}"
-                    SelectedItem="{Binding AlignReference}" />
-          <TextBlock Grid.Row="1"
-                     Text="Detector"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                    SelectedItem="{Binding AlignReference}"
+                    ToolTip.ShowDelay="400"
+                    ToolTip.Tip="{Binding ShortTip, ElementName=ReferenceChannelLabel}"
+                    inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Align.ReferenceChannel.Long}" />
+          <inspector:InspectorParameterLabel Grid.Row="1"
+                                             x:Name="DetectorLabel"
+                                             Caption="Detector"
+                                             ShortTip="{StaticResource Tips.Align.Detector.Short}"
+                                             LongTip="{StaticResource Tips.Align.Detector.Long}" />
           <ComboBox Grid.Row="1"
                     Grid.Column="1"
                     ItemsSource="{Binding AlignDetectors}"
-                    SelectedItem="{Binding AlignDetector}" />
-          <TextBlock Grid.Row="2"
-                     Text="Max translation"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                    SelectedItem="{Binding AlignDetector}"
+                    ToolTip.ShowDelay="400"
+                    ToolTip.Tip="{Binding ShortTip, ElementName=DetectorLabel}"
+                    inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Align.Detector.Long}" />
+          <inspector:InspectorParameterLabel Grid.Row="2"
+                                             x:Name="MaxTranslationLabel"
+                                             Caption="Max translation"
+                                             ShortTip="{StaticResource Tips.Align.MaxTranslation.Short}"
+                                             LongTip="{StaticResource Tips.Align.MaxTranslation.Long}" />
           <NumericUpDown Grid.Row="2"
                          Grid.Column="1"
                          Minimum="0"
                          Maximum="512"
                          Increment="8"
                          Value="{Binding AlignMaxTranslation}"
-                         ToolTip.Tip="Per-axis shift limit (0 = auto-scale)" />
-          <TextBlock Grid.Row="3"
-                     Text="Max fine iterations"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                         ToolTip.ShowDelay="400"
+                         ToolTip.Tip="{Binding ShortTip, ElementName=MaxTranslationLabel}"
+                         inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Align.MaxTranslation.Long}" />
+          <inspector:InspectorParameterLabel Grid.Row="3"
+                                             x:Name="MaxFineIterationsLabel"
+                                             Caption="Max fine iterations"
+                                             ShortTip="{StaticResource Tips.Align.MaxFineIterations.Short}"
+                                             LongTip="{StaticResource Tips.Align.MaxFineIterations.Long}" />
           <NumericUpDown Grid.Row="3"
                          Grid.Column="1"
                          Minimum="0"
                          Maximum="20"
                          Increment="1"
-                         Value="{Binding AlignMaxFineIterations}" />
-          <TextBlock Grid.Row="4"
-                     Text="Coarse max side"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                         Value="{Binding AlignMaxFineIterations}"
+                         ToolTip.ShowDelay="400"
+                         ToolTip.Tip="{Binding ShortTip, ElementName=MaxFineIterationsLabel}"
+                         inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Align.MaxFineIterations.Long}" />
+          <inspector:InspectorParameterLabel Grid.Row="4"
+                                             x:Name="CoarseMaxSideLabel"
+                                             Caption="Coarse max side"
+                                             ShortTip="{StaticResource Tips.Align.CoarseMaxSide.Short}"
+                                             LongTip="{StaticResource Tips.Align.CoarseMaxSide.Long}" />
           <NumericUpDown Grid.Row="4"
                          Grid.Column="1"
                          Minimum="256"
                          Maximum="4096"
                          Increment="128"
-                         Value="{Binding AlignCoarseMaxSide}" />
+                         Value="{Binding AlignCoarseMaxSide}"
+                         ToolTip.ShowDelay="400"
+                         ToolTip.Tip="{Binding ShortTip, ElementName=CoarseMaxSideLabel}"
+                         inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Align.CoarseMaxSide.Long}" />
         </Grid>
       </StackPanel>
     </z:HeaderedContainer>

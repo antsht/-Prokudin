@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="using:Avalonia.Automation"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:primitives="using:Avalonia.Controls.Primitives"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
@@ -15,60 +16,89 @@
           <primitives:ToggleButton Classes="IconButton"
                                     IsChecked="{Binding IsHealToolMode}"
                                     Content="{StaticResource IconHeal}"
-                                    ToolTip.Tip="Heal brush"
+                                    ToolTip.Tip="Heal brush — paint to restore defects using the healing model below"
                                     automation:AutomationProperties.Name="Heal brush" />
           <primitives:ToggleButton Classes="IconButton"
                                     IsChecked="{Binding IsCloneToolMode}"
                                     Content="{StaticResource IconClone}"
-                                    ToolTip.Tip="Clone stamp"
+                                    ToolTip.Tip="Clone stamp — copy pixels from a source point"
                                     automation:AutomationProperties.Name="Clone stamp" />
         </StackPanel>
         <Grid ColumnDefinitions="120,*"
               RowDefinitions="Auto,Auto,Auto,Auto,Auto"
               RowSpacing="6">
-          <TextBlock Text="Brush size"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+          <inspector:InspectorParameterLabel x:Name="BrushSizeLabel"
+                                             Caption="Brush size"
+                                             ShortTip="{StaticResource Tips.Clean.BrushSize.Short}"
+                                             LongTip="{StaticResource Tips.Clean.BrushSize.Long}" />
           <Slider Grid.Column="1"
                   Minimum="1"
                   Maximum="64"
-                  Value="{Binding BrushSize}" />
-          <TextBlock Grid.Row="1"
-                     Text="Radius"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                  Value="{Binding BrushSize}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=BrushSizeLabel}" />
+          <inspector:InspectorParameterLabel Grid.Row="1"
+                                             x:Name="RadiusLabel"
+                                             Caption="Radius"
+                                             ShortTip="{StaticResource Tips.Clean.Radius.Short}"
+                                             LongTip="{StaticResource Tips.Clean.Radius.Long}" />
           <Slider Grid.Row="1"
                   Grid.Column="1"
                   Minimum="1"
                   Maximum="12"
-                  Value="{Binding AutoCleanRadius}" />
-          <TextBlock Grid.Row="2"
-                     Text="Quality"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                  Value="{Binding AutoCleanRadius}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=RadiusLabel}" />
+          <inspector:InspectorParameterLabel Grid.Row="2"
+                                             x:Name="QualityLabel"
+                                             Caption="Quality"
+                                             ShortTip="{StaticResource Tips.Clean.Quality.Short}"
+                                             LongTip="{StaticResource Tips.Clean.Quality.Long}" />
           <ComboBox Grid.Row="2"
                     Grid.Column="1"
                     ItemsSource="{Binding AutoCleanQualityModes}"
-                    SelectedItem="{Binding AutoCleanQualityMode}" />
-          <TextBlock Grid.Row="3"
-                     Text="Sensitivity"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
+                    SelectedItem="{Binding AutoCleanQualityMode}"
+                    ToolTip.ShowDelay="400"
+                    ToolTip.Tip="{Binding ShortTip, ElementName=QualityLabel}" />
+          <inspector:InspectorParameterLabel Grid.Row="3"
+                                             x:Name="SensitivityLabel"
+                                             Caption="Sensitivity"
+                                             ShortTip="{StaticResource Tips.Clean.Sensitivity.Short}"
+                                             LongTip="{StaticResource Tips.Clean.Sensitivity.Long}" />
           <Slider Grid.Row="3"
                   Grid.Column="1"
                   Minimum="0"
                   Maximum="100"
-                  Value="{Binding AutoCleanSensitivity}" />
-          <TextBlock Grid.Row="4"
-                     Text="Auto-clean"
-                     Classes="MutedCaption"
-                     VerticalAlignment="Center" />
-          <Button Grid.Row="4"
-                  Grid.Column="1"
-                  Content="Detect mask"
-                  Command="{Binding AutoCleanSelectedChannelCommand}"
-                  HorizontalAlignment="Left"
-                  automation:AutomationProperties.Name="Detect auto-clean mask" />
+                  Value="{Binding AutoCleanSensitivity}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=SensitivityLabel}" />
+          <inspector:InspectorParameterLabel Grid.Row="4"
+                                             x:Name="DetectMaskLabel"
+                                             Caption="Auto-clean"
+                                             ShortTip="{StaticResource Tips.Clean.DetectMask.Short}"
+                                             LongTip="{StaticResource Tips.Clean.DetectMask.Long}" />
+          <StackPanel Grid.Row="4"
+                      Grid.Column="1"
+                      Orientation="Horizontal"
+                      Spacing="4">
+            <Button Content="Detect mask"
+                    Command="{Binding AutoCleanSelectedChannelCommand}"
+                    HorizontalAlignment="Left"
+                    automation:AutomationProperties.Name="Detect auto-clean mask"
+                    ToolTip.ShowDelay="400"
+                    ToolTip.Tip="{Binding ShortTip, ElementName=DetectMaskLabel}" />
+            <Button Classes="HelpIconButton"
+                    Content="?"
+                    ToolTip.ShowDelay="200"
+                    IsTabStop="False">
+              <ToolTip.Tip>
+                <ToolTip MaxWidth="300">
+                  <TextBlock Text="{Binding LongTip, ElementName=DetectMaskLabel}"
+                             TextWrapping="Wrap" />
+                </ToolTip>
+              </ToolTip.Tip>
+            </Button>
+          </StackPanel>
         </Grid>
       </StackPanel>
     </z:HeaderedContainer>
@@ -76,16 +106,26 @@
     <z:HeaderedContainer Header="Healing model"
                          Classes="InspectorSection">
       <StackPanel Spacing="6">
-        <CheckBox Content="Cross-channel guided healing"
-                  IsChecked="{Binding UseCrossChannelHealing}" />
-        <CheckBox Content="Fallback sub-mode: Telea (off = Patch)"
-                  IsChecked="{Binding UseTeleaHealing}" />
-        <CheckBox Content="Use local linear prediction"
-                  IsChecked="{Binding UseLocalLinearPrediction}" />
-        <CheckBox Content="Use guided patch search"
-                  IsChecked="{Binding UseGuidedPatchSearch}" />
-        <CheckBox Content="Use robust fit"
-                  IsChecked="{Binding UseRobustFit}" />
+        <inspector:InspectorParameterCheckBox Label="Cross-channel guided healing"
+                                              IsChecked="{Binding UseCrossChannelHealing}"
+                                              ShortTip="{StaticResource Tips.Clean.CrossChannelHealing.Short}"
+                                              LongTip="{StaticResource Tips.Clean.CrossChannelHealing.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Fallback sub-mode: Telea (off = Patch)"
+                                              IsChecked="{Binding UseTeleaHealing}"
+                                              ShortTip="{StaticResource Tips.Clean.TeleaSubMode.Short}"
+                                              LongTip="{StaticResource Tips.Clean.TeleaSubMode.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Use local linear prediction"
+                                              IsChecked="{Binding UseLocalLinearPrediction}"
+                                              ShortTip="{StaticResource Tips.Clean.LocalLinearPrediction.Short}"
+                                              LongTip="{StaticResource Tips.Clean.LocalLinearPrediction.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Use guided patch search"
+                                              IsChecked="{Binding UseGuidedPatchSearch}"
+                                              ShortTip="{StaticResource Tips.Clean.GuidedPatchSearch.Short}"
+                                              LongTip="{StaticResource Tips.Clean.GuidedPatchSearch.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Use robust fit"
+                                              IsChecked="{Binding UseRobustFit}"
+                                              ShortTip="{StaticResource Tips.Clean.RobustFit.Short}"
+                                              LongTip="{StaticResource Tips.Clean.RobustFit.Long}" />
       </StackPanel>
     </z:HeaderedContainer>
 
@@ -94,43 +134,55 @@
       <Grid ColumnDefinitions="160,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Merge nearby defects"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="MergeNearbyDefectsLabel"
+                                           Caption="Merge nearby defects"
+                                           ShortTip="{StaticResource Tips.Clean.MergeNearbyDefects.Short}"
+                                           LongTip="{StaticResource Tips.Clean.MergeNearbyDefects.Long}" />
         <CheckBox Grid.Column="1"
                   Content="Enabled"
                   IsChecked="{Binding AutoMergeNearbyDefects}"
-                  VerticalAlignment="Center" />
-        <TextBlock Grid.Row="1"
-                   Text="Merge gap px"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                  VerticalAlignment="Center"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=MergeNearbyDefectsLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="MergeGapPxLabel"
+                                           Caption="Merge gap px"
+                                           ShortTip="{StaticResource Tips.Clean.MergeGapPx.Short}"
+                                           LongTip="{StaticResource Tips.Clean.MergeGapPx.Long}" />
         <NumericUpDown Grid.Row="1"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="64"
                        Increment="1"
-                       Value="{Binding AutoMergeDistancePx}" />
-        <TextBlock Grid.Row="2"
-                   Text="Expand healing area px"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding AutoMergeDistancePx}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=MergeGapPxLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="ExpandHealingAreaLabel"
+                                           Caption="Expand healing area px"
+                                           ShortTip="{StaticResource Tips.Clean.ExpandHealingAreaPx.Short}"
+                                           LongTip="{StaticResource Tips.Clean.ExpandHealingAreaPx.Long}" />
         <NumericUpDown Grid.Row="2"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="64"
                        Increment="1"
-                       Value="{Binding AutoExpandHealingAreaPx}" />
-        <TextBlock Grid.Row="3"
-                   Text="Max component area"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding AutoExpandHealingAreaPx}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=ExpandHealingAreaLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="MaxComponentAreaLabel"
+                                           Caption="Max component area"
+                                           ShortTip="{StaticResource Tips.Clean.MaxComponentArea.Short}"
+                                           LongTip="{StaticResource Tips.Clean.MaxComponentArea.Long}" />
         <NumericUpDown Grid.Row="3"
                        Grid.Column="1"
                        Minimum="100"
                        Maximum="50000"
                        Increment="100"
-                       Value="{Binding HealMaxComponentArea}" />
+                       Value="{Binding HealMaxComponentArea}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=MaxComponentAreaLabel}" />
       </Grid>
     </z:HeaderedContainer>
 
@@ -139,54 +191,69 @@
       <Grid ColumnDefinitions="140,*"
             RowDefinitions="Auto,Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Patch radius"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="PatchRadiusLabel"
+                                           Caption="Patch radius"
+                                           ShortTip="{StaticResource Tips.Clean.PatchRadius.Short}"
+                                           LongTip="{StaticResource Tips.Clean.PatchRadius.Long}" />
         <NumericUpDown Grid.Column="1"
                        Minimum="1"
                        Maximum="12"
                        Increment="1"
-                       Value="{Binding HealPatchRadius}" />
-        <TextBlock Grid.Row="1"
-                   Text="Search radius"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealPatchRadius}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=PatchRadiusLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="SearchRadiusLabel"
+                                           Caption="Search radius"
+                                           ShortTip="{StaticResource Tips.Clean.SearchRadius.Short}"
+                                           LongTip="{StaticResource Tips.Clean.SearchRadius.Long}" />
         <NumericUpDown Grid.Row="1"
                        Grid.Column="1"
                        Minimum="8"
                        Maximum="192"
                        Increment="4"
-                       Value="{Binding HealSearchRadius}" />
-        <TextBlock Grid.Row="2"
-                   Text="Safety radius"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealSearchRadius}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SearchRadiusLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="SafetyRadiusLabel"
+                                           Caption="Safety radius"
+                                           ShortTip="{StaticResource Tips.Clean.SafetyRadius.Short}"
+                                           LongTip="{StaticResource Tips.Clean.SafetyRadius.Long}" />
         <NumericUpDown Grid.Row="2"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="12"
                        Increment="1"
-                       Value="{Binding HealSafetyRadius}" />
-        <TextBlock Grid.Row="3"
-                   Text="Context radius"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealSafetyRadius}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SafetyRadiusLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="ContextRadiusLabel"
+                                           Caption="Context radius"
+                                           ShortTip="{StaticResource Tips.Clean.ContextRadius.Short}"
+                                           LongTip="{StaticResource Tips.Clean.ContextRadius.Long}" />
         <NumericUpDown Grid.Row="3"
                        Grid.Column="1"
                        Minimum="4"
                        Maximum="64"
                        Increment="2"
-                       Value="{Binding HealContextRadius}" />
-        <TextBlock Grid.Row="4"
-                   Text="Min training pixels"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealContextRadius}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=ContextRadiusLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="4"
+                                           x:Name="MinTrainingPixelsLabel"
+                                           Caption="Min training pixels"
+                                           ShortTip="{StaticResource Tips.Clean.MinTrainingPixels.Short}"
+                                           LongTip="{StaticResource Tips.Clean.MinTrainingPixels.Long}" />
         <NumericUpDown Grid.Row="4"
                        Grid.Column="1"
                        Minimum="16"
                        Maximum="4096"
                        Increment="16"
-                       Value="{Binding HealMinTrainingPixels}" />
+                       Value="{Binding HealMinTrainingPixels}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=MinTrainingPixelsLabel}" />
       </Grid>
     </z:HeaderedContainer>
 
@@ -195,72 +262,93 @@
       <Grid ColumnDefinitions="200,*"
             RowDefinitions="Auto,Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Prediction alpha min"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="PredictionAlphaMinLabel"
+                                           Caption="Prediction alpha min"
+                                           ShortTip="{StaticResource Tips.Clean.PredictionAlphaMin.Short}"
+                                           LongTip="{StaticResource Tips.Clean.PredictionAlphaMin.Long}" />
         <NumericUpDown Grid.Column="1"
                        Minimum="0"
                        Maximum="1"
                        Increment="0.05"
                        FormatString="F2"
-                       Value="{Binding HealPredictionAlphaMin}" />
-        <TextBlock Grid.Row="1"
-                   Text="Prediction alpha max"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealPredictionAlphaMin}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=PredictionAlphaMinLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="PredictionAlphaMaxLabel"
+                                           Caption="Prediction alpha max"
+                                           ShortTip="{StaticResource Tips.Clean.PredictionAlphaMax.Short}"
+                                           LongTip="{StaticResource Tips.Clean.PredictionAlphaMax.Long}" />
         <NumericUpDown Grid.Row="1"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="1"
                        Increment="0.05"
                        FormatString="F2"
-                       Value="{Binding HealPredictionAlphaMax}" />
-        <TextBlock Grid.Row="2"
-                   Text="Feather sigma"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealPredictionAlphaMax}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=PredictionAlphaMaxLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="FeatherSigmaLabel"
+                                           Caption="Feather sigma"
+                                           ShortTip="{StaticResource Tips.Clean.FeatherSigma.Short}"
+                                           LongTip="{StaticResource Tips.Clean.FeatherSigma.Long}" />
         <NumericUpDown Grid.Row="2"
                        Grid.Column="1"
                        Minimum="0.1"
                        Maximum="8"
                        Increment="0.1"
                        FormatString="F1"
-                       Value="{Binding HealFeatherSigma}" />
-        <TextBlock Grid.Row="3"
-                   Text="Max allowed error"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealFeatherSigma}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=FeatherSigmaLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="MaxAllowedErrorLabel"
+                                           Caption="Max allowed error"
+                                           ShortTip="{StaticResource Tips.Clean.MaxAllowedError.Short}"
+                                           LongTip="{StaticResource Tips.Clean.MaxAllowedError.Long}" />
         <NumericUpDown Grid.Row="3"
                        Grid.Column="1"
                        Minimum="0.01"
                        Maximum="1"
                        Increment="0.01"
                        FormatString="F2"
-                       Value="{Binding HealMaxAllowedError}" />
-        <TextBlock Grid.Row="4"
-                   Text="Large component scale"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding HealMaxAllowedError}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=MaxAllowedErrorLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="4"
+                                           x:Name="LargeComponentScaleLabel"
+                                           Caption="Large component scale"
+                                           ShortTip="{StaticResource Tips.Clean.LargeComponentScale.Short}"
+                                           LongTip="{StaticResource Tips.Clean.LargeComponentScale.Long}" />
         <NumericUpDown Grid.Row="4"
                        Grid.Column="1"
                        Minimum="0.1"
                        Maximum="1"
                        Increment="0.05"
                        FormatString="F2"
-                       Value="{Binding HealLargeComponentConservativeScale}" />
+                       Value="{Binding HealLargeComponentConservativeScale}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=LargeComponentScaleLabel}" />
       </Grid>
     </z:HeaderedContainer>
 
     <z:HeaderedContainer Header="Debug"
                          Classes="InspectorSection">
       <StackPanel Spacing="6">
-        <CheckBox Content="Debug heal output"
-                  IsChecked="{Binding DebugHealOutput}" />
-        <CheckBox Content="Show mask overlay"
-                  IsChecked="{Binding ShowHealMaskOverlay}" />
-        <CheckBox Content="Review mask on result"
-                  IsChecked="{Binding ShowAutoCleanResultPreview}"
-                  IsEnabled="{Binding IsAutoCleanMaskPending}" />
+        <inspector:InspectorParameterCheckBox Label="Debug heal output"
+                                              IsChecked="{Binding DebugHealOutput}"
+                                              ShortTip="{StaticResource Tips.Clean.DebugHealOutput.Short}"
+                                              LongTip="{StaticResource Tips.Clean.DebugHealOutput.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Show mask overlay"
+                                              IsChecked="{Binding ShowHealMaskOverlay}"
+                                              ShortTip="{StaticResource Tips.Clean.ShowMaskOverlay.Short}"
+                                              LongTip="{StaticResource Tips.Clean.ShowMaskOverlay.Long}" />
+        <inspector:InspectorParameterCheckBox Label="Review mask on result"
+                                              IsChecked="{Binding ShowAutoCleanResultPreview}"
+                                              IsEnabled="{Binding IsAutoCleanMaskPending}"
+                                              ShortTip="{StaticResource Tips.Clean.ReviewMaskOnResult.Short}"
+                                              LongTip="{StaticResource Tips.Clean.ReviewMaskOnResult.Long}" />
       </StackPanel>
     </z:HeaderedContainer>
   </StackPanel>

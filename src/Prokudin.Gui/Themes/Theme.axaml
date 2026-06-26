@@ -3,5 +3,6 @@
   <ResourceDictionary.MergedDictionaries>
     <ResourceInclude Source="Colors.axaml" />
     <ResourceInclude Source="Icons.axaml" />
+    <ResourceInclude Source="InspectorTooltips.axaml" />
   </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

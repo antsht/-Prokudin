@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              x:Class="Prokudin.Gui.Views.Inspector.ImportInspector"
@@ -10,12 +11,15 @@
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Triptych order"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="TriptychOrderLabel"
+                                           Caption="Triptych order"
+                                           ShortTip="{StaticResource Tips.Import.TriptychOrder.Short}"
+                                           LongTip="{StaticResource Tips.Import.TriptychOrder.Long}" />
         <ComboBox Grid.Column="1"
                   ItemsSource="{Binding TriptychOrders}"
-                  SelectedItem="{Binding SelectedTriptychOrder}" />
+                  SelectedItem="{Binding SelectedTriptychOrder}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=TriptychOrderLabel}" />
         <TextBlock Grid.Row="1"
                    Text="Input mode"
                    Classes="MutedCaption"
@@ -32,15 +36,18 @@
                    Grid.Column="1"
                    Text="{Binding SelectedSlotSourceBitDepth}"
                    VerticalAlignment="Center" />
-        <TextBlock Grid.Row="3"
-                   Text="Trim dark borders"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="TrimDarkBordersLabel"
+                                           Caption="Trim dark borders"
+                                           ShortTip="{StaticResource Tips.Import.TrimDarkBorders.Short}"
+                                           LongTip="{StaticResource Tips.Import.TrimDarkBorders.Long}" />
         <CheckBox Grid.Row="3"
                   Grid.Column="1"
                   Content="Enabled"
                   IsChecked="{Binding TrimDarkBorders}"
-                  VerticalAlignment="Center" />
+                  VerticalAlignment="Center"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=TrimDarkBordersLabel}" />
       </Grid>
     </StackPanel>
   </z:HeaderedContainer>

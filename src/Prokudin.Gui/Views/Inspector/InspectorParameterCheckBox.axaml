@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
+             x:Class="Prokudin.Gui.Views.Inspector.InspectorParameterCheckBox"
+             x:Name="Root">
+  <StackPanel Orientation="Horizontal"
+              Spacing="4"
+              VerticalAlignment="Center">
+    <CheckBox Content="{Binding #Root.Label}"
+              IsChecked="{Binding #Root.IsChecked}"
+              ToolTip.ShowDelay="400"
+              ToolTip.Tip="{Binding #Root.ShortTip}"
+              automation:AutomationProperties.HelpText="{Binding #Root.LongTip}" />
+    <Button Classes="HelpIconButton"
+            Content="?"
+            automation:AutomationProperties.Name="Parameter help"
+            ToolTip.ShowDelay="200"
+            IsTabStop="False">
+      <ToolTip.Tip>
+        <ToolTip MaxWidth="300">
+          <TextBlock Text="{Binding #Root.LongTip}"
+                     TextWrapping="Wrap" />
+        </ToolTip>
+      </ToolTip.Tip>
+    </Button>
+  </StackPanel>
+</UserControl>

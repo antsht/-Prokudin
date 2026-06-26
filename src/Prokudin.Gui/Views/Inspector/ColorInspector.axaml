@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="using:Avalonia.Automation"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:primitives="using:Avalonia.Controls.Primitives"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
@@ -9,62 +10,80 @@
   <z:HeaderedContainer Header="Color"
                        Classes="InspectorSection">
     <StackPanel Spacing="10">
-      <CheckBox Content="Auto white balance"
-                IsChecked="{Binding AutoWhiteBalance}" />
+      <inspector:InspectorParameterCheckBox x:Name="AutoWhiteBalanceBox"
+                                            Label="Auto white balance"
+                                            IsChecked="{Binding AutoWhiteBalance}"
+                                            ShortTip="{StaticResource Tips.Color.AutoWhiteBalance.Short}"
+                                            LongTip="{StaticResource Tips.Color.AutoWhiteBalance.Long}" />
       <primitives:ToggleButton Classes="IconButton"
                                 IsChecked="{Binding IsWhiteBalancePickerToolMode}"
                                 IsEnabled="{Binding CanUseWhiteBalancePicker}"
                                 Content="{StaticResource IconEyedropper}"
-                                ToolTip.Tip="Pick white balance from result"
+                                ToolTip.Tip="Pick white balance from a neutral area on the result"
                                 automation:AutomationProperties.Name="White balance picker"
                                 HorizontalAlignment="Left" />
       <Grid ColumnDefinitions="28,*"
             RowDefinitions="Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="R"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="RedExposureLabel"
+                                           Caption="R"
+                                           ShortTip="{StaticResource Tips.Color.RedExposure.Short}"
+                                           LongTip="{StaticResource Tips.Color.RedExposure.Long}" />
         <Slider Grid.Column="1"
                 Minimum="-2"
                 Maximum="2"
-                Value="{Binding RedExposureStops}" />
-        <TextBlock Grid.Row="1"
-                   Text="G"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                Value="{Binding RedExposureStops}"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{Binding ShortTip, ElementName=RedExposureLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="GreenExposureLabel"
+                                           Caption="G"
+                                           ShortTip="{StaticResource Tips.Color.GreenExposure.Short}"
+                                           LongTip="{StaticResource Tips.Color.GreenExposure.Long}" />
         <Slider Grid.Row="1"
                 Grid.Column="1"
                 Minimum="-2"
                 Maximum="2"
-                Value="{Binding GreenExposureStops}" />
-        <TextBlock Grid.Row="2"
-                   Text="B"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                Value="{Binding GreenExposureStops}"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{Binding ShortTip, ElementName=GreenExposureLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="BlueExposureLabel"
+                                           Caption="B"
+                                           ShortTip="{StaticResource Tips.Color.BlueExposure.Short}"
+                                           LongTip="{StaticResource Tips.Color.BlueExposure.Long}" />
         <Slider Grid.Row="2"
                 Grid.Column="1"
                 Minimum="-2"
                 Maximum="2"
-                Value="{Binding BlueExposureStops}" />
+                Value="{Binding BlueExposureStops}"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{Binding ShortTip, ElementName=BlueExposureLabel}" />
       </Grid>
       <Button Content="Reset exposure"
               Command="{Binding ResetExposureCommand}"
               HorizontalAlignment="Left"
-              automation:AutomationProperties.Name="Reset exposure" />
+              automation:AutomationProperties.Name="Reset exposure"
+              ToolTip.ShowDelay="400"
+              ToolTip.Tip="Reset all channel exposure sliders to 0 stops." />
       <Separator />
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="Levels mode"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="LevelsModeLabel"
+                                           Caption="Levels mode"
+                                           ShortTip="{StaticResource Tips.Color.LevelsMode.Short}"
+                                           LongTip="{StaticResource Tips.Color.LevelsMode.Long}" />
         <ComboBox Grid.Column="1"
                   ItemsSource="{Binding LevelsModes}"
-                  SelectedItem="{Binding LevelsMode}" />
-        <TextBlock Grid.Row="1"
-                   Text="Black point"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                  SelectedItem="{Binding LevelsMode}"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{Binding ShortTip, ElementName=LevelsModeLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="LevelsBlackPointLabel"
+                                           Caption="Black point"
+                                           ShortTip="{StaticResource Tips.Color.LevelsBlackPoint.Short}"
+                                           LongTip="{StaticResource Tips.Color.LevelsBlackPoint.Long}" />
         <NumericUpDown Grid.Row="1"
                        Grid.Column="1"
                        Minimum="0"
@@ -72,11 +91,14 @@
                        Increment="0.01"
                        FormatString="F2"
                        Value="{Binding LevelsBlackPoint}"
-                       IsEnabled="{Binding IsManualLevels}" />
-        <TextBlock Grid.Row="2"
-                   Text="White point"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       IsEnabled="{Binding IsManualLevels}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=LevelsBlackPointLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="LevelsWhitePointLabel"
+                                           Caption="White point"
+                                           ShortTip="{StaticResource Tips.Color.LevelsWhitePoint.Short}"
+                                           LongTip="{StaticResource Tips.Color.LevelsWhitePoint.Long}" />
         <NumericUpDown Grid.Row="2"
                        Grid.Column="1"
                        Minimum="0"
@@ -84,11 +106,14 @@
                        Increment="0.01"
                        FormatString="F2"
                        Value="{Binding LevelsWhitePoint}"
-                       IsEnabled="{Binding IsManualLevels}" />
-        <TextBlock Grid.Row="3"
-                   Text="Gamma"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       IsEnabled="{Binding IsManualLevels}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=LevelsWhitePointLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="LevelsGammaLabel"
+                                           Caption="Gamma"
+                                           ShortTip="{StaticResource Tips.Color.LevelsGamma.Short}"
+                                           LongTip="{StaticResource Tips.Color.LevelsGamma.Long}" />
         <NumericUpDown Grid.Row="3"
                        Grid.Column="1"
                        Minimum="0.1"
@@ -96,7 +121,9 @@
                        Increment="0.05"
                        FormatString="F2"
                        Value="{Binding LevelsGamma}"
-                       IsEnabled="{Binding IsManualLevels}" />
+                       IsEnabled="{Binding IsManualLevels}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=LevelsGammaLabel}" />
       </Grid>
     </StackPanel>
   </z:HeaderedContainer>

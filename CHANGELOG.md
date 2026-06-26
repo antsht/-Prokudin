@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-25
+
+### Added
+
+- Two-tier English tooltips for workflow inspector parameters (short hover tip + detailed **?** help)
+- `InspectorParameterLabel` and `InspectorParameterCheckBox` controls with `Themes/InspectorTooltips.axaml` resource strings
+- `InspectorTipProperties.LongHelp` for screen-reader help on input controls
+- Design spec `docs/superpowers/specs/2026-06-25-inspector-tooltips-design.md`
+
+### Changed
+
+- Import, Align, Crop, Clean, Color, and Export inspectors use shared help controls for all adjustable parameters
+
 ## [0.9.0] - 2026-06-24
 
 ### Added

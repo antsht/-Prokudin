@@ -1,0 +1,136 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=System.Runtime">
+  <!-- Import -->
+  <system:String x:Key="Tips.Import.TriptychOrder.Short">Left-to-right channel order in a combined triptych scan.</system:String>
+  <system:String x:Key="Tips.Import.TriptychOrder.Long">Sets which grayscale strip is red, green, and blue when splitting a triptych. Library of Congress scans are usually BGR (blue-green-red). Wrong order swaps red and blue in the reconstructed color image.</system:String>
+  <system:String x:Key="Tips.Import.TrimDarkBorders.Short">Remove black scan margins when loading channels.</system:String>
+  <system:String x:Key="Tips.Import.TrimDarkBorders.Long">Trims near-black borders on each channel after load or triptych split, before alignment. Disable if you already cropped margins manually or need to preserve the full scan frame.</system:String>
+
+  <!-- Align -->
+  <system:String x:Key="Tips.Align.ReferenceChannel.Short">Channel kept fixed; others shift to match it.</system:String>
+  <system:String x:Key="Tips.Align.ReferenceChannel.Long">Alignment moves red and blue relative to the reference. Green is the default reference (middle LoC strip). Change only if another channel has better geometry or fewer defects.</system:String>
+  <system:String x:Key="Tips.Align.Detector.Short">Feature detector for matching channels (SIFT or ORB).</system:String>
+  <system:String x:Key="Tips.Align.Detector.Long">SIFT is the default and works best on textured archival scans. ORB is used automatically as a fallback when SIFT finds too few reliable matches. Force ORB only on very flat or noisy images.</system:String>
+  <system:String x:Key="Tips.Align.MaxTranslation.Short">Limits per-axis alignment shift in pixels (0 = auto-scale).</system:String>
+  <system:String x:Key="Tips.Align.MaxTranslation.Long">Limits how far each channel may shift on X/Y during alignment. 0 uses auto: 4% of the shorter side, clamped 96–256 px. Default: 128. Higher values help LoC triptychs with large strip offsets; too low may reject valid matches. Lower values reduce the risk of wrong homographies on difficult scans.</system:String>
+  <system:String x:Key="Tips.Align.MaxFineIterations.Short">Phase-correlation and ECC refinement passes after coarse match.</system:String>
+  <system:String x:Key="Tips.Align.MaxFineIterations.Long">Each iteration refines sub-pixel alignment. Default: 3. Higher values can improve difficult scans but take longer. 0 skips fine alignment entirely.</system:String>
+  <system:String x:Key="Tips.Align.CoarseMaxSide.Short">Longest side used for coarse feature matching (pixels).</system:String>
+  <system:String x:Key="Tips.Align.CoarseMaxSide.Long">Channels are downscaled to this size for initial SIFT/ORB matching. Default: 1024. Lower is faster but may miss detail on large misalignments. Raise for very high-resolution scans with poor initial overlap.</system:String>
+
+  <!-- Crop -->
+  <system:String x:Key="Tips.Crop.SelectionX.Short">Left edge of the crop selection in preview pixels.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionX.Long">Updates when you drag a selection on the preview. You can also type exact coordinates. Applies to the currently displayed channel or result view.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionY.Short">Top edge of the crop selection in preview pixels.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionY.Long">Updates when you drag a selection on the preview. You can also type exact coordinates. Applies to the currently displayed channel or result view.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionWidth.Short">Width of the crop selection in preview pixels.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionWidth.Long">Zero width means no active selection. Drag on the preview or enter values numerically. With Lock square enabled, width and height stay equal while dragging.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionHeight.Short">Height of the crop selection in preview pixels.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionHeight.Long">Zero height means no active selection. Drag on the preview or enter values numerically. With Lock square enabled, width and height stay equal while dragging.</system:String>
+  <system:String x:Key="Tips.Crop.LockSquareSelection.Short">Keep crop selection square while dragging.</system:String>
+  <system:String x:Key="Tips.Crop.LockSquareSelection.Long">Forces a 1:1 aspect ratio during marquee selection. Useful for uniform exports or square previews. Does not affect typed width/height unless you adjust via the preview.</system:String>
+  <system:String x:Key="Tips.Crop.CropToSelection.Short">Crop the active view to the current selection rectangle.</system:String>
+  <system:String x:Key="Tips.Crop.CropToSelection.Long">Crops the previewed channel or RGB result to the selection. When cropping the result, prepared aligned R/G/B channels are cropped to the same region so retouch and export stay in sync.</system:String>
+  <system:String x:Key="Tips.Crop.CropOverlap.Short">Crop all aligned channels to their largest shared overlap.</system:String>
+  <system:String x:Key="Tips.Crop.CropOverlap.Long">Computes the valid overlap region after alignment and crops every aligned channel and the result to that area. Removes partial-edge fringes where channels do not fully cover the frame.</system:String>
+  <system:String x:Key="Tips.Crop.ResetSelection.Short">Clear the crop selection rectangle.</system:String>
+  <system:String x:Key="Tips.Crop.ResetSelection.Long">Removes the marquee without changing image data. Use before drawing a new selection.</system:String>
+  <system:String x:Key="Tips.Crop.SelectionMode.Short">Draw a rectangular crop selection on the preview.</system:String>
+
+  <!-- Color -->
+  <system:String x:Key="Tips.Color.AutoWhiteBalance.Short">Automatically neutralize color cast on the RGB result.</system:String>
+  <system:String x:Key="Tips.Color.AutoWhiteBalance.Long">Applies gray-world style white balance when rebuilding the result. Good first step for uncorrected scans. Turn off to use manual exposure and picker instead.</system:String>
+  <system:String x:Key="Tips.Color.RedExposure.Short">Exposure adjustment for the red channel (−2…+2 stops).</system:String>
+  <system:String x:Key="Tips.Color.RedExposure.Long">Scales red channel brightness before merge. Positive values brighten red; negative darken. Use to balance emulsion differences between strips. Rebuilds the RGB result when changed.</system:String>
+  <system:String x:Key="Tips.Color.GreenExposure.Short">Exposure adjustment for the green channel (−2…+2 stops).</system:String>
+  <system:String x:Key="Tips.Color.GreenExposure.Long">Scales green channel brightness before merge. Green is often the reference strip; adjust red and blue relative to it. Rebuilds the RGB result when changed.</system:String>
+  <system:String x:Key="Tips.Color.BlueExposure.Short">Exposure adjustment for the blue channel (−2…+2 stops).</system:String>
+  <system:String x:Key="Tips.Color.BlueExposure.Long">Scales blue channel brightness before merge. Positive values brighten blue; negative darken. Rebuilds the RGB result when changed.</system:String>
+  <system:String x:Key="Tips.Color.LevelsMode.Short">How input levels and gamma are applied to the RGB result.</system:String>
+  <system:String x:Key="Tips.Color.LevelsMode.Long">Auto percentile (default) gently stretches tones like the original pipeline. Manual lets you set black point, white point, and gamma. Off skips levels entirely. Manual changes the archival look — use with care.</system:String>
+  <system:String x:Key="Tips.Color.LevelsBlackPoint.Short">Manual input black level (0…1 normalized).</system:String>
+  <system:String x:Key="Tips.Color.LevelsBlackPoint.Long">Pixels at or below this value map to black after stretch. Raise to deepen shadows and clip haze. Only active when Levels mode is Manual. Default: 0.</system:String>
+  <system:String x:Key="Tips.Color.LevelsWhitePoint.Short">Manual input white level (0…1 normalized).</system:String>
+  <system:String x:Key="Tips.Color.LevelsWhitePoint.Long">Pixels at or above this value map to white after stretch. Lower to recover highlight detail. Only active when Levels mode is Manual. Default: 1.</system:String>
+  <system:String x:Key="Tips.Color.LevelsGamma.Short">Midtone gamma after black/white stretch.</system:String>
+  <system:String x:Key="Tips.Color.LevelsGamma.Long">Values above 1.0 darken midtones; below 1.0 lighten them. Default auto pipeline uses about 1.3 equivalent in auto mode. Only active when Levels mode is Manual.</system:String>
+
+  <!-- Export -->
+  <system:String x:Key="Tips.Export.Format.Short">Output file format for the reconstructed image.</system:String>
+  <system:String x:Key="Tips.Export.Format.Long">PNG is lossless (default). JPEG is smaller with quality loss. TIFF supports 16-bit and archival compression options. Format-specific options appear below when selected.</system:String>
+  <system:String x:Key="Tips.Export.LimitExportSize.Short">Downscale so the longest side does not exceed Max side.</system:String>
+  <system:String x:Key="Tips.Export.LimitExportSize.Long">When enabled, the exported image is resized proportionally so its longest edge equals Max side. Disable to export at full reconstructed resolution.</system:String>
+  <system:String x:Key="Tips.Export.ExportMaxSide.Short">Target length in pixels for the longest edge when limit is on.</system:String>
+  <system:String x:Key="Tips.Export.ExportMaxSide.Long">Only applies when Limit max side is checked. Higher preserves detail and file size. Lower produces web-friendly outputs.</system:String>
+  <system:String x:Key="Tips.Export.PngCompression.Short">PNG DEFLATE level (0 = fast/large, 9 = slow/small).</system:String>
+  <system:String x:Key="Tips.Export.PngCompression.Long">Affects file size and save time only — image pixels are unchanged. Default mid levels balance speed and size for large archival exports.</system:String>
+  <system:String x:Key="Tips.Export.JpegQuality.Short">JPEG quality (1…100).</system:String>
+  <system:String x:Key="Tips.Export.JpegQuality.Long">Higher values preserve detail with larger files. Below 85 may show blocking on fine scan grain. Use PNG or TIFF for lossless archival delivery.</system:String>
+  <system:String x:Key="Tips.Export.TiffCompression.Short">Compression method for TIFF export.</system:String>
+  <system:String x:Key="Tips.Export.TiffCompression.Long">None stores uncompressed data. LZW and ZIP reduce file size losslessly. ZIP (Deflate) exposes an extra level slider when selected.</system:String>
+  <system:String x:Key="Tips.Export.TiffDeflateLevel.Short">Deflate compression effort for TIFF ZIP (1…9).</system:String>
+  <system:String x:Key="Tips.Export.TiffDeflateLevel.Long">Higher levels shrink files more but save slower. Does not affect pixel values.</system:String>
+  <system:String x:Key="Tips.Export.OpenOutputFolder.Short">Open the export destination folder after a successful save.</system:String>
+  <system:String x:Key="Tips.Export.OpenOutputFolder.Long">Uses the system file manager to reveal exported files. Disable if you export repeatedly to the same location.</system:String>
+  <system:String x:Key="Tips.Export.ExportResult.Short">Save the current RGB result to disk.</system:String>
+  <system:String x:Key="Tips.Export.ExportResult.Long">Writes the merged color image using the format and size settings above. Prompts for path if none was chosen yet.</system:String>
+  <system:String x:Key="Tips.Export.ExportChannels.Short">Save prepared aligned R, G, and B channels.</system:String>
+  <system:String x:Key="Tips.Export.ExportChannels.Long">Exports each prepared grayscale channel separately with the same format settings. Useful for archival handoff or external editing.</system:String>
+
+  <!-- Clean -->
+  <system:String x:Key="Tips.Clean.BrushSize.Short">Diameter of heal and clone strokes in pixels.</system:String>
+  <system:String x:Key="Tips.Clean.BrushSize.Long">Controls how large an area each brush dab affects on the active channel. Larger brushes cover big defects faster but blend a wider region. Default varies by tool; typical range 5–20 for dust spots.</system:String>
+  <system:String x:Key="Tips.Clean.Radius.Short">Inpaint radius for Telea fallback and mask edge softness.</system:String>
+  <system:String x:Key="Tips.Clean.Radius.Long">Used when cross-channel healing falls back to Telea, and influences patch normalization. Higher values fill larger gaps but may blur fine detail. Default: 3. Range 1–12 in the inspector.</system:String>
+  <system:String x:Key="Tips.Clean.Quality.Short">Auto-clean speed vs quality preset.</system:String>
+  <system:String x:Key="Tips.Clean.Quality.Long">Quality uses full guided prediction and wider patch search (default). Balanced reduces search radius slightly. Fast disables guided patch search and local prediction for quicker auto-clean on large images.</system:String>
+  <system:String x:Key="Tips.Clean.Sensitivity.Short">How aggressively defects are detected (0…100).</system:String>
+  <system:String x:Key="Tips.Clean.Sensitivity.Long">Higher sensitivity flags more pixels as defects (lower detection thresholds). Lower misses faint spots but avoids false positives on grain. Default: 50. Raise for heavy dust; lower for noisy or low-contrast scans.</system:String>
+  <system:String x:Key="Tips.Clean.DetectMask.Short">Run automatic defect detection on the selected channel.</system:String>
+  <system:String x:Key="Tips.Clean.DetectMask.Long">Builds a healing mask using cross-channel comparison, then merges and expands nearby spots. Review the overlay before applying. Uses Sensitivity, Quality, and mask preparation settings below.</system:String>
+  <system:String x:Key="Tips.Clean.CrossChannelHealing.Short">Restore defects using aligned R, G, and B as guides.</system:String>
+  <system:String x:Key="Tips.Clean.CrossChannelHealing.Long">When on, the healer predicts missing detail from the other channels before patch blending — best for LoC scans with aligned strips. When off, healing uses only the current channel (Telea or Patch sub-mode).</system:String>
+  <system:String x:Key="Tips.Clean.TeleaSubMode.Short">Use Telea inpaint instead of Patch when cross-channel is off.</system:String>
+  <system:String x:Key="Tips.Clean.TeleaSubMode.Long">Applies only when cross-channel guided healing is off, or as an external fallback when guides are unavailable. Telea is faster on small spots; Patch often preserves texture better. Default sub-mode: Patch (checkbox off).</system:String>
+  <system:String x:Key="Tips.Clean.LocalLinearPrediction.Short">Fit a local linear model from guide channels before patching.</system:String>
+  <system:String x:Key="Tips.Clean.LocalLinearPrediction.Long">Predicts target values inside each defect from a ring of clean pixels using robust regression on guides. Disable to rely on patch transfer only. Default: on.</system:String>
+  <system:String x:Key="Tips.Clean.GuidedPatchSearch.Short">Score patch donors using guide channel similarity.</system:String>
+  <system:String x:Key="Tips.Clean.GuidedPatchSearch.Long">When on, donor patches are chosen using guide difference, gradient, and boundary terms. Off uses single-channel patch search only. Fast quality preset disables this.</system:String>
+  <system:String x:Key="Tips.Clean.RobustFit.Short">Use robust regression that rejects outlier ring pixels.</system:String>
+  <system:String x:Key="Tips.Clean.RobustFit.Long">Drops ring pixels with residuals above the 90th percentile before refitting the prediction model. Helps when the context ring touches other defects or edges. Default: on.</system:String>
+  <system:String x:Key="Tips.Clean.MergeNearbyDefects.Short">Bridge small gaps between detected spots in the mask.</system:String>
+  <system:String x:Key="Tips.Clean.MergeNearbyDefects.Long">Morphological close merges defects separated by up to Merge gap px before expanding the healing area. Turn off to heal each speck independently. Default: on.</system:String>
+  <system:String x:Key="Tips.Clean.MergeGapPx.Short">Maximum gap in pixels bridged when merging defects.</system:String>
+  <system:String x:Key="Tips.Clean.MergeGapPx.Long">Higher values unite scattered dust into one healed region. Quality preset may override slightly (Balanced 5, Fast 8). Default: 3. Only applies when merge is enabled.</system:String>
+  <system:String x:Key="Tips.Clean.ExpandHealingAreaPx.Short">Grow the mask beyond detected defect edges (pixels).</system:String>
+  <system:String x:Key="Tips.Clean.ExpandHealingAreaPx.Long">Dilation ensures halos and scratch edges are included in the heal region. Higher covers wider fringes; zero uses the merged mask as-is. Default: 2.</system:String>
+  <system:String x:Key="Tips.Clean.MaxComponentArea.Short">Area threshold (px) for conservative healing on large defects.</system:String>
+  <system:String x:Key="Tips.Clean.MaxComponentArea.Long">Connected components larger than this use a reduced blend strength (Large component scale) to avoid smearing big regions. Default: 5000. Lower triggers conservative mode on smaller spots.</system:String>
+  <system:String x:Key="Tips.Clean.PatchRadius.Short">Half-size of the texture patch copied from donors (pixels).</system:String>
+  <system:String x:Key="Tips.Clean.PatchRadius.Long">Larger patches capture more context for scratches but are slower and need wider search. Default: 3. Increase for linear scratches; decrease for pin-point dust.</system:String>
+  <system:String x:Key="Tips.Clean.SearchRadius.Short">How far to search for donor patches around each defect (pixels).</system:String>
+  <system:String x:Key="Tips.Clean.SearchRadius.Long">Wider search finds donors on repetitive textures but costs time. Auto-expands once if no donor is found. Default: 48 (Quality). Balanced uses 32; Fast inherits user value with fewer features.</system:String>
+  <system:String x:Key="Tips.Clean.SafetyRadius.Short">Keep a buffer of pixels around the defect excluded from donors.</system:String>
+  <system:String x:Key="Tips.Clean.SafetyRadius.Long">Prevents donor patches from including defect pixels or immediate halos. Higher is safer but shrinks the search annulus. Default: 2.</system:String>
+  <system:String x:Key="Tips.Clean.ContextRadius.Short">Ring width for training the cross-channel prediction (pixels).</system:String>
+  <system:String x:Key="Tips.Clean.ContextRadius.Long">Pixels around each component used to fit the linear model from guides. If too few valid ring pixels remain, prediction is skipped. Retries at 32 px internally. Default: 16.</system:String>
+  <system:String x:Key="Tips.Clean.MinTrainingPixels.Short">Minimum ring pixels required to run prediction.</system:String>
+  <system:String x:Key="Tips.Clean.MinTrainingPixels.Long">Higher values demand more clean context and may skip prediction on small or edge-touching defects (patch healing still runs). Lower accepts noisier fits. Default: 64.</system:String>
+  <system:String x:Key="Tips.Clean.PredictionAlphaMin.Short">Minimum blend weight for cross-channel prediction.</system:String>
+  <system:String x:Key="Tips.Clean.PredictionAlphaMin.Long">When confidence is low, alpha approaches this floor and patch healing dominates. Default: 0.15. Raise to trust prediction less; lower to allow faint predictions more influence.</system:String>
+  <system:String x:Key="Tips.Clean.PredictionAlphaMax.Short">Maximum blend weight for cross-channel prediction.</system:String>
+  <system:String x:Key="Tips.Clean.PredictionAlphaMax.Long">Caps how strongly the predicted channel replaces patch output at high confidence. Default: 0.75. Lower for safer, patch-heavy results on difficult color regions.</system:String>
+  <system:String x:Key="Tips.Clean.FeatherSigma.Short">Gaussian soft edge width for blending healed regions (pixels).</system:String>
+  <system:String x:Key="Tips.Clean.FeatherSigma.Long">Smooths the transition between healed and original pixels. Higher hides seams but may blur adjacent detail. Default: 1.5. Zero would produce hard edges.</system:String>
+  <system:String x:Key="Tips.Clean.MaxAllowedError.Short">Reject prediction when mean error exceeds this (normalized).</system:String>
+  <system:String x:Key="Tips.Clean.MaxAllowedError.Long">Lower values force patch/Telea fallback sooner when guides do not fit the target ring. Default: 0.12 (float). Tighten for saturated or unusual color regions.</system:String>
+  <system:String x:Key="Tips.Clean.LargeComponentScale.Short">Blend strength multiplier for oversized defect components.</system:String>
+  <system:String x:Key="Tips.Clean.LargeComponentScale.Long">Applied when component area exceeds Max component area. Reduces prediction alpha so large regions heal conservatively. Default: 0.5. Lower is more cautious.</system:String>
+  <system:String x:Key="Tips.Clean.DebugHealOutput.Short">Write intermediate heal images to debug/heal/.</system:String>
+  <system:String x:Key="Tips.Clean.DebugHealOutput.Long">Saves masks, prediction, patch, and confidence maps under debug/heal/{timestamp}/ relative to the working directory. For troubleshooting only; slows healing.</system:String>
+  <system:String x:Key="Tips.Clean.ShowMaskOverlay.Short">Tint the pending auto-clean mask on the preview.</system:String>
+  <system:String x:Key="Tips.Clean.ShowMaskOverlay.Long">Overlays the prepared healing mask on the active channel preview while a mask is pending review. Disable to inspect underlying image without tint.</system:String>
+  <system:String x:Key="Tips.Clean.ReviewMaskOnResult.Short">Show the pending mask on the RGB result preview.</system:String>
+  <system:String x:Key="Tips.Clean.ReviewMaskOnResult.Long">Available while auto-clean is pending. Helps judge how defects will affect final color before apply. Only enabled when a mask awaits confirmation.</system:String>
+</ResourceDictionary>

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="using:Avalonia.Automation"
+             xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:primitives="using:Avalonia.Controls.Primitives"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
@@ -12,69 +13,120 @@
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
-        <TextBlock Text="X"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+        <inspector:InspectorParameterLabel x:Name="SelectionXLabel"
+                                           Caption="X"
+                                           ShortTip="{StaticResource Tips.Crop.SelectionX.Short}"
+                                           LongTip="{StaticResource Tips.Crop.SelectionX.Long}" />
         <NumericUpDown Grid.Column="1"
                        Minimum="0"
                        Maximum="20000"
                        Increment="1"
-                       Value="{Binding SelectionX}" />
-        <TextBlock Grid.Row="1"
-                   Text="Y"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding SelectionX}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SelectionXLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="SelectionYLabel"
+                                           Caption="Y"
+                                           ShortTip="{StaticResource Tips.Crop.SelectionY.Short}"
+                                           LongTip="{StaticResource Tips.Crop.SelectionY.Long}" />
         <NumericUpDown Grid.Row="1"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="20000"
                        Increment="1"
-                       Value="{Binding SelectionY}" />
-        <TextBlock Grid.Row="2"
-                   Text="Width"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding SelectionY}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SelectionYLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="2"
+                                           x:Name="SelectionWidthLabel"
+                                           Caption="Width"
+                                           ShortTip="{StaticResource Tips.Crop.SelectionWidth.Short}"
+                                           LongTip="{StaticResource Tips.Crop.SelectionWidth.Long}" />
         <NumericUpDown Grid.Row="2"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="20000"
                        Increment="1"
-                       Value="{Binding SelectionWidth}" />
-        <TextBlock Grid.Row="3"
-                   Text="Height"
-                   Classes="MutedCaption"
-                   VerticalAlignment="Center" />
+                       Value="{Binding SelectionWidth}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SelectionWidthLabel}" />
+        <inspector:InspectorParameterLabel Grid.Row="3"
+                                           x:Name="SelectionHeightLabel"
+                                           Caption="Height"
+                                           ShortTip="{StaticResource Tips.Crop.SelectionHeight.Short}"
+                                           LongTip="{StaticResource Tips.Crop.SelectionHeight.Long}" />
         <NumericUpDown Grid.Row="3"
                        Grid.Column="1"
                        Minimum="0"
                        Maximum="20000"
                        Increment="1"
-                       Value="{Binding SelectionHeight}" />
+                       Value="{Binding SelectionHeight}"
+                       ToolTip.ShowDelay="400"
+                       ToolTip.Tip="{Binding ShortTip, ElementName=SelectionHeightLabel}" />
       </Grid>
-      <CheckBox Content="Lock square selection"
-                IsChecked="{Binding LockSquareSelection}" />
+      <inspector:InspectorParameterCheckBox x:Name="LockSquareSelectionBox"
+                                            Label="Lock square selection"
+                                            IsChecked="{Binding LockSquareSelection}"
+                                            ShortTip="{StaticResource Tips.Crop.LockSquareSelection.Short}"
+                                            LongTip="{StaticResource Tips.Crop.LockSquareSelection.Long}" />
       <TextBlock Text="{Binding CropBehaviorHint}"
                  Classes="MutedCaption"
                  TextWrapping="Wrap" />
       <StackPanel Spacing="6">
-        <Button Content="Crop to selection"
-                Command="{Binding CropToSelectionCommand}"
-                HorizontalAlignment="Stretch"
-                automation:AutomationProperties.Name="Crop to selection" />
-        <Button Content="Crop overlap (all aligned)"
-                Command="{Binding CropOverlapCommand}"
-                HorizontalAlignment="Stretch"
-                automation:AutomationProperties.Name="Crop overlap" />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="4">
+          <Button Content="Crop to selection"
+                  Command="{Binding CropToSelectionCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  automation:AutomationProperties.Name="Crop to selection"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{StaticResource Tips.Crop.CropToSelection.Short}" />
+          <Button Classes="HelpIconButton"
+                  Content="?"
+                  ToolTip.ShowDelay="200"
+                  IsTabStop="False">
+            <ToolTip.Tip>
+              <ToolTip MaxWidth="300">
+                <TextBlock Text="{StaticResource Tips.Crop.CropToSelection.Long}"
+                           TextWrapping="Wrap" />
+              </ToolTip>
+            </ToolTip.Tip>
+          </Button>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal"
+                    Spacing="4">
+          <Button Content="Crop overlap (all aligned)"
+                  Command="{Binding CropOverlapCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  automation:AutomationProperties.Name="Crop overlap"
+                  ToolTip.ShowDelay="400"
+                  ToolTip.Tip="{StaticResource Tips.Crop.CropOverlap.Short}" />
+          <Button Classes="HelpIconButton"
+                  Content="?"
+                  ToolTip.ShowDelay="200"
+                  IsTabStop="False">
+            <ToolTip.Tip>
+              <ToolTip MaxWidth="300">
+                <TextBlock Text="{StaticResource Tips.Crop.CropOverlap.Long}"
+                           TextWrapping="Wrap" />
+              </ToolTip>
+            </ToolTip.Tip>
+          </Button>
+        </StackPanel>
         <Button Content="Reset selection"
                 Command="{Binding ResetCropSelectionCommand}"
                 HorizontalAlignment="Stretch"
-                automation:AutomationProperties.Name="Reset crop selection" />
+                automation:AutomationProperties.Name="Reset crop selection"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{StaticResource Tips.Crop.ResetSelection.Short}" />
       </StackPanel>
       <primitives:ToggleButton Content="Selection mode"
                                Classes="IconButton"
                                IsChecked="{Binding IsSelectToolMode}"
                                HorizontalAlignment="Left"
-                               ToolTip.Tip="Selection mode"
+                               ToolTip.Tip="{StaticResource Tips.Crop.SelectionMode.Short}"
                                automation:AutomationProperties.Name="Selection mode" />
     </StackPanel>
   </z:HeaderedContainer>
