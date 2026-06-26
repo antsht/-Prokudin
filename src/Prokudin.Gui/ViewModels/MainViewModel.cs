@@ -18,6 +18,7 @@ using Prokudin.Core.Retouch;
 using Prokudin.Gui.Diagnostics;
 using Prokudin.Gui.Imaging;
 using Prokudin.Gui.Services;
+using Prokudin.Gui.Services.Project;
 using Prokudin.Gui.Views;
 
 namespace Prokudin.Gui.ViewModels;
@@ -33,6 +34,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IAutoCleanSettingsStore autoCleanSettingsStore;
     private readonly IUiSettingsStore uiSettingsStore;
     private readonly IUpdateChecker updateChecker;
+    private readonly IProjectStore projectStore;
+    private readonly IAutosaveStore autosaveStore;
+    private readonly IRecentProjectsStore recentProjectsStore;
     private readonly StringBuilder processingLog = new();
     private readonly object processingLogSync = new();
     private bool processingLogRefreshScheduled;
@@ -59,6 +63,9 @@ public sealed partial class MainViewModel : ObservableObject
     private int whiteBalancePipetteY = -1;
     private readonly AutoCleanSessionCache autoCleanSessionCache = new();
     private Window? ownerWindow;
+    private bool suppressProjectDirtyTracking;
+    private bool isAutosavePending;
+    private DispatcherTimer? autosaveTimer;
 
     private void SetLastAligned(AlignedChannels? aligned)
     {
@@ -104,7 +111,7 @@ public sealed partial class MainViewModel : ObservableObject
         IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
         IAutoCleanSettingsStore autoCleanSettingsStore,
         IUiSettingsStore uiSettingsStore)
-        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, autoCleanSettingsStore, uiSettingsStore, new GitHubReleaseUpdateChecker())
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, autoCleanSettingsStore, uiSettingsStore, new GitHubReleaseUpdateChecker(), new JsonProjectStore(), new JsonAutosaveStore(), new JsonRecentProjectsStore())
     {
     }
 
@@ -115,6 +122,20 @@ public sealed partial class MainViewModel : ObservableObject
         IAutoCleanSettingsStore autoCleanSettingsStore,
         IUiSettingsStore uiSettingsStore,
         IUpdateChecker updateChecker)
+        : this(fileDialogService, exportSettingsStore, diagnosticsSettingsStore, autoCleanSettingsStore, uiSettingsStore, updateChecker, new JsonProjectStore(), new JsonAutosaveStore(), new JsonRecentProjectsStore())
+    {
+    }
+
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IExportSettingsStore exportSettingsStore,
+        IProcessingDiagnosticsSettingsStore diagnosticsSettingsStore,
+        IAutoCleanSettingsStore autoCleanSettingsStore,
+        IUiSettingsStore uiSettingsStore,
+        IUpdateChecker updateChecker,
+        IProjectStore projectStore,
+        IAutosaveStore autosaveStore,
+        IRecentProjectsStore recentProjectsStore)
     {
         this.fileDialogService = fileDialogService;
         this.exportSettingsStore = exportSettingsStore;
@@ -122,6 +143,9 @@ public sealed partial class MainViewModel : ObservableObject
         this.autoCleanSettingsStore = autoCleanSettingsStore;
         this.uiSettingsStore = uiSettingsStore;
         this.updateChecker = updateChecker;
+        this.projectStore = projectStore;
+        this.autosaveStore = autosaveStore;
+        this.recentProjectsStore = recentProjectsStore;
 
         RedSlot = new ChannelSlotViewModel("Red", ChannelName.Red);
         GreenSlot = new ChannelSlotViewModel("Green", ChannelName.Green);
@@ -147,7 +171,32 @@ public sealed partial class MainViewModel : ObservableObject
         LoadAutoCleanSettings(autoCleanSettingsStore.Load());
         LoadUiSettings(uiSettingsStore.Load());
         SelectedSlot = RedSlot;
+        RefreshRecentProjectsMenu();
+        ConfigureAutosaveTimer();
     }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WindowTitle))]
+    [NotifyCanExecuteChangedFor(nameof(SaveProjectCommand))]
+    private string? projectPath;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WindowTitle))]
+    [NotifyCanExecuteChangedFor(nameof(SaveProjectCommand))]
+    private bool isProjectDirty;
+
+    [ObservableProperty]
+    private bool isAutosaving;
+
+    public ObservableCollection<RecentProjectEntry> RecentProjectsMenu { get; } = [];
+
+    public string WindowTitle =>
+        $"{(string.IsNullOrWhiteSpace(ProjectDisplayName) ? "Untitled" : ProjectDisplayName)}{(IsProjectDirty ? "*" : string.Empty)} — Prokudin";
+
+    public string? ProjectDisplayName =>
+        string.IsNullOrWhiteSpace(ProjectPath)
+            ? null
+            : Path.GetFileName(ProjectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
     public void AttachOwnerWindow(Window window) => ownerWindow = window;
 
@@ -1094,8 +1143,13 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Exit()
+    private async Task Exit()
     {
+        if (!await TryCloseSessionAsync())
+        {
+            return;
+        }
+
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
@@ -2535,6 +2589,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectionY));
         OnPropertyChanged(nameof(SelectionWidth));
         OnPropertyChanged(nameof(SelectionHeight));
+        MarkProjectDirty();
     }
 
     partial void OnToolModeChanged(EditorToolMode value)
@@ -2544,6 +2599,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsHealToolMode));
         OnPropertyChanged(nameof(IsCloneToolMode));
         OnPropertyChanged(nameof(IsWhiteBalancePickerToolMode));
+        MarkProjectDirty();
     }
 
     partial void OnAppThemeModeChanged(AppThemeMode value)
@@ -2559,7 +2615,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnIsProcessingLogVisibleChanged(bool value) => SaveUiSettings();
 
-    partial void OnSelectedWorkflowToolChanged(WorkflowTool value) => SaveUiSettings();
+    partial void OnSelectedWorkflowToolChanged(WorkflowTool value)
+    {
+        SaveUiSettings();
+        MarkProjectDirty();
+    }
 
     partial void OnLeftPanelWidthChanged(double value) => SaveUiSettings();
 
@@ -2571,88 +2631,176 @@ public sealed partial class MainViewModel : ObservableObject
     {
         SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
+        MarkProjectDirty();
     }
 
     partial void OnShowHealMaskOverlayChanged(bool value)
     {
         SaveAutoCleanSettings();
         RefreshAutoCleanMaskOverlay();
+        MarkProjectDirty();
     }
 
-    partial void OnDebugHealOutputChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnDebugHealOutputChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnUseCrossChannelHealingChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnUseCrossChannelHealingChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnUseTeleaHealingChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnUseTeleaHealingChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnUseLocalLinearPredictionChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnUseLocalLinearPredictionChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnUseGuidedPatchSearchChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnUseGuidedPatchSearchChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnUseRobustFitChanged(bool value) => SaveAutoCleanSettings();
+    partial void OnUseRobustFitChanged(bool value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealPatchRadiusChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealPatchRadiusChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealSearchRadiusChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealSearchRadiusChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealSafetyRadiusChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealSafetyRadiusChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealContextRadiusChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealContextRadiusChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealMinTrainingPixelsChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealMinTrainingPixelsChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealMaxComponentAreaChanged(int value) => SaveAutoCleanSettings();
+    partial void OnHealMaxComponentAreaChanged(int value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealPredictionAlphaMinChanged(double value) => SaveAutoCleanSettings();
+    partial void OnHealPredictionAlphaMinChanged(double value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealPredictionAlphaMaxChanged(double value) => SaveAutoCleanSettings();
+    partial void OnHealPredictionAlphaMaxChanged(double value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealFeatherSigmaChanged(double value) => SaveAutoCleanSettings();
+    partial void OnHealFeatherSigmaChanged(double value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealMaxAllowedErrorChanged(double value) => SaveAutoCleanSettings();
+    partial void OnHealMaxAllowedErrorChanged(double value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
-    partial void OnHealLargeComponentConservativeScaleChanged(double value) => SaveAutoCleanSettings();
+    partial void OnHealLargeComponentConservativeScaleChanged(double value)
+    {
+        SaveAutoCleanSettings();
+        MarkProjectDirty();
+    }
 
     partial void OnAutoCleanRadiusChanged(int value)
     {
         SaveAutoCleanSettings();
+        MarkProjectDirty();
     }
 
     partial void OnAutoCleanSensitivityChanged(int value)
     {
         SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
+        MarkProjectDirty();
     }
 
     partial void OnAutoExpandHealingAreaPxChanged(int value)
     {
         SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
+        MarkProjectDirty();
     }
 
     partial void OnAutoMergeNearbyDefectsChanged(bool value)
     {
         SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
+        MarkProjectDirty();
     }
 
     partial void OnAutoMergeDistancePxChanged(int value)
     {
         SaveAutoCleanSettings();
         SchedulePendingAutoCleanMaskRefresh();
+        MarkProjectDirty();
     }
 
     partial void OnLevelsModeChanged(LevelsMode value)
     {
         OnPropertyChanged(nameof(IsManualLevels));
         ScheduleResultRebuild();
+        MarkProjectDirty();
     }
 
-    partial void OnLevelsBlackPointChanged(double value) => ScheduleResultRebuild();
+    partial void OnLevelsBlackPointChanged(double value)
+    {
+        ScheduleResultRebuild();
+        MarkProjectDirty();
+    }
 
-    partial void OnLevelsWhitePointChanged(double value) => ScheduleResultRebuild();
+    partial void OnLevelsWhitePointChanged(double value)
+    {
+        ScheduleResultRebuild();
+        MarkProjectDirty();
+    }
 
-    partial void OnLevelsGammaChanged(double value) => ScheduleResultRebuild();
+    partial void OnLevelsGammaChanged(double value)
+    {
+        ScheduleResultRebuild();
+        MarkProjectDirty();
+    }
 
     partial void OnPendingAutoCleanMaskChanged(byte[]? value)
     {
@@ -2675,37 +2823,44 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnExportFormatChanged(RgbExportFormat value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnLimitExportSizeChanged(bool value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnExportMaxSideChanged(int value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnPngCompressionChanged(int value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnJpegQualityChanged(int value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnTiffCompressionChanged(TiffExportCompression value)
     {
         OnPropertyChanged(nameof(IsTiffDeflate));
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnTiffDeflateLevelChanged(int value)
     {
         SaveExportSettings();
+        MarkProjectDirty();
     }
 
     partial void OnAutoWhiteBalanceChanging(bool oldValue, bool newValue)
@@ -2716,6 +2871,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnAutoWhiteBalanceChanged(bool value)
     {
         ScheduleResultRebuild();
+        MarkProjectDirty();
     }
 
     partial void OnRedExposureStopsChanging(double oldValue, double newValue)
@@ -2736,16 +2892,19 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnRedExposureStopsChanged(double value)
     {
         ScheduleResultRebuild();
+        MarkProjectDirty();
     }
 
     partial void OnGreenExposureStopsChanged(double value)
     {
         ScheduleResultRebuild();
+        MarkProjectDirty();
     }
 
     partial void OnBlueExposureStopsChanged(double value)
     {
         ScheduleResultRebuild();
+        MarkProjectDirty();
     }
 
     private void BeginExposureOrColorEdit()
@@ -2786,6 +2945,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         PushUndoSnapshot(CaptureSnapshot());
+        MarkProjectDirty();
     }
 
     private void PushUndoSnapshot(EditorSnapshot snapshot)

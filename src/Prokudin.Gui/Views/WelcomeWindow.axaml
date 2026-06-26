@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Prokudin.Gui.ViewModels"
+        x:Class="Prokudin.Gui.Views.WelcomeWindow"
+        x:DataType="vm:WelcomeViewModel"
+        Title="Welcome to Prokudin"
+        Width="520"
+        Height="420"
+        MinWidth="480"
+        MinHeight="380"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False">
+  <StackPanel Margin="24" Spacing="12">
+    <TextBlock Text="Welcome to Prokudin"
+               FontSize="22"
+               FontWeight="SemiBold" />
+    <TextBlock Text="Restore a session or open a saved project."
+               TextWrapping="Wrap"
+               Classes="MutedCaption" />
+
+    <Border Classes="Card"
+            Padding="12"
+            IsVisible="{Binding HasAutosave}">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Recover autosave"
+                   FontWeight="SemiBold" />
+        <TextBlock Text="{Binding AutosaveSummary}"
+                   Classes="MutedCaption" />
+        <TextBlock Text="{Binding AutosaveLinkedProjectSummary}"
+                   IsVisible="{Binding AutosaveLinkedProjectSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Classes="MutedCaption"
+                   TextWrapping="Wrap" />
+        <Button Content="Recover autosave"
+                Command="{Binding RecoverAutosaveCommand}"
+                HorizontalAlignment="Left" />
+      </StackPanel>
+    </Border>
+
+    <TextBlock Text="Recent projects"
+               FontWeight="SemiBold"
+               Margin="0,8,0,0" />
+    <ListBox x:Name="RecentList"
+             ItemsSource="{Binding RecentProjects}"
+             MinHeight="80"
+             SelectionChanged="RecentList_OnSelectionChanged">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <StackPanel>
+            <TextBlock Text="{Binding Path}" />
+            <TextBlock Text="{Binding LastOpenedAt, StringFormat='Opened {0:g}'}"
+                       Classes="MutedCaption" />
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+    <TextBlock Text="No recent projects yet."
+               IsVisible="{Binding !RecentProjects.Count}"
+               Classes="MutedCaption" />
+
+    <StackPanel Orientation="Horizontal"
+                Spacing="8"
+                Margin="0,12,0,0"
+                HorizontalAlignment="Right">
+      <Button Content="Settings"
+              Click="Settings_OnClick" />
+      <Button Content="Open other…"
+              Command="{Binding OpenOtherCommand}" />
+      <Button Content="New project"
+              Command="{Binding NewProjectCommand}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -11,6 +12,20 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closing += OnClosing;
+    }
+
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        if (!await viewModel.TryCloseSessionAsync())
+        {
+            e.Cancel = true;
+        }
     }
 
     private void OnLoaded(object? sender, EventArgs e)
@@ -18,6 +33,27 @@ public sealed partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             ApplyPanelLayout(viewModel);
+            RefreshRecentProjectsMenu(viewModel);
+            viewModel.RecentProjectsMenu.CollectionChanged += (_, _) => RefreshRecentProjectsMenu(viewModel);
+        }
+    }
+
+    private void RefreshRecentProjectsMenu(MainViewModel viewModel)
+    {
+        RecentProjectsMenuItem.Items.Clear();
+        foreach (var entry in viewModel.RecentProjectsMenu)
+        {
+            var item = new MenuItem
+            {
+                Header = entry.DisplayName ?? entry.Path,
+            };
+            item.Click += (_, _) => viewModel.OpenRecentProjectCommand.Execute(entry.Path);
+            RecentProjectsMenuItem.Items.Add(item);
+        }
+
+        if (RecentProjectsMenuItem.Items.Count == 0)
+        {
+            RecentProjectsMenuItem.Items.Add(new MenuItem { Header = "(empty)", IsEnabled = false });
         }
     }
 

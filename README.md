@@ -81,6 +81,7 @@ The desktop app supports:
 - heal brush and clone stamp on aligned channels
 - cross-channel guided healing (default on) and per-channel auto-clean masks
 - crop-to-selection, per-channel exposure, auto white balance, undo/redo
+- **save/load projects** (folder with `project.json` and TIFF channels/result) and **autosave**
 - result preview and PNG/JPEG/TIFF export with saved export settings
 - export prepared aligned channels after auto-align
 

@@ -81,9 +81,22 @@ Workspace columns: **channels** (resizable, default 260 px) | splitter |
 **workflow toolbar** (88 px) | **preview** | splitter | **right inspector**
 (resizable, default 360 px).
 
-Panel sizes, visibility, theme, and selected workflow persist in
+Panel sizes, visibility, theme, selected workflow, and autosave options persist in
 `%LocalAppData%/Prokudin/ui-settings.json` via `JsonUiSettingsStore`. Export,
 auto-clean, and diagnostics settings use separate JSON files in the same folder.
+Recent project paths: `recent-projects.json`. Autosave slot: `autosave/`.
+
+### Projects
+
+- **Save Project / Save Project As** writes a folder with `project.json` plus Deflate TIFF
+  `red.tif`, `green.tif`, `blue.tif`, and `result.tif` (current working state only).
+- **Autosave** uses the same format in `%LocalAppData%/Prokudin/autosave/` (single slot,
+  default 10 min interval). Does not clear the dirty flag; explicit Save is still required.
+- **Welcome dialog** on startup: recover autosave, open one of three recent projects, or new/open.
+- **Edit → Settings**: theme, autosave enable/interval, processing diagnostics.
+- Undo/redo is not persisted in project files. `lastAligned` is not restored on load.
+- Implementation: `Services/Project/` (`JsonProjectStore`, `ProjectStateMapper`, etc.).
+  Design spec: `docs/superpowers/specs/2026-06-26-project-save-design.md`.
 
 ### Workflows
 
@@ -103,6 +116,9 @@ context command bar (quick actions) and a right **inspector** (detailed paramete
 - auto white balance, pipette picker, per-channel exposure (−2…+2 stops)
 - manual levels/gamma via `LevelsSettings` in Color inspector
 - fit-to-window / 1:1 preview zoom
+- project save/load (folder + `project.json` + TIFF channels/result) and timed autosave
+- welcome screen (autosave recovery, three recent projects)
+- Edit → Settings for theme, autosave, diagnostics
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
 - View menu: Light/Dark/System theme, panel visibility toggles
 - Help menu: user guide, keyboard shortcuts, check for updates, About dialog

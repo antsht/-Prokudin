@@ -66,6 +66,31 @@ public sealed class StorageFileDialogService : IFileDialogService
         return folders.Count == 0 ? null : folders[0].Path.LocalPath;
     }
 
+    public async Task<string?> OpenProjectFolder()
+    {
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions
+            {
+                Title = "Open project folder",
+                AllowMultiple = false,
+            });
+
+        return folders.Count == 0 ? null : folders[0].Path.LocalPath;
+    }
+
+    public async Task<string?> PickProjectSaveFolder(string? suggestedName)
+    {
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions
+            {
+                Title = "Save project as",
+                AllowMultiple = false,
+                SuggestedStartLocation = await owner.StorageProvider.TryGetWellKnownFolderAsync(WellKnownFolder.Documents),
+            });
+
+        return folders.Count == 0 ? null : folders[0].Path.LocalPath;
+    }
+
     public async Task<string?> SaveExport(RgbExportSettings settings)
     {
         settings = settings.Normalize();

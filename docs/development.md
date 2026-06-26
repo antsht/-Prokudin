@@ -151,6 +151,21 @@ unchanged. Preset choice persists in
 `%LocalAppData%/Prokudin/auto-clean-settings.json`.
 
 Diagnostics toggles persist in `%LocalAppData%/Prokudin/diagnostics-settings.json`.
+The same toggles are editable under **Edit → Settings** in the GUI.
+
+## GUI persistence and projects
+
+| Path | Purpose |
+| --- | --- |
+| `ui-settings.json` | Theme, panel layout, selected workflow, autosave enable/interval |
+| `export-settings.json` | Default export format and compression |
+| `auto-clean-settings.json` | Auto-clean / heal preset defaults |
+| `diagnostics-settings.json` | Processing log category toggles |
+| `recent-projects.json` | Last three opened/saved project folders |
+| `autosave/` | Single autosave slot (`project.json` + TIFF files) |
+
+Project **Save** writes a user-chosen folder with the same manifest + TIFF layout.
+See `docs/superpowers/specs/2026-06-26-project-save-design.md`.
 
 ## Inspector parameter tooltips
 

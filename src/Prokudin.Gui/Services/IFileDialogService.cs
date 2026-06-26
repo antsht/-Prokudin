@@ -8,5 +8,9 @@ public interface IFileDialogService
 
     Task<string?> OpenFolder();
 
+    Task<string?> OpenProjectFolder();
+
+    Task<string?> PickProjectSaveFolder(string? suggestedName);
+
     Task<string?> SaveExport(RgbExportSettings settings);
 }

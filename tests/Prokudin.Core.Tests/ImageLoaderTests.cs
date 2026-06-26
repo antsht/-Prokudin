@@ -6,6 +6,31 @@ namespace Prokudin.Core.Tests;
 public sealed class ImageLoaderTests
 {
     [Fact]
+    public async Task SaveGrayscaleTiffAsync_WritesReadableGrayscaleImage()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"prokudin-channel-{Guid.NewGuid():N}.tif");
+        try
+        {
+            var image = new ImageBuffer(2, 2, new ushort[] { 0, 16384, 32768, 65535 });
+
+            await ImageLoader.SaveGrayscaleTiffAsync(path, image);
+            var loaded = await ImageLoader.LoadGrayscaleAsync(path);
+
+            loaded.Width.Should().Be(2);
+            loaded.Height.Should().Be(2);
+            loaded.Format.Should().Be(PixelFormat.UInt16);
+            loaded[1, 1].Should().BeApproximately(1.0f, 0.01f);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task SaveGrayscalePngAsync_WritesReadableGrayscaleImage()
     {
         var path = Path.Combine(Path.GetTempPath(), $"prokudin-channel-{Guid.NewGuid():N}.png");

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-26
+
+### Added
+
+- Project save/load: folder with `project.json` plus Deflate TIFF channels and RGB result
+- Autosave to `%LocalAppData%/Prokudin/autosave/` (default every 10 minutes, configurable)
+- Welcome dialog on startup: recover autosave, three recent projects, new/open
+- **Edit → Settings** for theme, autosave interval, and processing diagnostics
+- Design spec `docs/superpowers/specs/2026-06-26-project-save-design.md`
+- `ImageLoader.SaveGrayscaleTiffAsync` for lossless 8/16-bit channel export
+
+### Changed
+
+- **File** menu: New/Open/Save project, Open Recent, keyboard shortcuts (Ctrl+N/O/S)
+- Window title shows project name and dirty-state indicator
+- Exit and New Project prompt to save unsaved changes
+
 ## [0.10.0] - 2026-06-25
 
 ### Added

@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Prokudin.Gui.Views.UnsavedChangesDialog"
+        Title="Unsaved changes"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <StackPanel Margin="24" Spacing="12" MinWidth="320">
+    <TextBlock Text="Save changes to the project before closing?"
+               TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="CancelButton" Content="Cancel" Click="OnCancel" />
+      <Button x:Name="DontSaveButton" Content="Don't Save" Click="OnDontSave" />
+      <Button x:Name="SaveButton" Content="Save" Click="OnSave" IsDefault="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

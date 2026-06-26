@@ -10,7 +10,7 @@
                  xmlns:z="using:Zafiro.Avalonia.Controls"
                  x:Class="Prokudin.Gui.Views.MainWindow"
                  x:DataType="vm:MainViewModel"
-                 Title="Prokudin"
+                 Title="{Binding WindowTitle}"
                  Width="1280"
                  Height="800"
                  MinWidth="920"
@@ -18,6 +18,10 @@
   <controls:Window.KeyBindings>
     <input:KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     <input:KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
+    <input:KeyBinding Gesture="Ctrl+N" Command="{Binding NewProjectCommand}" />
+    <input:KeyBinding Gesture="Ctrl+O" Command="{Binding OpenProjectCommand}" />
+    <input:KeyBinding Gesture="Ctrl+S" Command="{Binding SaveProjectCommand}" />
+    <input:KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveProjectAsCommand}" />
   </controls:Window.KeyBindings>
 
   <Grid x:Name="RootGrid"
@@ -25,6 +29,12 @@
         RowDefinitions="Auto,Auto,*,4,150,Auto">
     <Menu Grid.Row="0">
       <MenuItem Header="_File">
+        <MenuItem Header="_New Project..." Command="{Binding NewProjectCommand}" InputGesture="Ctrl+N" />
+        <MenuItem Header="_Open Project..." Command="{Binding OpenProjectCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="_Save Project" Command="{Binding SaveProjectCommand}" InputGesture="Ctrl+S" />
+        <MenuItem Header="Save Project _As..." Command="{Binding SaveProjectAsCommand}" InputGesture="Ctrl+Shift+S" />
+        <MenuItem Header="Open _Recent" x:Name="RecentProjectsMenuItem" />
+        <Separator />
         <MenuItem Header="Open _Red..." Command="{Binding OpenRedCommand}" />
         <MenuItem Header="Open _Green..." Command="{Binding OpenGreenCommand}" />
         <MenuItem Header="Open _Blue..." Command="{Binding OpenBlueCommand}" />
@@ -39,6 +49,8 @@
       <MenuItem Header="_Edit">
         <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
         <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+        <Separator />
+        <MenuItem Header="_Settings..." Command="{Binding ShowSettingsCommand}" />
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="_Theme">

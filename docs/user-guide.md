@@ -42,15 +42,59 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 
 ### Basic workflow
 
-1. Open R, G, and B channel files, or open a triptych and choose `RGB` or `BGR`.
-2. Use the left sidebar channel cards (with thumbnails) to inspect and select channels.
-3. Drag one R/G/B card onto another to swap channel assignments.
-4. Run **Auto-align**. Prepared aligned channels are kept for retouch and export.
-5. Read the status bar for alignment details (transform type, inliers, shifts).
-6. Optionally retouch a channel (heal brush, clone stamp) or review auto-clean masks.
-7. Adjust per-channel exposure or toggle **Auto WB** if needed.
-8. Inspect the result preview (fit-to-window or 1:1 zoom).
-9. Export the result as PNG, JPEG, or TIFF; optionally **Export Channels** for the prepared R/G/B buffers.
+1. On startup, choose **New project**, **Recover autosave**, a **recent project**, or **Open other…**.
+2. Open R, G, and B channel files, or open a triptych and choose `RGB` or `BGR`.
+3. Use the left sidebar channel cards (with thumbnails) to inspect and select channels.
+4. Drag one R/G/B card onto another to swap channel assignments.
+5. Run **Auto-align**. Prepared aligned channels are kept for retouch and export.
+6. Read the status bar for alignment details (transform type, inliers, shifts).
+7. Optionally retouch a channel (heal brush, clone stamp) or review auto-clean masks.
+8. Adjust per-channel exposure or toggle **Auto WB** if needed.
+9. Inspect the result preview (fit-to-window or 1:1 zoom).
+10. **Save Project** or **Save Project As…** to persist your session (see below).
+11. Export the result as PNG, JPEG, or TIFF; optionally **Export Channels** for the prepared R/G/B buffers.
+
+### Projects and autosave
+
+For multi-day work, save the full session to a folder:
+
+| File | Contents |
+| --- | --- |
+| `project.json` | Workflow settings (align, crop, color, clean, session state); export override on explicit Save |
+| `red.tif`, `green.tif`, `blue.tif` | Current working grayscale channels (Deflate TIFF, lossless) |
+| `result.tif` | Current RGB result preview |
+
+Any folder containing `project.json` is a valid project. Use **File → Save Project As…** (Ctrl+Shift+S) to choose the folder, then **Save Project** (Ctrl+S) to update it.
+
+**Autosave** writes the same layout to `%LocalAppData%\Prokudin\autosave\` on a timer (default every 10 minutes). Autosave is independent of **Save Project** — it is crash insurance, not a named project on disk. On startup, **Recover autosave** restores the last autosaved session.
+
+**Open Recent** lists the three most recently opened or saved projects (`recent-projects.json` in the same app-data folder).
+
+Undo/redo history is **not** stored in project files. After opening a project, undo starts empty.
+
+When you exit or start **New Project** with unsaved changes to a named project, Prokudin asks **Save / Don't Save / Cancel**.
+
+### Application settings
+
+**Edit → Settings** (also available from the welcome screen) configures:
+
+- **Theme** (Light / Dark / System)
+- **Autosave** enable and interval (1–60 minutes)
+- **Processing diagnostics** log categories
+
+Panel layout, theme workflow selection, export defaults, and auto-clean presets still persist separately under `%LocalAppData%\Prokudin\` (`ui-settings.json`, `export-settings.json`, `auto-clean-settings.json`, `diagnostics-settings.json`).
+
+### Keyboard shortcuts (project)
+
+| Action | Shortcut |
+| --- | --- |
+| New Project | Ctrl+N |
+| Open Project | Ctrl+O |
+| Save Project | Ctrl+S |
+| Save Project As | Ctrl+Shift+S |
+| Undo | Ctrl+Z |
+| Redo | Ctrl+Y |
+
 
 ### Channel thumbnails
 
@@ -192,6 +236,9 @@ Implemented in the Avalonia UI:
 - per-channel auto-clean mask detection, review, editing, apply/cancel
 - crop-to-selection on channels and result
 - per-channel exposure sliders, auto white balance, undo/redo
+- **project save/load** (folder with `project.json` + TIFF channels/result) and **autosave**
+- welcome screen with autosave recovery and three recent projects
+- **Edit → Settings** for theme, autosave interval, and diagnostics
 - result preview with fit-to-window zoom
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
 

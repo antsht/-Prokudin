@@ -254,6 +254,65 @@ public static class ImageLoader
         await image.SaveAsPngAsync(path, cancellationToken);
     }
 
+    public static Task SaveGrayscaleTiffAsync(
+        string path,
+        ImageBuffer imageBuffer,
+        CancellationToken cancellationToken = default)
+    {
+        return SaveGrayscaleTiffAsync(path, imageBuffer, TiffExportCompression.Deflate, 6, cancellationToken);
+    }
+
+    public static async Task SaveGrayscaleTiffAsync(
+        string path,
+        ImageBuffer imageBuffer,
+        TiffExportCompression compression,
+        int deflateLevel,
+        CancellationToken cancellationToken = default)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
+        var encoder = new TiffEncoder
+        {
+            Compression = ToTiffCompression(compression),
+            CompressionLevel = ToDeflateCompressionLevel(deflateLevel),
+        };
+
+        if (imageBuffer.Format == PixelFormat.UInt16)
+        {
+            var pixels = imageBuffer.UInt16Pixels;
+            using var image = new Image<L16>(imageBuffer.Width, imageBuffer.Height);
+            image.ProcessPixelRows(accessor =>
+            {
+                for (var y = 0; y < imageBuffer.Height; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    var rowOffset = y * imageBuffer.Width;
+                    for (var x = 0; x < imageBuffer.Width; x++)
+                    {
+                        row[x] = new L16(pixels[rowOffset + x]);
+                    }
+                }
+            });
+
+            await image.SaveAsTiffAsync(path, encoder, cancellationToken);
+            return;
+        }
+
+        using var image8 = new Image<L8>(imageBuffer.Width, imageBuffer.Height);
+        image8.ProcessPixelRows(accessor =>
+        {
+            for (var y = 0; y < imageBuffer.Height; y++)
+            {
+                var row = accessor.GetRowSpan(y);
+                for (var x = 0; x < imageBuffer.Width; x++)
+                {
+                    row[x] = new L8(ToByte(imageBuffer[x, y]));
+                }
+            }
+        });
+
+        await image8.SaveAsTiffAsync(path, encoder, cancellationToken);
+    }
+
     private static byte ToByte(float value)
     {
         return (byte)Math.Clamp((int)MathF.Round(value * 255.0f), 0, 255);

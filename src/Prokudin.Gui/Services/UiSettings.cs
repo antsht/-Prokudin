@@ -20,6 +20,10 @@ public sealed class UiSettings
 
     public WorkflowTool SelectedWorkflowTool { get; set; } = WorkflowTool.Import;
 
+    public bool AutosaveEnabled { get; set; } = true;
+
+    public int AutosaveIntervalMinutes { get; set; } = 10;
+
     public UiSettings Normalize() =>
         new()
         {
@@ -31,5 +35,7 @@ public sealed class UiSettings
             IsRightInspectorVisible = IsRightInspectorVisible,
             IsLeftPanelVisible = IsLeftPanelVisible,
             SelectedWorkflowTool = SelectedWorkflowTool,
+            AutosaveEnabled = AutosaveEnabled,
+            AutosaveIntervalMinutes = Math.Clamp(AutosaveIntervalMinutes, 1, 60),
         };
 }

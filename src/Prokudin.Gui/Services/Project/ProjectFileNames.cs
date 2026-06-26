@@ -1,0 +1,23 @@
+namespace Prokudin.Gui.Services.Project;
+
+public static class ProjectFileNames
+{
+    public const string Manifest = "project.json";
+
+    public const string RedChannel = "red.tif";
+
+    public const string GreenChannel = "green.tif";
+
+    public const string BlueChannel = "blue.tif";
+
+    public const string Result = "result.tif";
+
+    public const string SaveTempFolder = "_save-tmp";
+
+    public static bool IsProjectFile(string fileName) =>
+        fileName.Equals(Manifest, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals(RedChannel, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals(GreenChannel, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals(BlueChannel, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals(Result, StringComparison.OrdinalIgnoreCase);
+}
