@@ -217,6 +217,34 @@ Then:
 
 Do not bump version or changelog for exploratory edits the user did not ask to keep.
 
+### Release Handoff (After Code Changes)
+
+When you finish a **user-requested code change** (feature, fix, or refactor the
+user asked to keep), do **not** jump straight to commit, push, or tagging.
+
+1. **Ask the user to confirm** that the change works as expected (build/tests pass
+   on your side; the user may have smoke-tested the GUI or CLI).
+2. **Wait for explicit confirmation** (for example: «works fine», «ok to release»,
+   or a direct request to ship).
+3. **Only after confirmation**, run this sequence in order:
+
+   1. **Update documentation** — `CHANGELOG.md`, `AGENTS.md` / `docs/user-guide.md`
+      / `README.md` / `docs/development.md` as needed; keyboard shortcuts or
+      other in-app help if behavior changed.
+   2. **Commit** — stage source and docs only (never `bin/` or `obj/`); follow the
+      repository git commit message style.
+   3. **Push** — `git push` to `origin` on the current branch.
+   4. **Tag** — bump `<Version>` in `Directory.Build.props` and `CHANGELOG.md` if
+      not already done; create an annotated tag `v{x.y.z}` matching that version.
+   5. **Push tag** — `git push origin v{x.y.z}` (triggers the release workflow).
+
+If the user confirms and asks to ship in one message (for example: «works, update
+docs, commit, push, tag»), you may run the full sequence without a separate
+confirmation step.
+
+Do **not** commit, push, or tag without user confirmation unless they explicitly
+requested that workflow in the same turn.
+
 ## Development Rules
 
 - Keep Core free of GUI dependencies.
