@@ -1,0 +1,321 @@
+using FluentAssertions;
+using Prokudin.Core.Alignment;
+using Prokudin.Core.Imaging;
+using Prokudin.Core.Retouch;
+using Prokudin.Gui.Services;
+using Prokudin.Gui.Services.Project;
+using Prokudin.Gui.ViewModels;
+
+namespace Prokudin.Gui.Tests;
+
+public sealed class MainViewModelTests
+{
+    [Fact]
+    public async Task ExposureEdit_IsUndoableAndRedoable()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() => LoadSyntheticChannels(viewModel));
+
+        AvaloniaTestHost.Invoke(() => viewModel.RedExposureStops = 1.0);
+        await Task.Delay(800);
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.UndoCommand.CanExecute(null).Should().BeTrue();
+            viewModel.UndoCommand.Execute(null);
+            viewModel.RedExposureStops.Should().Be(0.0);
+
+            viewModel.RedoCommand.CanExecute(null).Should().BeTrue();
+            viewModel.RedoCommand.Execute(null);
+            viewModel.RedExposureStops.Should().Be(1.0);
+        });
+    }
+
+    [Fact]
+    public void SwapSlots_IsUndoable()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            var red = ImageBuffer.Filled(8, 8, 0.2f);
+            var green = ImageBuffer.Filled(8, 8, 0.8f);
+            viewModel.RedSlot.Image = red;
+            viewModel.GreenSlot.Image = green;
+
+            viewModel.SwapSlots(viewModel.RedSlot, viewModel.GreenSlot);
+            viewModel.RedSlot.Image.Should().BeSameAs(green);
+            viewModel.GreenSlot.Image.Should().BeSameAs(red);
+
+            viewModel.UndoCommand.Execute(null);
+            viewModel.RedSlot.Image![0, 0].Should().BeApproximately(red[0, 0], 1e-6f);
+            viewModel.GreenSlot.Image![0, 0].Should().BeApproximately(green[0, 0], 1e-6f);
+        });
+    }
+
+    [Fact]
+    public async Task AutoAlign_IsUndoable()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+        });
+
+        var redBefore = AvaloniaTestHost.Invoke(() => viewModel.RedSlot.Image!.Clone());
+        var alignTask = AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null));
+        await alignTask!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.ResultSlot.Result.Should().NotBeNull();
+            viewModel.UndoCommand.CanExecute(null).Should().BeTrue();
+            viewModel.UndoCommand.Execute(null);
+
+            viewModel.ResultSlot.Result.Should().BeNull();
+            viewModel.RedSlot.Image![0, 0]
+                .Should()
+                .BeApproximately(redBefore[0, 0], 1e-6f);
+        });
+    }
+
+    [Fact]
+    public void CropToSelection_IsUndoable()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            var image = ImageBuffer.Filled(64, 64, 0.5f);
+            viewModel.GreenSlot.Image = image;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectionRect = new ImageSelectionRect(10, 10, 20, 20);
+
+            viewModel.CropToSelectionCommand.Execute(null);
+            viewModel.GreenSlot.Image!.Width.Should().Be(20);
+            viewModel.GreenSlot.Image.Height.Should().Be(20);
+
+            viewModel.UndoCommand.Execute(null);
+            viewModel.GreenSlot.Image!.Width.Should().Be(64);
+            viewModel.GreenSlot.Image.Height.Should().Be(64);
+        });
+    }
+
+    [Fact]
+    public async Task OpenRed_IsUndoable()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"prokudin-red-{Guid.NewGuid():N}.png");
+        try
+        {
+            var source = ImageBuffer.Filled(16, 16, 0.42f);
+            await ImageLoader.SaveGrayscalePngAsync(path, source);
+
+            var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel(new FakeFileDialogService { ImagePath = path }));
+            var openTask = AvaloniaTestHost.Invoke(() => viewModel.OpenRedCommand.ExecuteAsync(null));
+            await openTask!;
+
+            AvaloniaTestHost.Invoke(() =>
+            {
+                viewModel.RedSlot.Image.Should().NotBeNull();
+                viewModel.UndoCommand.Execute(null);
+                viewModel.RedSlot.Image.Should().BeNull();
+            });
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BrushRetouch_IsUndoable()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.UseCrossChannelHealing = false;
+            viewModel.UseTeleaHealing = true;
+        });
+
+        var before = AvaloniaTestHost.Invoke(() => viewModel.GreenSlot.Image!.Clone());
+        var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
+        var retouchTask = AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke));
+        await retouchTask!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.GreenSlot.Image.Should().NotBeSameAs(before);
+            viewModel.UndoCommand.Execute(null);
+            viewModel.GreenSlot.Image![64, 64]
+                .Should()
+                .BeApproximately(before[64, 64], 1e-6f);
+        });
+    }
+
+    [Fact]
+    public void Stamp_IsUndoable()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            var image = ImageBuffer.Filled(12, 8, 0.1f);
+            image[2, 3] = 0.9f;
+            viewModel.GreenSlot.Image = image;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+
+            var before = image[8, 4];
+            var stroke = new CloneStampStroke(
+                new RetouchPoint(2, 3),
+                new RetouchStroke([new RetouchPoint(8, 4)], BrushSize: 1),
+                BlendWidth: 1);
+            viewModel.ApplyStampStrokeCommand.Execute(stroke);
+
+            viewModel.GreenSlot.Image![8, 4].Should().BeApproximately(0.9f, 1e-3f);
+            viewModel.UndoCommand.Execute(null);
+            viewModel.GreenSlot.Image![8, 4].Should().BeApproximately(before, 1e-6f);
+        });
+    }
+
+    [Fact]
+    public void LevelsEdit_IsUndoable()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            LoadSyntheticChannels(viewModel);
+            viewModel.LevelsBlackPoint = 0.1;
+
+            viewModel.UndoCommand.Execute(null);
+            viewModel.LevelsBlackPoint.Should().Be(0.0);
+        });
+    }
+
+    [Fact]
+    public async Task CoalescedColorEdit_MultipleChangesProduceSingleUndo()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() => LoadSyntheticChannels(viewModel));
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.RedExposureStops = 0.5;
+            viewModel.GreenExposureStops = 0.25;
+        });
+
+        await Task.Delay(100);
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.UndoCommand.Execute(null);
+            viewModel.RedExposureStops.Should().Be(0.0);
+            viewModel.GreenExposureStops.Should().Be(0.0);
+            viewModel.UndoCommand.CanExecute(null).Should().BeFalse();
+        });
+    }
+
+    [Fact]
+    public async Task LoadProject_RestoresPreparedStateForAutoClean()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-autoclean-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var channel = ImageBuffer.Filled(32, 32, 0.5f);
+            var store = new JsonProjectStore();
+            var package = new ProjectPackage
+            {
+                Document = ProjectStateMapper.ToDocument(
+                    new ProjectCapture
+                    {
+                        TriptychOrder = "BGR",
+                        AlignDetector = "sift",
+                    },
+                    includeExportOverride: false),
+                Red = channel.Clone(),
+                Green = channel.Clone(),
+                Blue = channel.Clone(),
+                Result = new RgbImageBuffer(32, 32, Enumerable.Repeat(0.5f, 32 * 32 * 3).ToArray()),
+            };
+            await store.SaveAsync(folder, package);
+
+            var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+            await viewModel.CompleteStartupAsync(new StartupChoice
+            {
+                Type = StartupChoiceType.OpenRecent,
+                ProjectPath = folder,
+            });
+
+            AvaloniaTestHost.Invoke(() =>
+            {
+                viewModel.SelectedSlot = viewModel.RedSlot;
+                viewModel.RedSlot.State.Should().Be(ChannelSlotState.Aligned);
+                viewModel.AutoCleanSelectedChannelCommand.CanExecute(null).Should().BeTrue();
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
+    private static MainViewModel CreateViewModel(IFileDialogService? fileDialogService = null) =>
+        new(fileDialogService ?? new FakeFileDialogService());
+
+    private static void LoadSyntheticChannels(MainViewModel viewModel)
+    {
+        var green = SyntheticChannel();
+        var red = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: 6, dy: -4).Image;
+        var blue = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: -5, dy: 7).Image;
+        viewModel.RedSlot.Image = red;
+        viewModel.GreenSlot.Image = green;
+        viewModel.BlueSlot.Image = blue;
+    }
+
+    private static ImageBuffer SyntheticChannel()
+    {
+        var image = ImageBuffer.Filled(128, 128, 0.0f);
+        for (var y = 20; y < 108; y++)
+        {
+            for (var x = 24; x < 104; x++)
+            {
+                image[x, y] = 0.25f;
+            }
+        }
+
+        for (var y = 48; y < 80; y++)
+        {
+            for (var x = 54; x < 86; x++)
+            {
+                image[x, y] = 0.85f;
+            }
+        }
+
+        return image;
+    }
+
+    private sealed class FakeFileDialogService : IFileDialogService
+    {
+        public string? ImagePath { get; init; }
+
+        public string? FolderPath { get; init; }
+
+        public string? ExportPath { get; init; }
+
+        public Task<string?> OpenImage() => Task.FromResult(ImagePath);
+
+        public Task<string?> OpenFolder() => Task.FromResult(FolderPath);
+
+        public Task<string?> OpenProjectFolder() => Task.FromResult<string?>(null);
+
+        public Task<string?> PickProjectSaveFolder(string? suggestedName) => Task.FromResult<string?>(null);
+
+        public Task<string?> SaveExport(RgbExportSettings settings) => Task.FromResult(ExportPath);
+    }
+}

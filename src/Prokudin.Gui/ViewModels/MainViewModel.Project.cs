@@ -263,9 +263,7 @@ public sealed partial class MainViewModel
         try
         {
             ClearPendingAutoCleanMask();
-            undoHistory.Clear();
-            redoHistory.Clear();
-            NotifyHistoryCommands();
+            ClearEditorHistory();
             RedSlot.Image = null;
             GreenSlot.Image = null;
             BlueSlot.Image = null;
@@ -369,9 +367,7 @@ public sealed partial class MainViewModel
         try
         {
             ClearPendingAutoCleanMask();
-            undoHistory.Clear();
-            redoHistory.Clear();
-            NotifyHistoryCommands();
+            ClearEditorHistory();
 
             var state = ProjectStateMapper.ToApplyState(package.Document);
             SelectedTriptychOrder = state.TriptychOrder;
@@ -412,7 +408,7 @@ public sealed partial class MainViewModel
             GreenSlot.SourcePath = state.GreenSourcePath;
             BlueSlot.SourcePath = state.BlueSourcePath;
             ResultSlot.Result = package.Result?.Clone();
-            SetLastAligned(null);
+            RestoreLastAlignedIfPrepared();
             SelectedSlot = RedSlot;
             ProjectPath = linkedProjectPath;
         }
@@ -423,6 +419,7 @@ public sealed partial class MainViewModel
 
         RefreshChannelStates();
         RefreshPreviewImageContext();
+        NotifyAutoCleanCommands();
     }
 
     private void MarkProjectDirty()

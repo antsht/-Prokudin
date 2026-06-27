@@ -94,9 +94,22 @@ Recent project paths: `recent-projects.json`. Autosave slot: `autosave/`.
   default 10 min interval). Does not clear the dirty flag; explicit Save is still required.
 - **Welcome dialog** on startup: recover autosave, open one of three recent projects, or new/open.
 - **Edit → Settings**: theme, autosave enable/interval, processing diagnostics.
-- Undo/redo is not persisted in project files. `lastAligned` is not restored on load.
+- Undo/redo is not persisted in project files. On load, `lastAligned` is reconstructed from
+  saved channels when a result image is present so auto-clean and crop-overlap stay available.
+  Original SIFT/ORB alignment metadata is not persisted.
 - Implementation: `Services/Project/` (`JsonProjectStore`, `ProjectStateMapper`, etc.).
   Design spec: `docs/superpowers/specs/2026-06-26-project-save-design.md`.
+
+### Undo and editor commands
+
+- Undo stack: `Editing/EditorHistory` (limit **20**); mementos via `EditorSession` /
+  `EditorMemento` (channels, result, `lastAligned`, exposure, white balance, levels).
+- **SnapshotCommand:** import, align, crop, swap, heal/stamp/auto-clean apply, reset exposure.
+- **CoalescedParameterCommand:** exposure, white balance, levels — merged within **700 ms**.
+- Export is outside the undo stack. Undo/redo blocked while `IsBusy`.
+- `MainViewModel` partials by workflow: `.Import`, `.Align`, `.Crop`, `.Clean`, `.Color`,
+  `.History`, `.Project` (XAML binding stays on `MainViewModel`).
+- Design spec: `docs/superpowers/specs/2026-06-27-editor-command-refactor-design.md`.
 
 ### Workflows
 

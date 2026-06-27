@@ -1,5 +1,7 @@
 # Короткое ТЗ для coding agent: редизайн UI Prokudin GUI
 
+> **Status (2026-06-27):** Implemented. Current GUI behavior is documented in `AGENTS.md` and `docs/architecture.md`. This file is kept as historical context for the redesign; do not treat it as active implementation scope.
+
 ## 1. Цель
 
 Переделать интерфейс Avalonia-приложения **Prokudin** из архаичного набора разрозненных кнопок в профессиональную рабочую среду для эксперта-реставратора изображений.

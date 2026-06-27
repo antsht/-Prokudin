@@ -16,6 +16,7 @@ using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 using Prokudin.Core.Retouch;
 using Prokudin.Gui.Diagnostics;
+using Prokudin.Gui.Editing;
 using Prokudin.Gui.Imaging;
 using Prokudin.Gui.Services;
 using Prokudin.Gui.Services.Project;
@@ -25,7 +26,6 @@ namespace Prokudin.Gui.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private const int UndoLimit = 20;
     private const int WhiteBalancePipetteRadius = 3;
     private const int MaxProcessingLogCharacters = 120_000;
     private readonly IFileDialogService fileDialogService;
@@ -40,18 +40,16 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly StringBuilder processingLog = new();
     private readonly object processingLogSync = new();
     private bool processingLogRefreshScheduled;
-    private readonly List<EditorSnapshot> undoHistory = [];
-    private readonly List<EditorSnapshot> redoHistory = [];
     private AlignedChannels? lastAligned;
     private CancellationTokenSource? resultRebuildCancellation;
     private bool isRestoringSnapshot;
     private bool suppressUndoCapture;
-    private bool exposureUndoOpen;
+    private bool colorCoalesceOpen;
     private bool suppressExportSettingsSave;
     private bool suppressDiagnosticsSettingsSave;
     private bool suppressAutoCleanSettingsSave;
     private bool suppressUiSettingsSave;
-    private int exposureChangeVersion;
+    private int colorChangeVersion;
     private int previewImageContextVersion;
     private Bitmap? autoCleanMaskOverlayBitmap;
     private byte[]? pendingAutoCleanBaseMask;
@@ -66,17 +64,6 @@ public sealed partial class MainViewModel : ObservableObject
     private bool suppressProjectDirtyTracking;
     private bool isAutosavePending;
     private DispatcherTimer? autosaveTimer;
-
-    private void SetLastAligned(AlignedChannels? aligned)
-    {
-        lastAligned = aligned;
-        RebuildResultCommand.NotifyCanExecuteChanged();
-        CropOverlapCommand.NotifyCanExecuteChanged();
-        RefreshChannelStates();
-        OnPropertyChanged(nameof(RedAlignSummary));
-        OnPropertyChanged(nameof(GreenAlignSummary));
-        OnPropertyChanged(nameof(BlueAlignSummary));
-    }
 
     public MainViewModel(IFileDialogService fileDialogService)
         : this(fileDialogService, new JsonExportSettingsStore(), new JsonProcessingDiagnosticsSettingsStore(), new JsonAutoCleanSettingsStore(), new JsonUiSettingsStore())
@@ -787,51 +774,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanRebuildResult))]
-    private void RebuildResult()
-    {
-        ScheduleResultRebuild();
-        Status = "Rebuilding result from aligned channels...";
-    }
-
-    [RelayCommand]
-    private void ResetCropSelection()
-    {
-        SelectionRect = ImageSelectionRect.Empty;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCropOverlap))]
-    private async Task CropOverlap()
-    {
-        if (lastAligned is null)
-        {
-            return;
-        }
-
-        await RunOperation(async () =>
-        {
-            PushUndo();
-            var (cropped, rgb, cropInfo) = await Task.Run(() =>
-            {
-                var (aligned, info) = AlignedChannelCropper.CropToLargestFullOverlap(lastAligned);
-                var built = ReconstructionPipeline.BuildRgb(aligned, CurrentPipelineSettings());
-                return (aligned, built.Rgb, info);
-            });
-
-            SetPreparedChannels(cropped);
-            SetLastAligned(cropped);
-            ResultSlot.Result = rgb;
-            SelectedSlot = ResultSlot;
-            SelectionRect = ImageSelectionRect.Empty;
-            Status = $"Cropped to largest overlap: {ResultSlot.Result!.Width} x {ResultSlot.Result.Height}.";
-            AppendLog(FormatCropInfo(cropInfo));
-        });
-    }
-
-    private bool CanRebuildResult() => !IsBusy && lastAligned is not null;
-
-    private bool CanCropOverlap() => !IsBusy && lastAligned is not null;
-
     [RelayCommand]
     private void SelectWorkflowTool(WorkflowTool tool)
     {
@@ -845,290 +787,6 @@ public sealed partial class MainViewModel : ObservableObject
             ? PreviewZoomMode.FitToWindow
             : PreviewZoomMode.OneToOne;
         AppendLog($"Preview zoom: {PreviewZoomMode}.");
-    }
-
-    [RelayCommand(CanExecute = nameof(CanUndo))]
-    private void Undo()
-    {
-        if (!CanUndo())
-        {
-            return;
-        }
-
-        ClearPendingAutoCleanMask();
-        CloseExposureUndoWindow();
-        var snapshot = undoHistory[^1];
-        undoHistory.RemoveAt(undoHistory.Count - 1);
-        redoHistory.Add(CaptureSnapshot());
-        RestoreSnapshot(snapshot);
-        Status = "Undo.";
-        AppendLog("Undo.");
-        NotifyHistoryCommands();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanRedo))]
-    private void Redo()
-    {
-        if (!CanRedo())
-        {
-            return;
-        }
-
-        ClearPendingAutoCleanMask();
-        CloseExposureUndoWindow();
-        var snapshot = redoHistory[^1];
-        redoHistory.RemoveAt(redoHistory.Count - 1);
-        undoHistory.Add(CaptureSnapshot());
-        RestoreSnapshot(snapshot);
-        Status = "Redo.";
-        AppendLog("Redo.");
-        NotifyHistoryCommands();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCropToSelection))]
-    private void CropToSelection()
-    {
-        if (SelectedSlot is null || SelectionRect.IsEmpty)
-        {
-            return;
-        }
-
-        PushUndo();
-        var rect = SelectionRect;
-
-        if (SelectedSlot.Result is { } rgb)
-        {
-            ResultSlot.Result = rgb.Crop(rect.X, rect.Y, rect.Width, rect.Height);
-            CropPreparedChannelsToResultSelection(rgb.Width, rgb.Height, rect);
-            AppendLog($"Cropped result to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {ResultSlot.Result.Width}x{ResultSlot.Result.Height}.");
-            Status = $"Cropped result to {ResultSlot.Result.Width} x {ResultSlot.Result.Height}.";
-        }
-        else if (SelectedSlot.Image is { } image)
-        {
-            SelectedSlot.Image = image.Crop(rect.X, rect.Y, rect.Width, rect.Height);
-            ResultSlot.Result = null;
-            RefreshAlignedAfterInputEdit(SelectedSlot.ChannelName!.Value);
-            AppendLog($"Cropped {SelectedSlot.DisplayName} to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {SelectedSlot.Image.Width}x{SelectedSlot.Image.Height}.");
-            Status = $"Cropped {SelectedSlot.DisplayName} to {SelectedSlot.Image.Width} x {SelectedSlot.Image.Height}.";
-        }
-
-        SelectionRect = ImageSelectionRect.Empty;
-        RefreshPreviewImageContext();
-        RefreshChannelStates();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanDetectAutoCleanMask))]
-    private async Task AutoCleanSelectedChannel()
-    {
-        await RunOperation(async () =>
-        {
-            var progressScope = BeginAutoCleanProgress();
-            try
-            {
-                if (!TryGetSelectedAutoCleanInputs(out var channelName, out var target, out var other1, out var other2))
-                {
-                    return;
-                }
-
-                Status = $"Detecting dust/scratch mask for {SelectedSlot!.DisplayName}...";
-                var (settings, _) = CreateAutoCleanResolvedSettings(channelName);
-                var progress = CreateAutoCleanProgress(progressScope);
-                var result = await Task.Run(
-                    () => ChannelRetoucher.DetectSingleChannelDefects(target, other1, other2, settings, progress));
-                if (result.CandidatePixels == 0)
-                {
-                    Status = $"No dust/scratch candidates found in {SelectedSlot.DisplayName}.";
-                    AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: no candidates.");
-                    return;
-                }
-
-                BeginAutoCleanMaskReview(channelName, result.Mask);
-                Status = $"Review auto-clean mask for {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels.";
-                AppendLog($"Auto-clean mask {SelectedSlot.DisplayName}: {result.CandidatePixels} candidate pixels, sensitivity {settings.NormalizedSensitivity}.");
-            }
-            finally
-            {
-                EndAutoCleanProgress(progressScope);
-            }
-        });
-    }
-
-    [RelayCommand(CanExecute = nameof(CanApplyAutoCleanMask))]
-    private async Task ApplyAutoCleanMask()
-    {
-        if (SelectedSlot is not { Image: { } image, ChannelName: { } channelName } ||
-            PendingAutoCleanMask is not { } mask ||
-            PendingAutoCleanChannel != channelName)
-        {
-            return;
-        }
-
-        var changedPixels = mask.Count(value => value > 0);
-        if (changedPixels == 0)
-        {
-            ClearPendingAutoCleanMask();
-            Status = $"Auto-clean mask for {SelectedSlot.DisplayName} is empty.";
-            return;
-        }
-
-        PushUndo();
-        IsBusy = true;
-        var progressScope = BeginAutoCleanProgress();
-        try
-        {
-            var (_, options) = CreateAutoCleanResolvedSettings(channelName);
-            TryGetHealingGuides(channelName, out var guide1, out var guide2);
-            var progress = CreateAutoCleanProgress(progressScope);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress));
-            SelectedSlot.Image = result.Image;
-            ClearPendingAutoCleanMask();
-            var healStatus = result.StatusMessage ??
-                             $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
-            Status = healStatus;
-            AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {healStatus}");
-            RefreshAlignedAfterInputEdit(channelName);
-            RefreshPreviewImageContext();
-        }
-        finally
-        {
-            EndAutoCleanProgress(progressScope);
-            IsBusy = false;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCancelAutoCleanMask))]
-    private void CancelAutoCleanMask()
-    {
-        var channel = SelectedSlot?.DisplayName ?? PendingAutoCleanChannel?.ToString() ?? "channel";
-        ClearPendingAutoCleanMask();
-        Status = $"Canceled auto-clean mask for {channel}.";
-        AppendLog($"Auto-clean mask canceled for {channel}.");
-    }
-
-    [RelayCommand(CanExecute = nameof(CanEditAutoCleanMask))]
-    private void EditAutoCleanMask(AutoCleanMaskEditOperation? operation)
-    {
-        if (operation is null ||
-            PendingAutoCleanMask is not { } mask ||
-            SelectedSlot?.Image is not { } image)
-        {
-            return;
-        }
-
-        pendingAutoCleanBaseMask ??= (byte[])mask.Clone();
-        EnsureAutoCleanEditLayers(mask.Length);
-
-        var editMask = operation.IsRectangle
-            ? CreateRectangleMaskEdit(image.Width, image.Height, operation)
-            : CreateBrushMaskEdit(image.Width, image.Height, operation);
-        ApplyManualAutoCleanMaskEdit(editMask, operation.Action);
-        RebuildPendingAutoCleanMaskFromLayers();
-    }
-
-    [RelayCommand(CanExecute = nameof(CanApplyRetouchStroke))]
-    private async Task ApplyRetouchStroke(RetouchStroke? stroke)
-    {
-        if (stroke is not { Points.Count: > 0 } || SelectedSlot is not { Image: { } image, ChannelName: { } channelName })
-        {
-            return;
-        }
-
-        var mask = ChannelRetoucher.CreateBrushMask(image.Width, image.Height, [stroke]);
-        if (!mask.Any(value => value > 0))
-        {
-            return;
-        }
-
-        PushUndo();
-        IsBusy = true;
-        try
-        {
-            var options = CreateHealOptions();
-            TryGetHealingGuides(channelName, out var guide1, out var guide2);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
-            SelectedSlot.Image = result.Image;
-            var count = mask.Count(value => value > 0);
-            var healStatus = result.StatusMessage ?? $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
-            Status = healStatus;
-            AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {healStatus}");
-            RefreshAlignedAfterInputEdit(channelName);
-            RefreshPreviewImageContext();
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanApplyStampStroke))]
-    private void ApplyStampStroke(CloneStampStroke? stroke)
-    {
-        if (stroke is not { DestinationStroke.Points.Count: > 0 } ||
-            SelectedSlot is not { Image: { } image, ChannelName: { } channelName })
-        {
-            return;
-        }
-
-        var result = ChannelRetoucher.Stamp(image, stroke);
-        if (!result.Mask.Any(value => value > 0))
-        {
-            return;
-        }
-
-        PushUndo();
-        SelectedSlot.Image = result.Image;
-        RefreshAlignedAfterInputEdit(channelName);
-        RefreshPreviewImageContext();
-        var count = result.Mask.Count(value => value > 0);
-        Status = $"Stamped {SelectedSlot.DisplayName}: {count} blended pixels.";
-        AppendLog($"Clone stamp {SelectedSlot.DisplayName}: {count} blended pixels, brush {stroke.DestinationStroke.BrushSize}, blend {Math.Clamp(stroke.BlendWidth, 1, 24)}.");
-    }
-
-    [RelayCommand]
-    private void ResetExposure()
-    {
-        PushUndo();
-        suppressUndoCapture = true;
-        try
-        {
-            RedExposureStops = 0.0;
-            GreenExposureStops = 0.0;
-            BlueExposureStops = 0.0;
-        }
-        finally
-        {
-            suppressUndoCapture = false;
-        }
-
-        ScheduleResultRebuild();
-        AppendLog("Exposure reset.");
-    }
-
-    [RelayCommand(CanExecute = nameof(CanPickWhiteBalance))]
-    private void PickWhiteBalance(RetouchPoint point)
-    {
-        if (ResultSlot.Result is not { } result)
-        {
-            return;
-        }
-
-        var x = Math.Clamp((int)MathF.Round(point.X), 0, result.Width - 1);
-        var y = Math.Clamp((int)MathF.Round(point.Y), 0, result.Height - 1);
-
-        BeginExposureOrColorEdit();
-        whiteBalancePipetteX = x;
-        whiteBalancePipetteY = y;
-        if (AutoWhiteBalance)
-        {
-            AutoWhiteBalance = false;
-        }
-        else
-        {
-            ScheduleResultRebuild();
-        }
-
-        Status = $"White balance picked at {x}, {y}.";
-        AppendLog($"White balance pipette: {x},{y}, radius {WhiteBalancePipetteRadius}.");
     }
 
     [RelayCommand]
@@ -1286,97 +944,6 @@ public sealed partial class MainViewModel : ObservableObject
         IsExportSettingsOpen = !IsExportSettingsOpen;
     }
 
-    [RelayCommand(CanExecute = nameof(CanStartOperation))]
-    private Task OpenRed()
-    {
-        return OpenChannel(ChannelName.Red);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanStartOperation))]
-    private Task OpenGreen()
-    {
-        return OpenChannel(ChannelName.Green);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanStartOperation))]
-    private Task OpenBlue()
-    {
-        return OpenChannel(ChannelName.Blue);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanStartOperation))]
-    private async Task OpenTriptych()
-    {
-        await RunOperation(async () =>
-        {
-            var path = await fileDialogService.OpenImage();
-            if (path is null)
-            {
-                return;
-            }
-
-            Status = $"Loading triptych {Path.GetFileName(path)}...";
-            AppendLog($"Loading triptych: {path}");
-            var order = SelectedTriptychOrder.Equals("RGB", StringComparison.OrdinalIgnoreCase)
-                ? TriptychOrder.Rgb
-                : TriptychOrder.Bgr;
-            var channels = await Task.Run(async () =>
-            {
-                var image = await ImageLoader.LoadGrayscaleAsync(path);
-                return TriptychSplitter.SplitTriptych(image, order);
-            });
-
-            PushUndo();
-            SetChannel(RedSlot, channels[ChannelName.Red], path);
-            SetChannel(GreenSlot, channels[ChannelName.Green], path);
-            SetChannel(BlueSlot, channels[ChannelName.Blue], path);
-            SetLastAligned(null);
-            ResultSlot.Result = null;
-            SelectedSlot = RedSlot;
-            Status = $"Loaded triptych as {SelectedTriptychOrder}.";
-            AppendLog($"Triptych split ({SelectedTriptychOrder}): R {RedSlot.Image!.Width}x{RedSlot.Image.Height}, G {GreenSlot.Image!.Width}x{GreenSlot.Image.Height}, B {BlueSlot.Image!.Width}x{BlueSlot.Image.Height}.");
-        });
-    }
-
-    [RelayCommand(CanExecute = nameof(CanAutoAlign))]
-    private async Task AutoAlign()
-    {
-        await RunOperation(async () =>
-        {
-            ClearPendingAutoCleanMask();
-            Status = "Running auto-align...";
-            AppendLog("Auto-align started.");
-            var channels = new Dictionary<ChannelName, ImageBuffer>
-            {
-                [ChannelName.Red] = RedSlot.Image!,
-                [ChannelName.Green] = GreenSlot.Image!,
-                [ChannelName.Blue] = BlueSlot.Image!,
-            };
-
-            AppendLog($"Input channels: R {channels[ChannelName.Red].Width}x{channels[ChannelName.Red].Height}, G {channels[ChannelName.Green].Width}x{channels[ChannelName.Green].Height}, B {channels[ChannelName.Blue].Width}x{channels[ChannelName.Blue].Height}.");
-
-            var result = await Task.Run(() =>
-            {
-                var settings = CurrentPipelineSettings();
-                var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align, settings.Diagnostics);
-                var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
-                var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings);
-                return (built.Rgb, built.CropInfo, Aligned: prepared.Channels);
-            });
-
-            PushUndo();
-            autoCleanSessionCache.Clear();
-            SetPreparedChannels(result.Aligned);
-            SetLastAligned(result.Aligned);
-            ResultSlot.Result = result.Rgb;
-            SelectedSlot = ResultSlot;
-            Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata)}";
-            AppendLog(AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata));
-            AppendLog(FormatCropInfo(result.CropInfo));
-            AppendLog($"Result: {result.Rgb.Width}x{result.Rgb.Height}.");
-        });
-    }
-
     [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task Export()
     {
@@ -1432,53 +999,6 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 TryOpenExportFolder(folder);
             }
-        });
-    }
-
-    public void SwapSlots(ChannelSlotViewModel source, ChannelSlotViewModel target)
-    {
-        if (source == target || !source.CanSwap || !target.CanSwap)
-        {
-            return;
-        }
-
-        ClearPendingAutoCleanMask();
-        PushUndo();
-        (source.Image, target.Image) = (target.Image, source.Image);
-        (source.SourcePath, target.SourcePath) = (target.SourcePath, source.SourcePath);
-        SetLastAligned(null);
-        ResultSlot.Result = null;
-        SelectedSlot = target;
-        Status = $"Swapped {source.DisplayName} and {target.DisplayName}. Run Auto-align again.";
-        AppendLog($"Swapped {source.DisplayName} and {target.DisplayName}.");
-        RefreshPreviewImageContext();
-    }
-
-    private async Task OpenChannel(ChannelName channelName)
-    {
-        await RunOperation(async () =>
-        {
-            var path = await fileDialogService.OpenImage();
-            if (path is null)
-            {
-                return;
-            }
-
-            Status = $"Loading {channelName} channel...";
-            AppendLog($"Loading {channelName} channel: {path}");
-            var image = await Task.Run(async () =>
-            {
-                var loaded = await ImageLoader.LoadGrayscaleAsync(path);
-                return ImageLoader.TrimBlackBorders(loaded);
-            });
-            var slot = GetSlot(channelName);
-            PushUndo();
-            SetChannel(slot, image, path);
-            SetLastAligned(null);
-            ResultSlot.Result = null;
-            SelectedSlot = slot;
-            Status = $"Loaded {channelName} from {Path.GetFileName(path)}.";
-            AppendLog($"{channelName} loaded: {image.Width}x{image.Height} (trimmed).");
         });
     }
 
@@ -2424,16 +1944,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanStartOperation()
-    {
-        return !IsBusy;
-    }
-
-    private bool CanAutoAlign()
-    {
-        return !IsBusy && RedSlot.Image is not null && GreenSlot.Image is not null && BlueSlot.Image is not null;
-    }
-
     private bool CanExport()
     {
         return !IsBusy && ResultSlot.Result is not null;
@@ -2442,68 +1952,6 @@ public sealed partial class MainViewModel : ObservableObject
     private bool CanExportChannels()
     {
         return !IsBusy && RedSlot.Image is not null && GreenSlot.Image is not null && BlueSlot.Image is not null;
-    }
-
-    private bool CanCropToSelection()
-    {
-        return !IsBusy &&
-               !IsAutoCleanMaskPending &&
-               SelectedSlot is { HasImage: true } &&
-               !SelectionRect.IsEmpty;
-    }
-
-    private bool CanEditSelectedInputChannel()
-    {
-        return !IsBusy && !IsAutoCleanMaskPending && SelectedSlot is { Image: not null, ChannelName: not null };
-    }
-
-    private bool CanDetectAutoCleanMask()
-    {
-        return !IsBusy && !IsAutoCleanMaskPending && TryGetSelectedAutoCleanInputs(out _, out _, out _, out _);
-    }
-
-    private bool CanApplyAutoCleanMask()
-    {
-        return !IsBusy &&
-               PendingAutoCleanMask is { Length: > 0 } &&
-               PendingAutoCleanChannel.HasValue &&
-               SelectedSlot is { Image: not null, ChannelName: { } channelName } &&
-               channelName == PendingAutoCleanChannel;
-    }
-
-    private bool CanCancelAutoCleanMask()
-    {
-        return !IsBusy && IsAutoCleanMaskPending;
-    }
-
-    private bool CanEditAutoCleanMask(AutoCleanMaskEditOperation? operation)
-    {
-        return !IsBusy && IsAutoCleanMaskPending && operation is not null;
-    }
-
-    private bool CanApplyRetouchStroke(RetouchStroke? stroke)
-    {
-        return CanEditSelectedInputChannel() && stroke is { Points.Count: > 0 };
-    }
-
-    private bool CanApplyStampStroke(CloneStampStroke? stroke)
-    {
-        return CanEditSelectedInputChannel() && stroke is { DestinationStroke.Points.Count: > 0 };
-    }
-
-    private bool CanPickWhiteBalance(RetouchPoint point)
-    {
-        return CanUseWhiteBalancePicker;
-    }
-
-    private bool CanUndo()
-    {
-        return !IsBusy && undoHistory.Count > 0;
-    }
-
-    private bool CanRedo()
-    {
-        return !IsBusy && redoHistory.Count > 0;
     }
 
     private void LoadExportSettings(RgbExportSettings settings)
@@ -2777,31 +2225,6 @@ public sealed partial class MainViewModel : ObservableObject
         MarkProjectDirty();
     }
 
-    partial void OnLevelsModeChanged(LevelsMode value)
-    {
-        OnPropertyChanged(nameof(IsManualLevels));
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnLevelsBlackPointChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnLevelsWhitePointChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnLevelsGammaChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
     partial void OnPendingAutoCleanMaskChanged(byte[]? value)
     {
         RefreshAutoCleanMaskOverlay();
@@ -2863,206 +2286,11 @@ public sealed partial class MainViewModel : ObservableObject
         MarkProjectDirty();
     }
 
-    partial void OnAutoWhiteBalanceChanging(bool oldValue, bool newValue)
-    {
-        BeginExposureOrColorEdit();
-    }
-
-    partial void OnAutoWhiteBalanceChanged(bool value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnRedExposureStopsChanging(double oldValue, double newValue)
-    {
-        BeginExposureOrColorEdit();
-    }
-
-    partial void OnGreenExposureStopsChanging(double oldValue, double newValue)
-    {
-        BeginExposureOrColorEdit();
-    }
-
-    partial void OnBlueExposureStopsChanging(double oldValue, double newValue)
-    {
-        BeginExposureOrColorEdit();
-    }
-
-    partial void OnRedExposureStopsChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnGreenExposureStopsChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    partial void OnBlueExposureStopsChanged(double value)
-    {
-        ScheduleResultRebuild();
-        MarkProjectDirty();
-    }
-
-    private void BeginExposureOrColorEdit()
-    {
-        if (isRestoringSnapshot || suppressUndoCapture)
-        {
-            return;
-        }
-
-        if (!exposureUndoOpen)
-        {
-            PushUndo();
-            exposureUndoOpen = true;
-        }
-
-        var version = ++exposureChangeVersion;
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(700);
-            if (version == exposureChangeVersion)
-            {
-                exposureUndoOpen = false;
-            }
-        });
-    }
-
-    private void CloseExposureUndoWindow()
-    {
-        exposureChangeVersion++;
-        exposureUndoOpen = false;
-    }
-
-    private void PushUndo()
-    {
-        if (isRestoringSnapshot || suppressUndoCapture)
-        {
-            return;
-        }
-
-        PushUndoSnapshot(CaptureSnapshot());
-        MarkProjectDirty();
-    }
-
-    private void PushUndoSnapshot(EditorSnapshot snapshot)
-    {
-        undoHistory.Add(snapshot);
-        if (undoHistory.Count > UndoLimit)
-        {
-            undoHistory.RemoveAt(0);
-        }
-
-        redoHistory.Clear();
-        NotifyHistoryCommands();
-    }
-
-    private EditorSnapshot CaptureSnapshot()
-    {
-        return new EditorSnapshot(
-            RedSlot.Image?.Clone(),
-            GreenSlot.Image?.Clone(),
-            BlueSlot.Image?.Clone(),
-            RedSlot.SourcePath,
-            GreenSlot.SourcePath,
-            BlueSlot.SourcePath,
-            ResultSlot.Result?.Clone(),
-            CloneAligned(lastAligned),
-            RedExposureStops,
-            GreenExposureStops,
-            BlueExposureStops,
-            AutoWhiteBalance,
-            whiteBalancePipetteX,
-            whiteBalancePipetteY,
-            SelectedSlot?.DisplayName);
-    }
-
-    private void RestoreSnapshot(EditorSnapshot snapshot)
-    {
-        ClearPendingAutoCleanMask();
-        isRestoringSnapshot = true;
-        try
-        {
-            RedSlot.Image = snapshot.Red?.Clone();
-            GreenSlot.Image = snapshot.Green?.Clone();
-            BlueSlot.Image = snapshot.Blue?.Clone();
-            RedSlot.SourcePath = snapshot.RedSourcePath;
-            GreenSlot.SourcePath = snapshot.GreenSourcePath;
-            BlueSlot.SourcePath = snapshot.BlueSourcePath;
-            ResultSlot.Result = snapshot.Result?.Clone();
-            SetLastAligned(CloneAligned(snapshot.LastAligned));
-            RedExposureStops = snapshot.RedExposureStops;
-            GreenExposureStops = snapshot.GreenExposureStops;
-            BlueExposureStops = snapshot.BlueExposureStops;
-            AutoWhiteBalance = snapshot.AutoWhiteBalance;
-            whiteBalancePipetteX = snapshot.WhiteBalancePipetteX;
-            whiteBalancePipetteY = snapshot.WhiteBalancePipetteY;
-            SelectedSlot = snapshot.SelectedSlotDisplayName switch
-            {
-                "Red" => RedSlot,
-                "Green" => GreenSlot,
-                "Blue" => BlueSlot,
-                "Result" => ResultSlot,
-                _ => RedSlot,
-            };
-        }
-        finally
-        {
-            isRestoringSnapshot = false;
-        }
-
-        RefreshPreviewImageContext();
-    }
-
-    private static AlignedChannels? CloneAligned(AlignedChannels? aligned)
-    {
-        if (aligned is null)
-        {
-            return null;
-        }
-
-        return new AlignedChannels(
-            aligned.Red.Clone(),
-            aligned.Green.Clone(),
-            aligned.Blue.Clone(),
-            (byte[])aligned.MaskRed.Clone(),
-            (byte[])aligned.MaskGreen.Clone(),
-            (byte[])aligned.MaskBlue.Clone(),
-            aligned.AlignMetadata,
-            CloneTransforms(aligned.AlignTransforms));
-    }
-
-    private static IReadOnlyDictionary<ChannelName, ChannelAlignmentTransform>? CloneTransforms(
-        IReadOnlyDictionary<ChannelName, ChannelAlignmentTransform>? transforms)
-    {
-        if (transforms is null)
-        {
-            return null;
-        }
-
-        return transforms.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value with
-            {
-                Matrix = (double[])pair.Value.Matrix.Clone(),
-                Shifts = pair.Value.Shifts.ToArray(),
-            });
-    }
-
     private static byte[] FullMask(ImageBuffer image)
     {
         var mask = new byte[image.Width * image.Height];
         Array.Fill(mask, (byte)1);
         return mask;
-    }
-
-    private void NotifyHistoryCommands()
-    {
-        UndoCommand.NotifyCanExecuteChanged();
-        RedoCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshPreviewImageContext()
@@ -3146,21 +2374,4 @@ public sealed partial class MainViewModel : ObservableObject
         var cropHeight = cropInfo.Y1 - cropInfo.Y0;
         return $"Auto-crop: ({cropInfo.X0},{cropInfo.Y0})-({cropInfo.X1},{cropInfo.Y1}) => {cropWidth}x{cropHeight}; overlap ({cropInfo.OverlapX0},{cropInfo.OverlapY0})-({cropInfo.OverlapX1},{cropInfo.OverlapY1}).";
     }
-
-    private sealed record EditorSnapshot(
-        ImageBuffer? Red,
-        ImageBuffer? Green,
-        ImageBuffer? Blue,
-        string? RedSourcePath,
-        string? GreenSourcePath,
-        string? BlueSourcePath,
-        RgbImageBuffer? Result,
-        AlignedChannels? LastAligned,
-        double RedExposureStops,
-        double GreenExposureStops,
-        double BlueExposureStops,
-        bool AutoWhiteBalance,
-        int WhiteBalancePipetteX,
-        int WhiteBalancePipetteY,
-        string? SelectedSlotDisplayName);
 }

@@ -60,11 +60,44 @@ Main pieces:
 - `Views/MainWindow.axaml`: tool UI
 - `Views/ChannelSlotCard.axaml`: sidebar channel card with thumbnail
 - `Views/ImagePreviewControl.axaml`: zoom, selection, retouch, and mask overlay
-- `ViewModels/MainViewModel.cs`: commands and workflow state
+- `ViewModels/MainViewModel` (+ workflow partials): commands and workflow state
 - `ViewModels/ChannelSlotViewModel.cs`: channel slot state, display and thumbnail bitmaps
+- `Editing/`: editor session, undo history, and command objects
 - `Services/StorageFileDialogService.cs`: native file pickers
 - `Services/JsonExportSettingsStore.cs`: persisted export settings
 - `Imaging/AvaloniaBitmapFactory.cs`: Core buffers to Avalonia bitmaps and thumbnails
+
+### Editor command layer
+
+GUI undo/redo is implemented in the editing layer, not in Core:
+
+```text
+Editing/
+  EditorSession.cs       — memento capture/clone helpers
+  EditorMemento.cs       — snapshot of channels, result, align state, color/levels
+  EditorHistory.cs       — undo/redo stacks (limit 20)
+  IEditorCommand.cs
+  Commands/
+    SnapshotCommand.cs           — import, align, crop, swap, retouch apply
+    CoalescedParameterCommand.cs — exposure, white balance, levels (700 ms merge)
+```
+
+`MainViewModel` remains the XAML binding root (`x:DataType="MainViewModel"`). Workflow
+RelayCommands live in partial files:
+
+| Partial | Commands |
+| --- | --- |
+| `MainViewModel.Import.cs` | Open R/G/B, triptych, swap channels |
+| `MainViewModel.Align.cs` | Auto-align, rebuild result |
+| `MainViewModel.Crop.cs` | Crop overlap, crop to selection |
+| `MainViewModel.Clean.cs` | Heal brush, clone stamp, auto-clean |
+| `MainViewModel.Color.cs` | Exposure reset, white-balance pipette, levels coalesce |
+| `MainViewModel.History.cs` | Undo/redo, memento capture/restore |
+| `MainViewModel.Project.cs` | Save/load, autosave, startup |
+
+Export is outside the undo stack. Color edits coalesce within 700 ms into a single undo step.
+
+Design spec: `docs/superpowers/specs/2026-06-27-editor-command-refactor-design.md`.
 
 Auto-clean mask review is split across Core and GUI. Core detects
 single-channel defect masks from aligned R/G/B grayscale buffers and applies

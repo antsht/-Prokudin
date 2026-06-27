@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-27
+
+### Added
+
+- GUI editor command layer: `EditorSession`, `EditorHistory`, `SnapshotCommand`,
+  `CoalescedParameterCommand` under `src/Prokudin.Gui/Editing/`
+- `MainViewModel` workflow partials (Import, Align, Crop, Clean, Color, History)
+- GUI tests: `EditorSessionTests`, `EditorHistoryTests`, `MainViewModelTests` (undo/coalesce)
+- Avalonia headless test host for GUI unit tests
+- Design spec `docs/superpowers/specs/2026-06-27-editor-command-refactor-design.md`
+
+### Changed
+
+- Levels adjustments are undoable (coalesced with other color edits, 700 ms window)
+- Dead code: removed unused `AccelerationBackendKind.CudaAvailable` alias
+- `docs/architecture.md` and `AGENTS.md` document the editor command layer
+
+### Fixed
+
+- Auto-clean mask detection stays disabled after opening a saved aligned project (restore prepared `lastAligned` on load)
+
 ## [0.11.0] - 2026-06-26
 
 ### Added
