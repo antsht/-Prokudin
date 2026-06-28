@@ -46,7 +46,11 @@ internal static class AvaloniaTestHost
                 Dispatcher.UIThread.MainLoop(CancellationToken.None);
             });
 
-            uiThread.SetApartmentState(ApartmentState.STA);
+            if (OperatingSystem.IsWindows())
+            {
+                uiThread.SetApartmentState(ApartmentState.STA);
+            }
+
             uiThread.IsBackground = true;
             uiThread.Start();
             ready.Wait();
