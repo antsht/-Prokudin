@@ -60,6 +60,8 @@ public sealed partial class MainViewModel
             LevelsBlackPoint: LevelsBlackPoint,
             LevelsWhitePoint: LevelsWhitePoint,
             LevelsGamma: LevelsGamma,
+            ColorTemperature: ColorTemperature,
+            ColorTint: ColorTint,
             SelectedSlotDisplayName: SelectedSlot?.DisplayName);
 
     private EditorMemento CaptureSnapshot() =>
@@ -148,6 +150,8 @@ public sealed partial class MainViewModel
         LevelsBlackPoint = snapshot.LevelsBlackPoint;
         LevelsWhitePoint = snapshot.LevelsWhitePoint;
         LevelsGamma = snapshot.LevelsGamma;
+        ColorTemperature = snapshot.ColorTemperature;
+        ColorTint = snapshot.ColorTint;
         SelectedSlot = snapshot.SelectedSlotDisplayName switch
         {
             "Red" => RedSlot,

@@ -33,6 +33,9 @@
     <input:KeyBinding Gesture="H" Command="{Binding ActivateHealToolShortcutCommand}" />
     <input:KeyBinding Gesture="C" Command="{Binding ActivateCloneToolShortcutCommand}" />
     <input:KeyBinding Gesture="M" Command="{Binding ActivateSelectionToolShortcutCommand}" />
+    <input:KeyBinding Gesture="OemOpenBrackets" Command="{Binding DecreaseBrushSizeShortcutCommand}" />
+    <input:KeyBinding Gesture="OemCloseBrackets" Command="{Binding IncreaseBrushSizeShortcutCommand}" />
+    <input:KeyBinding Gesture="L" Command="{Binding ToggleLoupeShortcutCommand}" />
   </controls:Window.KeyBindings>
 
   <Grid x:Name="RootGrid"
@@ -78,6 +81,11 @@
         <Separator />
         <MenuItem Header="Fit to _Window" Command="{Binding SetPreviewFitToWindowCommand}" />
         <MenuItem Header="_1:1" Command="{Binding SetPreviewOneToOneCommand}" />
+        <Separator />
+        <MenuItem Header="_Loupe"
+                  ToggleType="CheckBox"
+                  IsChecked="{Binding IsLoupeEnabled}"
+                  InputGesture="L" />
         <Separator />
         <MenuItem Header="Show _Left Channel Panel"
                   ToggleType="CheckBox"
@@ -225,7 +233,8 @@
                                  RetouchStrokeCommand="{Binding ApplyRetouchStrokeCommand}"
                                  StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
                                  MaskEditCommand="{Binding EditAutoCleanMaskCommand}"
-                                 WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}" />
+                                 WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}"
+                                 IsLoupeEnabled="{Binding PreviewLoupeEnabled}" />
 
       <GridSplitter x:Name="RightColumnSplitter"
                     Grid.Column="4"

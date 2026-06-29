@@ -101,9 +101,12 @@ Panel layout, theme workflow selection, export defaults, and auto-clean presets 
 | Heal brush | `H` (switches to **Clean** workflow) |
 | Clone stamp | `C` (switches to **Clean** workflow) |
 | Selection | `M` (switches to **Crop**, or Selection within **Clean**) |
+| Smaller brush | `[` (**Clean** + Heal or Clone) |
+| Larger brush | `]` (**Clean** + Heal or Clone) |
+| Loupe | `L` or **View → Loupe** |
 
 Channel keys `1`–`4` work in any workflow, including while processing is busy.
-Tool keys `H`, `C`, and `M` are disabled during processing or auto-clean mask review.
+Tool keys `H`, `C`, `M`, `[`, and `]` are disabled during processing or auto-clean mask review.
 All shortcuts are suppressed while typing in a text box or numeric field in the inspector.
 
 
@@ -233,8 +236,9 @@ Use this to confirm alignment ran correctly:
 | `identity` | No shift applied; check order or increase shift limit |
 
 If red or blue show `identity` with visible color fringing, the shift may exceed
-`MaxTranslation`. Use the CLI `--max-translation` flag with a higher value or `0`
-for auto-scale (GUI uses the default 128).
+**Max translation**. In the **Align** inspector or context bar, raise **Max translation**
+(default 128) or set **0** for auto-scale (`clamp(minDim × 0.04, 96, 256)`). The CLI
+equivalent is `--max-translation`.
 
 ### Current GUI scope
 
@@ -246,15 +250,16 @@ Implemented in the Avalonia UI:
 - heal brush and clone stamp with cross-channel guided healing
 - per-channel auto-clean mask detection, review, editing, apply/cancel
 - crop-to-selection on channels and result
-- per-channel exposure sliders, auto white balance, undo/redo
+- align inspector: reference channel, detector, max translation, fine iterations, coarse max side
+- per-channel exposure sliders, temperature/tint, auto white balance, pipette picker, manual levels, undo/redo
 - **project save/load** (folder with `project.json` + TIFF channels/result) and **autosave**
 - welcome screen with autosave recovery and three recent projects
 - **Edit → Settings** for theme, autosave interval, and diagnostics
 - result preview with fit-to-window zoom
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
 
-Not yet exposed: manual alignment nudge, loupe, `MaxTranslation` control, and
-full pipette/temperature color controls beyond exposure and auto WB.
+- manual alignment nudge (Red/Blue Δx/Δy with commit), alignment loupe (`L` or **View → Loupe**)
+- brush size `[` / `]` shortcuts in Clean workflow (Heal or Clone active)
 
 ## Command Line
 

@@ -32,6 +32,8 @@ public sealed class EditorSessionTests
             LevelsBlackPoint: 0.1,
             LevelsWhitePoint: 0.9,
             LevelsGamma: 1.2,
+            ColorTemperature: 0,
+            ColorTint: 0,
             SelectedSlotDisplayName: "Red"));
 
         memento.Red.Should().NotBeSameAs(red);
@@ -63,6 +65,8 @@ public sealed class EditorSessionTests
             LevelsBlackPoint: 0,
             LevelsWhitePoint: 1,
             LevelsGamma: 1,
+            ColorTemperature: 0,
+            ColorTint: 0,
             SelectedSlotDisplayName: "Green"));
 
         var restored = EditorSession.CloneForRestore(memento);
@@ -103,6 +107,8 @@ public sealed class EditorSessionTests
             LevelsBlackPoint: 0,
             LevelsWhitePoint: 1,
             LevelsGamma: 1,
+            ColorTemperature: 0,
+            ColorTint: 0,
             SelectedSlotDisplayName: null));
 
         memento.LastAligned.Should().NotBeSameAs(aligned);

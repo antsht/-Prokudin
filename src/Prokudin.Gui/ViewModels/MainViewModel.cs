@@ -621,6 +621,16 @@ public sealed partial class MainViewModel : ObservableObject
     private double blueExposureStops;
 
     [ObservableProperty]
+    private int colorTemperature;
+
+    [ObservableProperty]
+    private int colorTint;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewLoupeEnabled))]
+    private bool isLoupeEnabled;
+
+    [ObservableProperty]
     private bool isExportSettingsOpen;
 
     [ObservableProperty]
@@ -949,6 +959,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await RunOperation(async () =>
         {
+            if (HasUncommittedManualNudge)
+            {
+                Status = "Export uses last committed alignment; commit or reset the manual nudge first.";
+                AppendLog("Warning: uncommitted manual alignment nudge — export reflects last rebuild preview, not baked channels.");
+            }
+
             var settings = CurrentExportSettings();
             SaveExportSettings();
             var path = await fileDialogService.SaveExport(settings);
@@ -1629,6 +1645,8 @@ public sealed partial class MainViewModel : ObservableObject
                 CoarseAlignmentMaxSide: AlignCoarseMaxSide),
             Color = new ColorSettings(
                 AutoWhiteBalance: AutoWhiteBalance,
+                Temperature: ColorTemperature,
+                Tint: ColorTint,
                 PipetteActive: HasPipetteWhiteBalance && !AutoWhiteBalance,
                 PipetteX: whiteBalancePipetteX,
                 PipetteY: whiteBalancePipetteY,
@@ -1768,6 +1786,7 @@ public sealed partial class MainViewModel : ObservableObject
             IsRightInspectorVisible = settings.IsRightInspectorVisible;
             IsLeftPanelVisible = settings.IsLeftPanelVisible;
             SelectedWorkflowTool = settings.SelectedWorkflowTool;
+            IsLoupeEnabled = settings.IsLoupeEnabled;
             ThemeService.Apply(AppThemeMode);
             NotifyThemeMenuSelection();
         }
@@ -1798,6 +1817,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    public bool PreviewLoupeEnabled => IsLoupeEnabled && PreviewHasImage;
+
     private UiSettings CurrentUiSettings() =>
         new UiSettings
         {
@@ -1809,6 +1830,7 @@ public sealed partial class MainViewModel : ObservableObject
             IsRightInspectorVisible = IsRightInspectorVisible,
             IsLeftPanelVisible = IsLeftPanelVisible,
             SelectedWorkflowTool = SelectedWorkflowTool,
+            IsLoupeEnabled = IsLoupeEnabled,
         }.Normalize();
 
     private void NotifyThemeMenuSelection()
@@ -1923,7 +1945,10 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             var settings = CurrentPipelineSettings(skipCrop: true);
-            var result = await Task.Run(() => ReconstructionPipeline.BuildRgb(aligned, settings), cancellationToken);
+            var manual = CurrentManualNudges();
+            var result = await Task.Run(
+                () => ReconstructionPipeline.BuildRgb(aligned, settings, manual.Count > 0 ? manual : null),
+                cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
@@ -2048,6 +2073,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCloneToolMode));
         OnPropertyChanged(nameof(IsWhiteBalancePickerToolMode));
         MarkProjectDirty();
+        NotifyKeyboardShortcutCommandsChanged();
     }
 
     partial void OnAppThemeModeChanged(AppThemeMode value)
@@ -2067,6 +2093,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         SaveUiSettings();
         MarkProjectDirty();
+        NotifyKeyboardShortcutCommandsChanged();
     }
 
     partial void OnLeftPanelWidthChanged(double value) => SaveUiSettings();
@@ -2306,9 +2333,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PreviewDisplayBitmap));
         OnPropertyChanged(nameof(PreviewHasImage));
+        OnPropertyChanged(nameof(PreviewLoupeEnabled));
         OnPropertyChanged(nameof(PreviewInteractionMode));
         OnPropertyChanged(nameof(CanUseWhiteBalancePicker));
         PickWhiteBalanceCommand.NotifyCanExecuteChanged();
+        ToggleLoupeShortcutCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifyAutoCleanCommands()

@@ -26,6 +26,8 @@ public static class EditorSession
             state.LevelsBlackPoint,
             state.LevelsWhitePoint,
             state.LevelsGamma,
+            state.ColorTemperature,
+            state.ColorTint,
             state.SelectedSlotDisplayName);
 
     public static EditorMemento CloneForRestore(in EditorMemento memento) =>
@@ -48,6 +50,8 @@ public static class EditorSession
             memento.LevelsBlackPoint,
             memento.LevelsWhitePoint,
             memento.LevelsGamma,
+            memento.ColorTemperature,
+            memento.ColorTint,
             memento.SelectedSlotDisplayName);
 
     internal static AlignedChannels? CloneAligned(AlignedChannels? aligned)

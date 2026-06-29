@@ -157,6 +157,95 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task AutoAlign_LargeTriptych_DoesNotCorruptResult()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var triptych = ImageBuffer.Filled(6000, 2000, 0.0f);
+            for (var segment = 0; segment < 3; segment++)
+            {
+                var value = 0.2f + (segment * 0.25f);
+                for (var y = 400; y < 1600; y++)
+                {
+                    for (var x = (segment * 2000) + 200; x < ((segment + 1) * 2000) - 200; x++)
+                    {
+                        triptych[x, y] = value;
+                    }
+                }
+            }
+
+            var channels = TriptychSplitter.SplitTriptych(triptych, TriptychOrder.Bgr, trimBlackBorders: false);
+            viewModel.RedSlot.Image = channels[ChannelName.Red];
+            viewModel.GreenSlot.Image = channels[ChannelName.Green];
+            viewModel.BlueSlot.Image = channels[ChannelName.Blue];
+            viewModel.AlignMaxTranslation = 64;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.ResultSlot.Result.Should().NotBeNull();
+            viewModel.ResultSlot.DisplayBitmap.Should().NotBeNull();
+            viewModel.ResultSlot.DisplayBitmap!.PixelSize.Width.Should().BePositive();
+            MeanNormalized(viewModel.RedSlot.Image!).Should().BeGreaterThan(0.01f);
+        });
+    }
+
+    [Fact]
+    public async Task BrushRetouch_AfterAutoAlign_DoesNotBlackenChannel()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+
+        var meanBefore = AvaloniaTestHost.Invoke(() => MeanNormalized(viewModel.GreenSlot.Image!));
+        var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.GreenSlot.Image.Should().NotBeNull();
+            MeanNormalized(viewModel.GreenSlot.Image!).Should().BeGreaterThan(0.05f, "heal should not blacken the channel");
+            MeanNormalized(viewModel.GreenSlot.Image!).Should().BeApproximately(meanBefore, 0.15f);
+        });
+    }
+
+    [Fact]
+    public async Task BrushRetouch_AfterAutoAlign_UInt16_DoesNotBlackenChannel()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.RedSlot.Image = SyntheticChannelUInt16();
+            viewModel.GreenSlot.Image = SyntheticChannelUInt16();
+            viewModel.BlueSlot.Image = SyntheticChannelUInt16();
+            viewModel.AlignMaxTranslation = 12;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+
+        var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            MeanNormalized(viewModel.GreenSlot.Image!).Should().BeGreaterThan(0.05f);
+            viewModel.GreenSlot.DisplayBitmap.Should().NotBeNull();
+        });
+    }
+
+    [Fact]
     public void Stamp_IsUndoable()
     {
         AvaloniaTestHost.Invoke(() =>
@@ -276,6 +365,39 @@ public sealed class MainViewModelTests
         viewModel.RedSlot.Image = red;
         viewModel.GreenSlot.Image = green;
         viewModel.BlueSlot.Image = blue;
+    }
+
+    private static float MeanNormalized(ImageBuffer image)
+    {
+        var sum = 0.0f;
+        for (var i = 0; i < image.PixelCount; i++)
+        {
+            sum += image.GetNormalized(i);
+        }
+
+        return sum / image.PixelCount;
+    }
+
+    private static ImageBuffer SyntheticChannelUInt16()
+    {
+        var image = ImageBuffer.Filled(128, 128, 0.0f, PixelFormat.UInt16);
+        for (var y = 20; y < 108; y++)
+        {
+            for (var x = 24; x < 104; x++)
+            {
+                image[x, y] = 0.25f;
+            }
+        }
+
+        for (var y = 48; y < 80; y++)
+        {
+            for (var x = 54; x < 86; x++)
+            {
+                image[x, y] = 0.85f;
+            }
+        }
+
+        return image;
     }
 
     private static ImageBuffer SyntheticChannel()

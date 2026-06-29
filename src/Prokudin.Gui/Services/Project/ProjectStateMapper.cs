@@ -49,6 +49,8 @@ public static class ProjectStateMapper
                 LevelsGamma = capture.LevelsGamma,
                 PipetteX = capture.PipetteX,
                 PipetteY = capture.PipetteY,
+                Temperature = capture.ColorTemperature,
+                Tint = capture.ColorTint,
             },
             Clean = ToCleanSettings(capture),
             Session = new ProjectSessionSettings
@@ -88,6 +90,8 @@ public static class ProjectStateMapper
             LevelsGamma = document.Color.LevelsGamma,
             PipetteX = document.Color.PipetteX,
             PipetteY = document.Color.PipetteY,
+            ColorTemperature = document.Color.Temperature,
+            ColorTint = document.Color.Tint,
             Clean = FromCleanSettings(document.Clean),
             SelectedWorkflow = document.Session.SelectedWorkflow,
             ToolMode = document.Session.ToolMode,
@@ -216,6 +220,10 @@ public sealed class ProjectCapture
 
     public int PipetteY { get; init; }
 
+    public int ColorTemperature { get; init; }
+
+    public int ColorTint { get; init; }
+
     public AutoCleanQualityMode AutoCleanQualityMode { get; init; }
 
     public int AutoCleanSensitivity { get; init; }
@@ -324,6 +332,10 @@ public sealed class ProjectApplyState
     public int PipetteX { get; init; }
 
     public int PipetteY { get; init; }
+
+    public int ColorTemperature { get; init; }
+
+    public int ColorTint { get; init; }
 
     public AutoCleanSettingsSnapshot Clean { get; init; } = new();
 

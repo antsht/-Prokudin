@@ -24,6 +24,8 @@ public sealed class UiSettings
 
     public int AutosaveIntervalMinutes { get; set; } = 10;
 
+    public bool IsLoupeEnabled { get; set; }
+
     public UiSettings Normalize() =>
         new()
         {
@@ -37,5 +39,6 @@ public sealed class UiSettings
             SelectedWorkflowTool = SelectedWorkflowTool,
             AutosaveEnabled = AutosaveEnabled,
             AutosaveIntervalMinutes = Math.Clamp(AutosaveIntervalMinutes, 1, 60),
+            IsLoupeEnabled = IsLoupeEnabled,
         };
 }

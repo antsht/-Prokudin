@@ -196,6 +196,6 @@ The app builds and runs; modern `DataTransfer` drag/drop can be adopted later.
 ## Follow-Up Work
 
 - Add golden comparison tests using archived sample channels.
-- Expose `MaxTranslation` and manual alignment nudge in the Avalonia UI.
 - macOS distribution: OpenCV osx runtime, signed DMG, notarization.
-- Expose loupe, pipette balance, and temperature/tint controls in Avalonia.
+- Optional: manual nudge rotation UI (`ManualTransform.AngleDegrees` exists in Core).
+- Optional: brush size shortcuts when not in Clean workflow; user-configurable key maps.

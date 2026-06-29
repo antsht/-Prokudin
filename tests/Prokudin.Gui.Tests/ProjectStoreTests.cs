@@ -23,6 +23,8 @@ public sealed class JsonProjectStoreTests
                 AlignDetector = "sift",
                 AlignReference = ChannelName.Green,
                 AlignMaxTranslation = 96,
+                ColorTemperature = 15,
+                ColorTint = -8,
                 SelectedWorkflow = WorkflowTool.Align,
                 ToolMode = EditorToolMode.Select,
                 PreviewZoom = PreviewZoomMode.OneToOne,
@@ -42,6 +44,8 @@ public sealed class JsonProjectStoreTests
             var loaded = await store.LoadAsync(folder);
             loaded.Document.Import.TriptychOrder.Should().Be("BGR");
             loaded.Document.Align.MaxTranslation.Should().Be(96);
+            loaded.Document.Color.Temperature.Should().Be(15);
+            loaded.Document.Color.Tint.Should().Be(-8);
             loaded.Red.Should().NotBeNull();
             loaded.Red!.Width.Should().Be(2);
             loaded.Result.Should().NotBeNull();

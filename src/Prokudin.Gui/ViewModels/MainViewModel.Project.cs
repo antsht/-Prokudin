@@ -329,6 +329,8 @@ public sealed partial class MainViewModel
             LevelsGamma = LevelsGamma,
             PipetteX = whiteBalancePipetteX,
             PipetteY = whiteBalancePipetteY,
+            ColorTemperature = ColorTemperature,
+            ColorTint = ColorTint,
             AutoCleanQualityMode = AutoCleanQualityMode,
             AutoCleanSensitivity = AutoCleanSensitivity,
             AutoCleanRadius = AutoCleanRadius,
@@ -389,6 +391,8 @@ public sealed partial class MainViewModel
             LevelsGamma = state.LevelsGamma;
             whiteBalancePipetteX = state.PipetteX;
             whiteBalancePipetteY = state.PipetteY;
+            ColorTemperature = state.ColorTemperature;
+            ColorTint = state.ColorTint;
             LoadAutoCleanSettings(state.Clean);
             BrushSize = package.Document.Clean.BrushSize;
             SelectedWorkflowTool = state.SelectedWorkflow;
@@ -499,7 +503,14 @@ public sealed partial class MainViewModel
         }
     }
 
-    partial void OnAlignReferenceChanged(ChannelName value) => MarkProjectDirty();
+    partial void OnAlignReferenceChanged(ChannelName value)
+    {
+        MarkProjectDirty();
+        OnPropertyChanged(nameof(CanManualNudgeRed));
+        OnPropertyChanged(nameof(CanManualNudgeBlue));
+        CommitManualNudgeCommand.NotifyCanExecuteChanged();
+        NotifyManualNudgeCommands();
+    }
 
     partial void OnAlignDetectorChanged(string value) => MarkProjectDirty();
 

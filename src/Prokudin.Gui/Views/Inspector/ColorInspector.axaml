@@ -66,6 +66,34 @@
               automation:AutomationProperties.Name="Reset exposure"
               ToolTip.ShowDelay="400"
               ToolTip.Tip="Reset all channel exposure sliders to 0 stops." />
+      <Grid ColumnDefinitions="120,*"
+            RowDefinitions="Auto,Auto"
+            RowSpacing="6">
+        <inspector:InspectorParameterLabel x:Name="TemperatureLabel"
+                                           Caption="Temperature"
+                                           ShortTip="{StaticResource Tips.Color.Temperature.Short}"
+                                           LongTip="{StaticResource Tips.Color.Temperature.Long}" />
+        <Slider Grid.Column="1"
+                Minimum="-50"
+                Maximum="50"
+                Value="{Binding ColorTemperature}"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{Binding ShortTip, ElementName=TemperatureLabel}"
+                inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Color.Temperature.Long}" />
+        <inspector:InspectorParameterLabel Grid.Row="1"
+                                           x:Name="TintLabel"
+                                           Caption="Tint"
+                                           ShortTip="{StaticResource Tips.Color.Tint.Short}"
+                                           LongTip="{StaticResource Tips.Color.Tint.Long}" />
+        <Slider Grid.Row="1"
+                Grid.Column="1"
+                Minimum="-50"
+                Maximum="50"
+                Value="{Binding ColorTint}"
+                ToolTip.ShowDelay="400"
+                ToolTip.Tip="{Binding ShortTip, ElementName=TintLabel}"
+                inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Color.Tint.Long}" />
+      </Grid>
       <Separator />
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"

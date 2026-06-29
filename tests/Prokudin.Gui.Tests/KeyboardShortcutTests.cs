@@ -114,6 +114,54 @@ public sealed class KeyboardShortcutTests
         });
     }
 
+    [Fact]
+    public void BrushSizeShortcuts_ExecuteOnlyInCleanHealMode()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            viewModel.BrushSize = 10;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Import;
+            viewModel.DecreaseBrushSizeShortcutCommand.CanExecute(null).Should().BeFalse();
+
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+            viewModel.ToolMode = EditorToolMode.Heal;
+            viewModel.DecreaseBrushSizeShortcutCommand.Execute(null);
+            viewModel.BrushSize.Should().Be(9);
+        });
+    }
+
+    [Fact]
+    public void BrushSizeShortcuts_AreBlockedWhenAutoCleanMaskPending()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            LoadSyntheticChannels(viewModel);
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+            viewModel.ToolMode = EditorToolMode.Heal;
+            viewModel.PendingAutoCleanMask = new byte[viewModel.RedSlot.Image!.Width * viewModel.RedSlot.Image.Height];
+            viewModel.PendingAutoCleanChannel = ChannelName.Red;
+
+            viewModel.IncreaseBrushSizeShortcutCommand.CanExecute(null).Should().BeFalse();
+        });
+    }
+
+    [Fact]
+    public void ManualNudge_ResetClearsPendingShift()
+    {
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var viewModel = CreateViewModel();
+            viewModel.ManualNudgeBlueDx = 2;
+            viewModel.HasUncommittedManualNudge.Should().BeTrue();
+
+            viewModel.ResetManualNudgeCommand.Execute(null);
+
+            viewModel.HasUncommittedManualNudge.Should().BeFalse();
+        });
+    }
+
     private static MainViewModel CreateViewModel() => new(new FakeFileDialogService());
 
     private static void LoadSyntheticChannels(MainViewModel viewModel)

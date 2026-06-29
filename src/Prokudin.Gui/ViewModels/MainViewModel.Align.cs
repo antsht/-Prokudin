@@ -12,6 +12,8 @@ public sealed partial class MainViewModel
         lastAligned = aligned;
         RebuildResultCommand.NotifyCanExecuteChanged();
         CropOverlapCommand.NotifyCanExecuteChanged();
+        CommitManualNudgeCommand.NotifyCanExecuteChanged();
+        NotifyManualNudgeCommands();
         RefreshChannelStates();
         OnPropertyChanged(nameof(RedAlignSummary));
         OnPropertyChanged(nameof(GreenAlignSummary));
@@ -31,6 +33,7 @@ public sealed partial class MainViewModel
         await RunOperation(async () =>
         {
             ClearPendingAutoCleanMask();
+            ClearManualNudges(suppressRebuild: true);
             Status = "Running auto-align...";
             AppendLog("Auto-align started.");
             var channels = new Dictionary<ChannelName, ImageBuffer>
@@ -57,6 +60,7 @@ public sealed partial class MainViewModel
             SetLastAligned(result.Aligned);
             ResultSlot.Result = result.Rgb;
             SelectedSlot = ResultSlot;
+            RefreshPreviewImageContext();
             Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata)}";
             AppendLog(AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata));
             AppendLog(FormatCropInfo(result.CropInfo));

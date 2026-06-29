@@ -24,4 +24,6 @@ public sealed record EditorCaptureState(
     double LevelsBlackPoint,
     double LevelsWhitePoint,
     double LevelsGamma,
+    int ColorTemperature,
+    int ColorTint,
     string? SelectedSlotDisplayName);

@@ -100,6 +100,10 @@ public sealed class ProjectColorSettings
 
     public double LevelsGamma { get; set; } = 1.0;
 
+    public int Temperature { get; set; }
+
+    public int Tint { get; set; }
+
     public int PipetteX { get; set; } = -1;
 
     public int PipetteY { get; set; } = -1;

@@ -146,4 +146,32 @@ public sealed partial class MainViewModel
         ScheduleResultRebuild();
         MarkProjectDirty();
     }
+
+    partial void OnColorTemperatureChanging(int oldValue, int newValue)
+    {
+        BeginCoalescedColorEdit();
+    }
+
+    partial void OnColorTintChanging(int oldValue, int newValue)
+    {
+        BeginCoalescedColorEdit();
+    }
+
+    partial void OnColorTemperatureChanged(int value)
+    {
+        ScheduleResultRebuild();
+        MarkProjectDirty();
+    }
+
+    partial void OnColorTintChanged(int value)
+    {
+        ScheduleResultRebuild();
+        MarkProjectDirty();
+    }
+
+    partial void OnIsLoupeEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PreviewLoupeEnabled));
+        SaveUiSettings();
+    }
 }

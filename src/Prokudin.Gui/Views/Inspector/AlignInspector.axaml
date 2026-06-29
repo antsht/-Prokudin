@@ -90,5 +90,112 @@
                    TextWrapping="Wrap" />
       </StackPanel>
     </z:HeaderedContainer>
+    <z:HeaderedContainer Header="Manual nudge"
+                         Classes="InspectorSection">
+      <StackPanel Spacing="8">
+        <TextBlock Text="{StaticResource Tips.Align.ManualNudge.Short}"
+                   TextWrapping="Wrap"
+                   Classes="MutedCaption" />
+        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*"
+              RowDefinitions="Auto,Auto,Auto"
+              RowSpacing="6"
+              ColumnSpacing="6">
+          <TextBlock Text="Red ΔX"
+                     Classes="MutedCaption"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanManualNudgeRed}" />
+          <NumericUpDown Grid.Column="1"
+                         Minimum="-20"
+                         Maximum="20"
+                         Increment="1"
+                         FormatString="F0"
+                         Value="{Binding ManualNudgeRedDx}"
+                         IsEnabled="{Binding CanManualNudgeRed}" />
+          <TextBlock Grid.Column="2"
+                     Text="ΔY"
+                     Classes="MutedCaption"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanManualNudgeRed}" />
+          <NumericUpDown Grid.Column="3"
+                         Minimum="-20"
+                         Maximum="20"
+                         Increment="1"
+                         FormatString="F0"
+                         Value="{Binding ManualNudgeRedDy}"
+                         IsEnabled="{Binding CanManualNudgeRed}" />
+          <StackPanel Grid.Column="4"
+                      Grid.ColumnSpan="2"
+                      Orientation="Horizontal"
+                      Spacing="4">
+            <Button Content="←"
+                    Command="{Binding NudgeRedLeftCommand}"
+                    IsEnabled="{Binding CanManualNudgeRed}" />
+            <Button Content="→"
+                    Command="{Binding NudgeRedRightCommand}"
+                    IsEnabled="{Binding CanManualNudgeRed}" />
+            <Button Content="↑"
+                    Command="{Binding NudgeRedUpCommand}"
+                    IsEnabled="{Binding CanManualNudgeRed}" />
+            <Button Content="↓"
+                    Command="{Binding NudgeRedDownCommand}"
+                    IsEnabled="{Binding CanManualNudgeRed}" />
+          </StackPanel>
+          <TextBlock Grid.Row="1"
+                     Text="Blue ΔX"
+                     Classes="MutedCaption"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanManualNudgeBlue}" />
+          <NumericUpDown Grid.Row="1"
+                         Grid.Column="1"
+                         Minimum="-20"
+                         Maximum="20"
+                         Increment="1"
+                         FormatString="F0"
+                         Value="{Binding ManualNudgeBlueDx}"
+                         IsEnabled="{Binding CanManualNudgeBlue}" />
+          <TextBlock Grid.Row="1"
+                     Grid.Column="2"
+                     Text="ΔY"
+                     Classes="MutedCaption"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanManualNudgeBlue}" />
+          <NumericUpDown Grid.Row="1"
+                         Grid.Column="3"
+                         Minimum="-20"
+                         Maximum="20"
+                         Increment="1"
+                         FormatString="F0"
+                         Value="{Binding ManualNudgeBlueDy}"
+                         IsEnabled="{Binding CanManualNudgeBlue}" />
+          <StackPanel Grid.Row="1"
+                      Grid.Column="4"
+                      Grid.ColumnSpan="2"
+                      Orientation="Horizontal"
+                      Spacing="4">
+            <Button Content="←"
+                    Command="{Binding NudgeBlueLeftCommand}"
+                    IsEnabled="{Binding CanManualNudgeBlue}" />
+            <Button Content="→"
+                    Command="{Binding NudgeBlueRightCommand}"
+                    IsEnabled="{Binding CanManualNudgeBlue}" />
+            <Button Content="↑"
+                    Command="{Binding NudgeBlueUpCommand}"
+                    IsEnabled="{Binding CanManualNudgeBlue}" />
+            <Button Content="↓"
+                    Command="{Binding NudgeBlueDownCommand}"
+                    IsEnabled="{Binding CanManualNudgeBlue}" />
+          </StackPanel>
+          <StackPanel Grid.Row="2"
+                      Grid.ColumnSpan="6"
+                      Orientation="Horizontal"
+                      Spacing="8">
+            <Button Content="Commit nudge"
+                    Command="{Binding CommitManualNudgeCommand}" />
+            <Button Content="Reset"
+                    Command="{Binding ResetManualNudgeCommand}" />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </z:HeaderedContainer>
   </StackPanel>
 </UserControl>

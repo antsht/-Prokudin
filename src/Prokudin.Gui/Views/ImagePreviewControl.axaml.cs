@@ -62,6 +62,12 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<ICommand?> WhiteBalancePickCommandProperty =
         AvaloniaProperty.Register<ImagePreviewControl, ICommand?>(nameof(WhiteBalancePickCommand));
 
+    public static readonly StyledProperty<bool> IsLoupeEnabledProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(IsLoupeEnabled));
+
+    private Point? loupeImagePoint;
+    private Point? loupeCursorPoint;
+    private CroppedBitmap? loupeCroppedBitmap;
     private Point? selectionStart;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
@@ -179,6 +185,12 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(WhiteBalancePickCommandProperty, value);
     }
 
+    public bool IsLoupeEnabled
+    {
+        get => GetValue(IsLoupeEnabledProperty);
+        set => SetValue(IsLoupeEnabledProperty, value);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -189,7 +201,18 @@ public sealed partial class ImagePreviewControl : UserControl
             change.Property == HasImageProperty ||
             change.Property == SelectionRectProperty)
         {
+            if (change.Property == DisplayBitmapProperty)
+            {
+                ClearLoupeBitmap();
+            }
+
             ApplyLayout();
+            UpdateLoupeOverlay();
+        }
+
+        if (change.Property == IsLoupeEnabledProperty)
+        {
+            UpdateLoupeOverlay();
         }
 
         if (change.Property == BrushSizeProperty ||
@@ -820,6 +843,8 @@ public sealed partial class ImagePreviewControl : UserControl
 
     private void ImageHost_OnPointerMoved(object? sender, PointerEventArgs e)
     {
+        UpdateLoupeAtPointer(e);
+
         if (InteractionMode == PreviewInteractionMode.MaskReview)
         {
             UpdateMaskEditInteraction(e);
@@ -1054,8 +1079,80 @@ public sealed partial class ImagePreviewControl : UserControl
             return;
         }
 
+        loupeImagePoint = null;
+        loupeCursorPoint = null;
+        UpdateLoupeOverlay();
         retouchCursorImagePoint = null;
         UpdateRetouchOverlay();
+    }
+
+    private void UpdateLoupeAtPointer(PointerEventArgs e)
+    {
+        if (!IsLoupeEnabled || DisplayBitmap is null || !HasImage)
+        {
+            return;
+        }
+
+        loupeCursorPoint = e.GetPosition(RootGrid);
+        var hostPoint = e.GetPosition(ImageHost);
+        if (TryMapToImage(hostPoint, out var imagePoint))
+        {
+            loupeImagePoint = imagePoint;
+        }
+        else
+        {
+            loupeImagePoint = ClampPointToImage(hostPoint);
+        }
+
+        UpdateLoupeOverlay();
+    }
+
+    private void UpdateLoupeOverlay()
+    {
+        if (!IsLoupeEnabled || DisplayBitmap is not { } bitmap || !HasImage || loupeImagePoint is not { } center)
+        {
+            ClearLoupeBitmap();
+            LoupePanel.IsVisible = false;
+            return;
+        }
+
+        var pixelSize = bitmap.PixelSize;
+        var sourceRect = PreviewLoupeGeometryCalculator.ComputeSourceRect(
+            pixelSize.Width,
+            pixelSize.Height,
+            center.X,
+            center.Y);
+        if (sourceRect.Width <= 0 || sourceRect.Height <= 0)
+        {
+            ClearLoupeBitmap();
+            LoupePanel.IsVisible = false;
+            return;
+        }
+
+        ClearLoupeBitmap();
+        loupeCroppedBitmap = new CroppedBitmap(bitmap, sourceRect);
+        LoupeImage.Source = loupeCroppedBitmap;
+
+        if (loupeCursorPoint is { } cursor)
+        {
+            var bounds = RootGrid.Bounds;
+            var position = PreviewLoupeGeometryCalculator.ComputeLoupePosition(
+                cursor.X,
+                cursor.Y,
+                LoupePanel.Width,
+                LoupePanel.Height,
+                bounds.Width,
+                bounds.Height);
+            LoupePanel.Margin = new Thickness(position.X, position.Y, 0, 0);
+        }
+
+        LoupePanel.IsVisible = true;
+    }
+
+    private void ClearLoupeBitmap()
+    {
+        LoupeImage.Source = null;
+        loupeCroppedBitmap = null;
     }
 
     private Point ClampPointToImage(Point point)

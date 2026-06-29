@@ -107,9 +107,6 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
 
     private void RefreshDisplayBitmap()
     {
-        var previousDisplay = DisplayBitmap;
-        var previousThumbnail = ThumbnailBitmap;
-
         if (Result is not null)
         {
             DisplayBitmap = AvaloniaBitmapFactory.FromRgbImageBuffer(Result);
@@ -125,8 +122,5 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
             DisplayBitmap = null;
             ThumbnailBitmap = null;
         }
-
-        previousDisplay?.Dispose();
-        previousThumbnail?.Dispose();
     }
 }

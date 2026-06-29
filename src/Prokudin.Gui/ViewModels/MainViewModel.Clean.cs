@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Retouch;
@@ -68,15 +69,14 @@ public sealed partial class MainViewModel
             var (_, options) = CreateAutoCleanResolvedSettings(channelName);
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var progress = CreateAutoCleanProgress(progressScope);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress));
-            SelectedSlot.Image = result.Image;
+            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress))
+                .ConfigureAwait(true);
+            await ApplyRetouchResultAsync(channelName, result.Image);
             ClearPendingAutoCleanMask();
             var healStatus = result.StatusMessage ??
                              $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
             Status = healStatus;
             AppendLog($"Auto-clean apply {SelectedSlot.DisplayName}: {healStatus}");
-            RefreshAlignedAfterInputEdit(channelName);
-            RefreshPreviewImageContext();
         }
         finally
         {
@@ -134,14 +134,13 @@ public sealed partial class MainViewModel
         {
             var options = CreateHealOptions();
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options));
-            SelectedSlot.Image = result.Image;
+            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options))
+                .ConfigureAwait(true);
+            await ApplyRetouchResultAsync(channelName, result.Image);
             var count = mask.Count(value => value > 0);
-            var healStatus = result.StatusMessage ?? $"Retouched {SelectedSlot.DisplayName}: {count} masked pixels.";
+            var healStatus = result.StatusMessage ?? $"Retouched {SelectedSlot!.DisplayName}: {count} masked pixels.";
             Status = healStatus;
             AppendLog($"Brush retouch {SelectedSlot.DisplayName}: {healStatus}");
-            RefreshAlignedAfterInputEdit(channelName);
-            RefreshPreviewImageContext();
         }
         finally
         {
@@ -165,9 +164,7 @@ public sealed partial class MainViewModel
         }
 
         RecordSnapshotCommand("CloneStamp");
-        SelectedSlot.Image = result.Image;
-        RefreshAlignedAfterInputEdit(channelName);
-        RefreshPreviewImageContext();
+        ApplyRetouchResult(channelName, result.Image);
         var count = result.Mask.Count(value => value > 0);
         Status = $"Stamped {SelectedSlot.DisplayName}: {count} blended pixels.";
         AppendLog($"Clone stamp {SelectedSlot.DisplayName}: {count} blended pixels, brush {stroke.DestinationStroke.BrushSize}, blend {Math.Clamp(stroke.BlendWidth, 1, 24)}.");
@@ -210,5 +207,28 @@ public sealed partial class MainViewModel
     private bool CanApplyStampStroke(CloneStampStroke? stroke)
     {
         return CanEditSelectedInputChannel() && stroke is { DestinationStroke.Points.Count: > 0 };
+    }
+
+    private async Task ApplyRetouchResultAsync(ChannelName channelName, ImageBuffer image)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ApplyRetouchResult(channelName, image);
+            return;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() => ApplyRetouchResult(channelName, image));
+    }
+
+    private void ApplyRetouchResult(ChannelName channelName, ImageBuffer image)
+    {
+        if (GetSlot(channelName) is not { } slot)
+        {
+            return;
+        }
+
+        slot.Image = image;
+        RefreshPreviewImageContext();
+        RefreshAlignedAfterInputEdit(channelName);
     }
 }

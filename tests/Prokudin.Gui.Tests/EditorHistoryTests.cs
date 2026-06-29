@@ -90,5 +90,7 @@ public sealed class EditorHistoryTests
             LevelsBlackPoint: 0,
             LevelsWhitePoint: 1,
             LevelsGamma: 1,
+            ColorTemperature: 0,
+            ColorTint: 0,
             SelectedSlotDisplayName: null));
 }

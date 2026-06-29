@@ -14,6 +14,16 @@ public sealed partial class MainViewModel
     private bool CanExecuteEditorToolShortcut() =>
         !IsBusy && !IsAutoCleanMaskPending && !IsTextInputFocused();
 
+    private bool CanExecuteBrushSizeShortcut() =>
+        !IsBusy &&
+        !IsAutoCleanMaskPending &&
+        !IsTextInputFocused() &&
+        SelectedWorkflowTool == WorkflowTool.Clean &&
+        ToolMode is EditorToolMode.Heal or EditorToolMode.Clone;
+
+    private bool CanExecuteLoupeShortcut() =>
+        !IsBusy && PreviewHasImage && !IsTextInputFocused();
+
     [RelayCommand(CanExecute = nameof(CanExecuteSlotShortcut))]
     private void SelectRedSlotShortcut() => SelectSlotShortcut(0);
 
@@ -34,6 +44,32 @@ public sealed partial class MainViewModel
 
     [RelayCommand(CanExecute = nameof(CanExecuteEditorToolShortcut))]
     private void ActivateSelectionToolShortcut() => ActivateEditorToolShortcut(EditorToolMode.Select);
+
+    [RelayCommand(CanExecute = nameof(CanExecuteBrushSizeShortcut))]
+    private void DecreaseBrushSizeShortcut()
+    {
+        BrushSize = Math.Max(1, BrushSize - 1);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteBrushSizeShortcut))]
+    private void IncreaseBrushSizeShortcut()
+    {
+        BrushSize = Math.Min(200, BrushSize + 1);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExecuteLoupeShortcut))]
+    private void ToggleLoupeShortcut()
+    {
+        IsLoupeEnabled = !IsLoupeEnabled;
+        Status = IsLoupeEnabled ? "Loupe on — move over preview." : "Loupe off.";
+    }
+
+    [RelayCommand]
+    private void ToggleLoupe()
+    {
+        IsLoupeEnabled = !IsLoupeEnabled;
+        Status = IsLoupeEnabled ? "Loupe on — move over preview." : "Loupe off.";
+    }
 
     private void SelectSlotShortcut(int index)
     {
@@ -80,6 +116,9 @@ public sealed partial class MainViewModel
         ActivateHealToolShortcutCommand.NotifyCanExecuteChanged();
         ActivateCloneToolShortcutCommand.NotifyCanExecuteChanged();
         ActivateSelectionToolShortcutCommand.NotifyCanExecuteChanged();
+        DecreaseBrushSizeShortcutCommand.NotifyCanExecuteChanged();
+        IncreaseBrushSizeShortcutCommand.NotifyCanExecuteChanged();
+        ToggleLoupeShortcutCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBusyChanged(bool value) => NotifyKeyboardShortcutCommandsChanged();

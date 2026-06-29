@@ -14,3 +14,4 @@ dist/
 .tmp-publish/
 linuxdeploy*.AppImage
 appimagetool*.AppImage
+.gstack/
