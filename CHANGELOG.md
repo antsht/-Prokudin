@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-29
+
+### Added
+
+- GUI keyboard shortcuts: channel/result preview `1`–`4` (top-row `D1`–`D4` and numpad), retouch tools
+  `H` / `C` / `M` with workflow switching; updated Help dialog and user guide
+- Design spec `docs/superpowers/specs/2026-06-29-keyboard-shortcuts-design.md`
+
 ## [0.12.1] - 2026-06-28
 
 ### Fixed

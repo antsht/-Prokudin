@@ -135,6 +135,9 @@ context command bar (quick actions) and a right **inspector** (detailed paramete
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
 - View menu: Light/Dark/System theme, panel visibility toggles
 - Help menu: user guide, keyboard shortcuts, check for updates, About dialog
+- editor shortcuts: `1`–`4` / numpad (R/G/B/Result), `H`/`C`/`M` (heal/clone/selection
+  with workflow switch); blocked in text fields; tool keys blocked when busy or
+  auto-clean mask pending
 
 Keep GUI actions asynchronous for image load, alignment, and export. Avoid doing
 large image work on the UI thread. Context bar controls bind `IsUiEnabled` when

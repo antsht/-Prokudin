@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Prokudin.Gui.ViewModels;
 
@@ -35,6 +36,16 @@ public sealed partial class MainWindow : Window
             ApplyPanelLayout(viewModel);
             RefreshRecentProjectsMenu(viewModel);
             viewModel.RecentProjectsMenu.CollectionChanged += (_, _) => RefreshRecentProjectsMenu(viewModel);
+            AddHandler(InputElement.GotFocusEvent, OnInputFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+            AddHandler(InputElement.LostFocusEvent, OnInputFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        }
+    }
+
+    private void OnInputFocusChanged(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.NotifyKeyboardShortcutCommandsChanged();
         }
     }
 

@@ -22,6 +22,17 @@
     <input:KeyBinding Gesture="Ctrl+O" Command="{Binding OpenProjectCommand}" />
     <input:KeyBinding Gesture="Ctrl+S" Command="{Binding SaveProjectCommand}" />
     <input:KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveProjectAsCommand}" />
+    <input:KeyBinding Gesture="D1" Command="{Binding SelectRedSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="NumPad1" Command="{Binding SelectRedSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="D2" Command="{Binding SelectGreenSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="NumPad2" Command="{Binding SelectGreenSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="D3" Command="{Binding SelectBlueSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="NumPad3" Command="{Binding SelectBlueSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="D4" Command="{Binding SelectResultSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="NumPad4" Command="{Binding SelectResultSlotShortcutCommand}" />
+    <input:KeyBinding Gesture="H" Command="{Binding ActivateHealToolShortcutCommand}" />
+    <input:KeyBinding Gesture="C" Command="{Binding ActivateCloneToolShortcutCommand}" />
+    <input:KeyBinding Gesture="M" Command="{Binding ActivateSelectionToolShortcutCommand}" />
   </controls:Window.KeyBindings>
 
   <Grid x:Name="RootGrid"
@@ -87,9 +98,9 @@
         <MenuItem Header="_Cancel Auto-clean Mask" Command="{Binding CancelAutoCleanMaskCommand}" />
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="_Selection" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Select}" />
-        <MenuItem Header="_Heal Brush" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Heal}" />
-        <MenuItem Header="_Clone Stamp" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Clone}" />
+        <MenuItem Header="_Selection" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Select}" InputGesture="M" />
+        <MenuItem Header="_Heal Brush" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Heal}" InputGesture="H" />
+        <MenuItem Header="_Clone Stamp" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.Clone}" InputGesture="C" />
         <MenuItem Header="_White Balance Picker" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:EditorToolMode.WhiteBalancePicker}" />
       </MenuItem>
       <MenuItem Header="_Help">

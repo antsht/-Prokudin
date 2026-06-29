@@ -2230,12 +2230,14 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshAutoCleanMaskOverlay();
         RefreshPreviewBindings();
         NotifyAutoCleanCommands();
+        NotifyKeyboardShortcutCommandsChanged();
     }
 
     partial void OnPendingAutoCleanChannelChanged(ChannelName? value)
     {
         RefreshPreviewBindings();
         NotifyAutoCleanCommands();
+        NotifyKeyboardShortcutCommandsChanged();
     }
 
     partial void OnShowAutoCleanResultPreviewChanged(bool value)

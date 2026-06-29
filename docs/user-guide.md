@@ -94,6 +94,17 @@ Panel layout, theme workflow selection, export defaults, and auto-clean presets 
 | Save Project As | Ctrl+Shift+S |
 | Undo | Ctrl+Z |
 | Redo | Ctrl+Y |
+| Red channel | `1` (top row or numpad) |
+| Green channel | `2` |
+| Blue channel | `3` |
+| Result | `4` |
+| Heal brush | `H` (switches to **Clean** workflow) |
+| Clone stamp | `C` (switches to **Clean** workflow) |
+| Selection | `M` (switches to **Crop**, or Selection within **Clean**) |
+
+Channel keys `1`–`4` work in any workflow, including while processing is busy.
+Tool keys `H`, `C`, and `M` are disabled during processing or auto-clean mask review.
+All shortcuts are suppressed while typing in a text box or numeric field in the inspector.
 
 
 ### Channel thumbnails
