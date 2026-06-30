@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-30
+
+### Added
+
+- RAM-aware undo history byte-budget eviction, while retaining the existing 20-entry cap.
+- Scalar-only parameter mementos for coalesced color edits so exposure, white balance, and levels undo no longer clone image buffers.
+- Design spec `docs/superpowers/specs/2026-06-30-resource-lifetime-and-undo-memory-design.md`.
+
+### Changed
+
+- Snapshot undo mementos no longer store derived RGB results; restore rebuilds the result from `lastAligned` and current color settings.
+
+### Fixed
+
+- Repeated retouch operations no longer create fresh GPU compute contexts for every diagnostics-enabled heal.
+- `FallbackImageComputeBackend.Dispose()` now disposes owned child backends while preserving shared process-wide leaves.
+- Affine alignment no longer leaks the native OpenCV `Mat` on successful affine transform estimation.
+- View menu **Loupe** now toggles loupe mode instead of only updating the menu checkmark.
+
 ## [0.13.1] - 2026-06-30
 
 ### Fixed

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Prokudin.Core.Diagnostics;
 using Prokudin.Core.Processing;
 
 namespace Prokudin.Core.Tests.Processing;
@@ -79,6 +80,35 @@ public sealed class ImageComputeBackendTests
     }
 
     [Fact]
+    public void CreateBest_ReturnsCheapWrappers_OverSharedLeafBackends()
+    {
+        using var first = (FallbackImageComputeBackend)ImageComputeBackendFactory.CreateBest(NullProcessingDiagnostics.Instance);
+        using var second = (FallbackImageComputeBackend)ImageComputeBackendFactory.CreateBest(new CapturingProcessingDiagnostics());
+
+        first.Should().NotBeSameAs(second);
+        first.Backends.Should().HaveSameCount(second.Backends);
+        first.Backends.Zip(second.Backends).Should().OnlyContain(pair => ReferenceEquals(pair.First, pair.Second));
+    }
+
+    [Fact]
+    public void FallbackBackend_DisposesChildren_OnlyWhenItOwnsThem()
+    {
+        var sharedChild = new DisposableBackend();
+        using (new FallbackImageComputeBackend([sharedChild], ownsBackends: false))
+        {
+        }
+
+        sharedChild.DisposeCount.Should().Be(0);
+
+        var ownedChild = new DisposableBackend();
+        using (new FallbackImageComputeBackend([ownedChild], ownsBackends: true))
+        {
+        }
+
+        ownedChild.DisposeCount.Should().Be(1);
+    }
+
+    [Fact]
     public void IlgpuCpuBackend_WhenAvailable_MatchesCpuPrediction()
     {
         using var ilgpu = ImageComputeBackendFactory.TryCreateIlgpuCpu(out var backend)
@@ -138,5 +168,47 @@ public sealed class ImageComputeBackendTests
         ilgpu.TryApplyGain(source, gain: 1.75f, actual).Should().BeTrue();
 
         actual.Should().Equal(expected, (left, right) => Math.Abs(left - right) < 1e-6f);
+    }
+
+    private sealed class DisposableBackend : IImageComputeBackend
+    {
+        public int DisposeCount { get; private set; }
+
+        public AccelerationBackendKind Kind => AccelerationBackendKind.Cpu;
+
+        public bool TryDetectDefectMask(
+            float[] target,
+            float[] other1,
+            float[] other2,
+            float[] targetHighPass,
+            float[] other1HighPass,
+            float[] other2HighPass,
+            double coefficientA,
+            double coefficientB,
+            double coefficientC,
+            float residualThreshold,
+            float highPassThreshold,
+            float supportMultiplier,
+            float supportOffset,
+            byte[] outputMask) => true;
+
+        public bool TryPredictMasked(
+            float[] target,
+            float[] guide1,
+            float[] guide2,
+            byte[] defectMask,
+            double coefficientA,
+            double coefficientB,
+            double coefficientC,
+            float[] output) => true;
+
+        public bool TryApplyGain(float[] source, float gain, float[] output) => true;
+
+        public bool TryHighPassAbs(float[] source, int width, int height, double sigma, float[] output) => true;
+
+        public void Dispose()
+        {
+            DisposeCount++;
+        }
     }
 }

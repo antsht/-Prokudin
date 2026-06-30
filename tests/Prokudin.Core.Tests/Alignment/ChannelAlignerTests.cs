@@ -1,4 +1,6 @@
+using System.Reflection;
 using FluentAssertions;
+using OpenCvSharp;
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Imaging;
 
@@ -132,6 +134,35 @@ public sealed class ChannelAlignerTests
 
         result.SubpixelShifts.Should().OnlyContain(shift => Math.Abs(shift.Dx) <= 2 && Math.Abs(shift.Dy) <= 2);
         MeanAbsoluteDifference(reference, result.Image, result.Mask).Should().BeGreaterThan(0.08f);
+    }
+
+    [Fact]
+    public void EstimateTransform_UsesAffineBranch_WhenHomographyHasTooFewInliers()
+    {
+        var source = new[]
+        {
+            new Point2f(0, 0),
+            new Point2f(10, 0),
+            new Point2f(20, 0),
+            new Point2f(0, 10),
+            new Point2f(10, 10),
+            new Point2f(20, 10),
+            new Point2f(5, 20),
+            new Point2f(18, 22),
+        };
+        var destination = source.Select(point => new Point2f(point.X + 3, point.Y - 2)).ToArray();
+        var method = typeof(ChannelAligner).GetMethod("EstimateTransform", BindingFlags.NonPublic | BindingFlags.Static);
+        var arguments = new object?[] { source, destination, 32, null, 0 };
+
+        method.Should().NotBeNull();
+        using var matrix = (Mat)method!.Invoke(null, arguments)!;
+
+        arguments[3].Should().Be("affine");
+        arguments[4].Should().Be(source.Length);
+        matrix.Rows.Should().Be(3);
+        matrix.Cols.Should().Be(3);
+        matrix.At<double>(0, 2).Should().BeApproximately(3.0, 1e-6);
+        matrix.At<double>(1, 2).Should().BeApproximately(-2.0, 1e-6);
     }
 
     private static ImageBuffer SyntheticFeatureChannel()

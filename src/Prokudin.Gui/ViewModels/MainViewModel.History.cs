@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
+using Prokudin.Core.Imaging;
+using Prokudin.Core.Pipeline;
 using Prokudin.Gui.Editing;
 using Prokudin.Gui.Editing.Commands;
 
@@ -65,7 +67,10 @@ public sealed partial class MainViewModel
             SelectedSlotDisplayName: SelectedSlot?.DisplayName);
 
     private EditorMemento CaptureSnapshot() =>
-        EditorSession.CreateMemento(BuildEditorCaptureState());
+        CaptureEditorMemento(EditorMementoKind.Snapshot);
+
+    private EditorMemento CaptureEditorMemento(EditorMementoKind kind) =>
+        EditorSession.CreateMemento(BuildEditorCaptureState(), kind);
 
     private void RecordSnapshotCommand(string operation)
     {
@@ -89,7 +94,7 @@ public sealed partial class MainViewModel
         if (!colorCoalesceOpen)
         {
             editorHistory.Record(new CoalescedParameterCommand(
-                CaptureSnapshot(),
+                CaptureEditorMemento(EditorMementoKind.Parameter),
                 CoalescedParameterCommand.ColorAdjustKey,
                 "ColorAdjust"));
             MarkProjectDirty();
@@ -132,14 +137,17 @@ public sealed partial class MainViewModel
 
     private void ApplyEditorMemento(EditorMemento snapshot)
     {
-        RedSlot.Image = snapshot.Red;
-        GreenSlot.Image = snapshot.Green;
-        BlueSlot.Image = snapshot.Blue;
-        RedSlot.SourcePath = snapshot.RedSourcePath;
-        GreenSlot.SourcePath = snapshot.GreenSourcePath;
-        BlueSlot.SourcePath = snapshot.BlueSourcePath;
-        ResultSlot.Result = snapshot.Result;
-        SetLastAligned(snapshot.LastAligned);
+        if (snapshot.Kind == EditorMementoKind.Snapshot)
+        {
+            RedSlot.Image = snapshot.Red;
+            GreenSlot.Image = snapshot.Green;
+            BlueSlot.Image = snapshot.Blue;
+            RedSlot.SourcePath = snapshot.RedSourcePath;
+            GreenSlot.SourcePath = snapshot.GreenSourcePath;
+            BlueSlot.SourcePath = snapshot.BlueSourcePath;
+            SetLastAligned(snapshot.LastAligned);
+        }
+
         RedExposureStops = snapshot.RedExposureStops;
         GreenExposureStops = snapshot.GreenExposureStops;
         BlueExposureStops = snapshot.BlueExposureStops;
@@ -152,14 +160,34 @@ public sealed partial class MainViewModel
         LevelsGamma = snapshot.LevelsGamma;
         ColorTemperature = snapshot.ColorTemperature;
         ColorTint = snapshot.ColorTint;
-        SelectedSlot = snapshot.SelectedSlotDisplayName switch
+
+        if (snapshot.Kind == EditorMementoKind.Snapshot)
         {
-            "Red" => RedSlot,
-            "Green" => GreenSlot,
-            "Blue" => BlueSlot,
-            "Result" => ResultSlot,
-            _ => RedSlot,
-        };
+            SelectedSlot = snapshot.SelectedSlotDisplayName switch
+            {
+                "Red" => RedSlot,
+                "Green" => GreenSlot,
+                "Blue" => BlueSlot,
+                "Result" => ResultSlot,
+                _ => RedSlot,
+            };
+        }
+
+        ResultSlot.Result = BuildRestoredResult();
+    }
+
+    private RgbImageBuffer? BuildRestoredResult()
+    {
+        if (lastAligned is null)
+        {
+            return null;
+        }
+
+        var settings = CurrentPipelineSettings(skipCrop: true);
+        var manual = CurrentManualNudges();
+        return ReconstructionPipeline
+            .BuildRgb(lastAligned, settings, manual.Count > 0 ? manual : null)
+            .Rgb;
     }
 
     private bool CanUndo() => !IsBusy && editorHistory.CanUndo;
@@ -168,7 +196,13 @@ public sealed partial class MainViewModel
 
     private void PerformUndo()
     {
-        var snapshot = editorHistory.TakeUndoTarget(CaptureSnapshot());
+        var targetKind = editorHistory.NextUndoKind;
+        if (targetKind is null)
+        {
+            return;
+        }
+
+        var snapshot = editorHistory.TakeUndoTarget(CaptureEditorMemento(targetKind.Value));
         if (snapshot is null)
         {
             return;
@@ -179,7 +213,13 @@ public sealed partial class MainViewModel
 
     private void PerformRedo()
     {
-        var snapshot = editorHistory.TakeRedoTarget(CaptureSnapshot());
+        var targetKind = editorHistory.NextRedoKind;
+        if (targetKind is null)
+        {
+            return;
+        }
+
+        var snapshot = editorHistory.TakeRedoTarget(CaptureEditorMemento(targetKind.Value));
         if (snapshot is null)
         {
             return;

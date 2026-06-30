@@ -34,6 +34,40 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ParameterUndo_RecomputesResultFromAlignedChannels()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+        });
+
+        var alignTask = AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null));
+        await alignTask!;
+
+        AvaloniaTestHost.Invoke(() => viewModel.RedExposureStops = 0.5);
+        await Task.Delay(800);
+        var adjusted = AvaloniaTestHost.Invoke(() => viewModel.ResultSlot.Result!.Clone());
+        var adjustedMean = MeanRgb(adjusted);
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.UndoCommand.Execute(null);
+            viewModel.RedExposureStops.Should().Be(0.0);
+            viewModel.ResultSlot.Result.Should().NotBeNull();
+            viewModel.ResultSlot.Result!.Width.Should().Be(adjusted.Width);
+            viewModel.ResultSlot.Result.Height.Should().Be(adjusted.Height);
+            Math.Abs(MeanRgb(viewModel.ResultSlot.Result) - adjustedMean).Should().BeGreaterThan(0.001f);
+
+            viewModel.RedoCommand.Execute(null);
+            viewModel.RedExposureStops.Should().Be(0.5);
+            viewModel.ResultSlot.Result.Should().NotBeNull();
+            MeanAbsoluteDifference(adjusted, viewModel.ResultSlot.Result!).Should().BeLessThan(1e-6f);
+        });
+    }
+
+    [Fact]
     public void SwapSlots_IsUndoable()
     {
         AvaloniaTestHost.Invoke(() =>
@@ -475,6 +509,30 @@ public sealed class MainViewModelTests
         }
 
         return sum / image.PixelCount;
+    }
+
+    private static float MeanRgb(RgbImageBuffer image)
+    {
+        var sum = 0.0f;
+        for (var i = 0; i < image.Pixels.Length; i++)
+        {
+            sum += image.Pixels[i];
+        }
+
+        return sum / image.Pixels.Length;
+    }
+
+    private static float MeanAbsoluteDifference(RgbImageBuffer left, RgbImageBuffer right)
+    {
+        left.Width.Should().Be(right.Width);
+        left.Height.Should().Be(right.Height);
+        var sum = 0.0f;
+        for (var i = 0; i < left.Pixels.Length; i++)
+        {
+            sum += Math.Abs(left.Pixels[i] - right.Pixels[i]);
+        }
+
+        return sum / left.Pixels.Length;
     }
 
     private static double MeanBitmapGray(Bitmap bitmap)

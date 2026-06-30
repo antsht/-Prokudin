@@ -7,12 +7,20 @@ internal sealed class FallbackImageComputeBackend : IImageComputeBackend
 {
     private readonly IReadOnlyList<IImageComputeBackend> backends;
     private readonly IProcessingDiagnostics diagnostics;
+    private readonly bool ownsBackends;
+    private bool disposed;
 
-    public FallbackImageComputeBackend(IReadOnlyList<IImageComputeBackend> backends, IProcessingDiagnostics? diagnostics = null)
+    public FallbackImageComputeBackend(
+        IReadOnlyList<IImageComputeBackend> backends,
+        IProcessingDiagnostics? diagnostics = null,
+        bool ownsBackends = true)
     {
         this.backends = backends;
         this.diagnostics = diagnostics ?? NullProcessingDiagnostics.Instance;
+        this.ownsBackends = ownsBackends;
     }
+
+    internal IReadOnlyList<IImageComputeBackend> Backends => backends;
 
     public AccelerationBackendKind Kind => backends.Count > 0 ? backends[0].Kind : AccelerationBackendKind.Cpu;
 
@@ -86,6 +94,16 @@ internal sealed class FallbackImageComputeBackend : IImageComputeBackend
 
     public void Dispose()
     {
+        if (disposed || !ownsBackends)
+        {
+            return;
+        }
+
+        disposed = true;
+        foreach (var backend in backends)
+        {
+            backend.Dispose();
+        }
     }
 
     private bool TryWithLogging(string operation, int pixelCount, Func<IImageComputeBackend, bool> attempt)

@@ -1,19 +1,20 @@
+using System.Threading;
 using Prokudin.Core.Diagnostics;
 
 namespace Prokudin.Core.Processing;
 
 internal static class ImageComputeBackendFactory
 {
-    private static readonly Lazy<IImageComputeBackend> BestBackend = new(() => CreateChain(NullProcessingDiagnostics.Instance));
+    private static readonly Lazy<IReadOnlyList<IImageComputeBackend>> LeafBackends =
+        new(BuildLeaves, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static int availabilityLogged;
 
     public static IImageComputeBackend CreateBest(IProcessingDiagnostics? diagnostics = null)
     {
-        if (diagnostics is null or NullProcessingDiagnostics)
-        {
-            return BestBackend.Value;
-        }
-
-        return CreateChain(diagnostics);
+        var leaves = LeafBackends.Value;
+        LogAvailabilityOnce(leaves, diagnostics ?? NullProcessingDiagnostics.Instance);
+        return new FallbackImageComputeBackend(leaves, diagnostics, ownsBackends: false);
     }
 
     public static IImageComputeBackend CreateCpu() => new CpuImageComputeBackend();
@@ -30,7 +31,7 @@ internal static class ImageComputeBackendFactory
         return false;
     }
 
-    private static IImageComputeBackend CreateChain(IProcessingDiagnostics diagnostics)
+    private static IReadOnlyList<IImageComputeBackend> BuildLeaves()
     {
         List<IImageComputeBackend> backends = [];
 
@@ -45,6 +46,18 @@ internal static class ImageComputeBackendFactory
         }
 
         backends.Add(new CpuImageComputeBackend());
-        return new FallbackImageComputeBackend(backends, diagnostics);
+        return backends;
+    }
+
+    private static void LogAvailabilityOnce(IReadOnlyList<IImageComputeBackend> backends, IProcessingDiagnostics diagnostics)
+    {
+        if (Interlocked.Exchange(ref availabilityLogged, 1) != 0)
+        {
+            return;
+        }
+
+        diagnostics.Log(
+            ProcessingLogCategory.ComputeBackend,
+            $"[compute] backends: {string.Join(", ", backends.Select(backend => backend.Kind))}");
     }
 }

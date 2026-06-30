@@ -102,8 +102,14 @@ Recent project paths: `recent-projects.json`. Autosave slot: `autosave/`.
 
 ### Undo and editor commands
 
-- Undo stack: `Editing/EditorHistory` (limit **20**); mementos via `EditorSession` /
-  `EditorMemento` (channels, result, `lastAligned`, exposure, white balance, levels).
+- Undo stack: `Editing/EditorHistory` has a **20 entry** count limit plus a RAM-aware
+  byte budget; memory pressure evicts oldest snapshots first while keeping at least
+  one entry.
+- `EditorMemento` has `Kind` **Snapshot** or **Parameter**. Snapshot mementos store
+  native-format channels, source paths, `lastAligned`, and scalar color settings, but
+  not the derived RGB result. Parameter mementos store scalar color settings only.
+- Undo/redo restore rebuilds `Result` from `lastAligned` when available; undo history
+  is not persisted in project files.
 - **SnapshotCommand:** import, align, crop, swap, heal/stamp/auto-clean apply, reset exposure.
 - **CoalescedParameterCommand:** exposure, white balance, levels — merged within **700 ms**.
 - Export is outside the undo stack. Undo/redo blocked while `IsBusy`.

@@ -288,7 +288,7 @@ public static class ChannelAligner
         using var affineInliers = new Mat();
         using var srcInput = InputArray.Create(src);
         using var dstInput = InputArray.Create(dst);
-        var affine = Cv2.EstimateAffinePartial2D(srcInput, dstInput, affineInliers, RobustEstimationAlgorithms.RANSAC, 3.0);
+        using var affine = Cv2.EstimateAffinePartial2D(srcInput, dstInput, affineInliers, RobustEstimationAlgorithms.RANSAC, 3.0);
         inliers = CountInliers(affineInliers);
         if (affine is not null && !affine.Empty() && inliers >= MinimumAffineInliers)
         {
@@ -299,8 +299,6 @@ public static class ChannelAligner
                 return affineHomogeneous.Clone();
             }
         }
-
-        affine?.Dispose();
 
         var (dx, dy) = MedianDelta(src, dst);
         kind = "translation";

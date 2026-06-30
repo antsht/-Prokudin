@@ -36,11 +36,55 @@ public sealed class EditorSessionTests
             ColorTint: 0,
             SelectedSlotDisplayName: "Red"));
 
+        memento.Kind.Should().Be(EditorMementoKind.Snapshot);
         memento.Red.Should().NotBeSameAs(red);
         memento.Red![0, 0].Should().BeApproximately(0.2f, 1e-6f);
         memento.LevelsMode.Should().Be(LevelsMode.Manual);
         memento.LevelsBlackPoint.Should().Be(0.1);
         memento.LevelsGamma.Should().Be(1.2);
+        memento.ApproximateBytes.Should().Be(4 * 4 * sizeof(float));
+    }
+
+    [Fact]
+    public void CreateParameterMemento_StoresScalarsOnly()
+    {
+        var red = ImageBuffer.Filled(4, 4, 0.2f);
+        var result = new RgbImageBuffer(4, 4, Enumerable.Repeat(0.3f, 4 * 4 * 3).ToArray());
+        var memento = EditorSession.CreateMemento(
+            new EditorCaptureState(
+                Red: red,
+                Green: ImageBuffer.Filled(4, 4, 0.3f),
+                Blue: ImageBuffer.Filled(4, 4, 0.4f),
+                RedSourcePath: "red.png",
+                GreenSourcePath: "green.png",
+                BlueSourcePath: "blue.png",
+                Result: result,
+                LastAligned: null,
+                RedExposureStops: 0.5,
+                GreenExposureStops: 0.25,
+                BlueExposureStops: -0.25,
+                AutoWhiteBalance: true,
+                WhiteBalancePipetteX: 1,
+                WhiteBalancePipetteY: 2,
+                LevelsMode: LevelsMode.Manual,
+                LevelsBlackPoint: 0.1,
+                LevelsWhitePoint: 0.9,
+                LevelsGamma: 1.2,
+                ColorTemperature: 100,
+                ColorTint: -50,
+                SelectedSlotDisplayName: "Result"),
+            EditorMementoKind.Parameter);
+
+        memento.Kind.Should().Be(EditorMementoKind.Parameter);
+        memento.Red.Should().BeNull();
+        memento.Green.Should().BeNull();
+        memento.Blue.Should().BeNull();
+        memento.RedSourcePath.Should().BeNull();
+        memento.LastAligned.Should().BeNull();
+        memento.SelectedSlotDisplayName.Should().BeNull();
+        memento.RedExposureStops.Should().Be(0.5);
+        memento.LevelsGamma.Should().Be(1.2);
+        memento.ApproximateBytes.Should().Be(0);
     }
 
     [Fact]

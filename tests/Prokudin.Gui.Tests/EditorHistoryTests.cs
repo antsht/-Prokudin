@@ -59,6 +59,49 @@ public sealed class EditorHistoryTests
     }
 
     [Fact]
+    public void TakeUndoAndRedo_ExposeTargetKindForCounterStateCapture()
+    {
+        var history = new EditorHistory();
+        var before = CreateMemento(0.2f, EditorMementoKind.Parameter);
+        var after = CreateMemento(0.8f, EditorMementoKind.Parameter);
+
+        history.Record(new CoalescedParameterCommand(before, CoalescedParameterCommand.ColorAdjustKey, "ColorAdjust"));
+        history.NextUndoKind.Should().Be(EditorMementoKind.Parameter);
+
+        _ = history.TakeUndoTarget(after);
+        history.NextRedoKind.Should().Be(EditorMementoKind.Parameter);
+    }
+
+    [Fact]
+    public void RecordSnapshot_EvictsOldestEntriesPastByteBudget()
+    {
+        var history = new EditorHistory(limit: 20, byteBudget: 32);
+        history.RecordSnapshot(CreateMemento(0.1f));
+        history.RecordSnapshot(CreateMemento(0.2f));
+        history.RecordSnapshot(CreateMemento(0.3f));
+
+        var restored = history.TakeUndoTarget(CreateMemento(0.4f));
+        restored!.Red![0, 0].Should().BeApproximately(0.3f, 1e-6f);
+
+        restored = history.TakeUndoTarget(CreateMemento(0.4f));
+        restored!.Red![0, 0].Should().BeApproximately(0.2f, 1e-6f);
+
+        history.CanUndo.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RecordSnapshot_KeepsSingleEntry_WhenItExceedsByteBudget()
+    {
+        var history = new EditorHistory(limit: 20, byteBudget: 1);
+        var memento = CreateMemento(0.1f);
+
+        history.RecordSnapshot(memento);
+
+        history.CanUndo.Should().BeTrue();
+        history.TakeUndoTarget(CreateMemento(0.4f)).Should().BeSameAs(memento);
+    }
+
+    [Fact]
     public void CoalescedParameterCommand_TryMergeWith_MatchesSameKey()
     {
         var memento = CreateMemento(0.2f);
@@ -70,27 +113,29 @@ public sealed class EditorHistoryTests
         first.TryMergeWith(other).Should().BeFalse();
     }
 
-    private static EditorMemento CreateMemento(float value) =>
-        EditorSession.CreateMemento(new EditorCaptureState(
-            Red: ImageBuffer.Filled(2, 2, value),
-            Green: null,
-            Blue: null,
-            RedSourcePath: null,
-            GreenSourcePath: null,
-            BlueSourcePath: null,
-            Result: null,
-            LastAligned: null,
-            RedExposureStops: 0,
-            GreenExposureStops: 0,
-            BlueExposureStops: 0,
-            AutoWhiteBalance: false,
-            WhiteBalancePipetteX: -1,
-            WhiteBalancePipetteY: -1,
-            LevelsMode: Prokudin.Core.Color.LevelsMode.AutoPercentile,
-            LevelsBlackPoint: 0,
-            LevelsWhitePoint: 1,
-            LevelsGamma: 1,
-            ColorTemperature: 0,
-            ColorTint: 0,
-            SelectedSlotDisplayName: null));
+    private static EditorMemento CreateMemento(float value, EditorMementoKind kind = EditorMementoKind.Snapshot) =>
+        EditorSession.CreateMemento(
+            new EditorCaptureState(
+                Red: ImageBuffer.Filled(2, 2, value),
+                Green: null,
+                Blue: null,
+                RedSourcePath: null,
+                GreenSourcePath: null,
+                BlueSourcePath: null,
+                Result: null,
+                LastAligned: null,
+                RedExposureStops: value,
+                GreenExposureStops: 0,
+                BlueExposureStops: 0,
+                AutoWhiteBalance: false,
+                WhiteBalancePipetteX: -1,
+                WhiteBalancePipetteY: -1,
+                LevelsMode: Prokudin.Core.Color.LevelsMode.AutoPercentile,
+                LevelsBlackPoint: 0,
+                LevelsWhitePoint: 1,
+                LevelsGamma: 1,
+                ColorTemperature: 0,
+                ColorTint: 0,
+                SelectedSlotDisplayName: null),
+            kind);
 }
