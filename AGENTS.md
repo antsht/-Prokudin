@@ -269,3 +269,11 @@ requested that workflow in the same turn.
 - Add focused tests for alignment, triptych split, crop, color, and pipeline
   behavior when changing Core.
 - Do not commit build outputs from `bin/` or `obj/`.
+
+## Learned Workspace Facts
+
+- `AvaloniaBitmapFactory` clones the source buffer and snapshots normalized pixels (`Clone` + `CopyNormalizedTo`) before parallel BGRA conversion; do not read a live `ImageBuffer` from `PixelParallel` while retouch or align may still be writing.
+- `MainViewModel.Clean` clones heal target and guide channels before `Task.Run` invokes `ChannelHealer.HealChannel`.
+- In-place channel or result edits keep the same buffer reference; call `ChannelSlotViewModel.ApplyEditedImage` / `ApplyEditedResult` so preview refreshes without replacing the slot property.
+- `ImageMatConverter` UInt16 ↔ OpenCV mat round-trip must preserve normalized range; regressions blacken 16-bit channels after Telea inpaint.
+- `ChannelSlotViewModel.RefreshDisplayBitmap` builds replacement display and thumbnail bitmaps, swaps properties, then disposes the previous bitmap instances.
