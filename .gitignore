@@ -6,6 +6,7 @@
 bin/
 obj/
 .vs/
+.cursor/hooks/state/
 test_images/
 debug/heal/
 .vscode/*
