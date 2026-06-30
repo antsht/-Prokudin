@@ -15,10 +15,14 @@ public static class AvaloniaBitmapFactory
 
     public static WriteableBitmap FromImageBuffer(ImageBuffer image)
     {
+        var snapshotSource = image.Clone();
+        var snapshot = new float[snapshotSource.PixelCount];
+        snapshotSource.CopyNormalizedTo(snapshot.AsSpan());
+
         var bytes = new byte[image.Width * image.Height * 4];
-        PixelParallel.For(0, image.PixelCount, i =>
+        PixelParallel.For(0, snapshot.Length, i =>
         {
-            var value = ToByte(image.GetNormalized(i));
+            var value = ToByte(snapshot[i]);
             var offset = i * 4;
             bytes[offset] = value;
             bytes[offset + 1] = value;
@@ -31,14 +35,15 @@ public static class AvaloniaBitmapFactory
 
     public static WriteableBitmap FromRgbImageBuffer(RgbImageBuffer image)
     {
+        var pixels = (float[])image.Pixels.Clone();
         var bytes = new byte[image.Width * image.Height * 4];
         PixelParallel.For(0, image.Width * image.Height, i =>
         {
             var sourceOffset = i * 3;
             var targetOffset = i * 4;
-            bytes[targetOffset] = ToByte(image.Pixels[sourceOffset + 2]);
-            bytes[targetOffset + 1] = ToByte(image.Pixels[sourceOffset + 1]);
-            bytes[targetOffset + 2] = ToByte(image.Pixels[sourceOffset]);
+            bytes[targetOffset] = ToByte(pixels[sourceOffset + 2]);
+            bytes[targetOffset + 1] = ToByte(pixels[sourceOffset + 1]);
+            bytes[targetOffset + 2] = ToByte(pixels[sourceOffset]);
             bytes[targetOffset + 3] = 255;
         });
 
@@ -54,13 +59,16 @@ public static class AvaloniaBitmapFactory
         }
 
         var bytes = new byte[width * height * 4];
+        var snapshotSource = image.Clone();
+        var snapshot = new float[snapshotSource.PixelCount];
+        snapshotSource.CopyNormalizedTo(snapshot.AsSpan());
         PixelParallel.ForRows(height, y =>
         {
             var sourceY = (y * image.Height) / height;
             for (var x = 0; x < width; x++)
             {
                 var sourceX = (x * image.Width) / width;
-                var value = ToByte(image[sourceX, sourceY]);
+                var value = ToByte(snapshot[(sourceY * image.Width) + sourceX]);
                 var offset = ((y * width) + x) * 4;
                 bytes[offset] = value;
                 bytes[offset + 1] = value;
@@ -80,6 +88,7 @@ public static class AvaloniaBitmapFactory
             return FromRgbImageBuffer(image);
         }
 
+        var pixels = (float[])image.Pixels.Clone();
         var bytes = new byte[width * height * 4];
         PixelParallel.ForRows(height, y =>
         {
@@ -89,9 +98,9 @@ public static class AvaloniaBitmapFactory
                 var sourceX = (x * image.Width) / width;
                 var sourceOffset = ((sourceY * image.Width) + sourceX) * 3;
                 var targetOffset = ((y * width) + x) * 4;
-                bytes[targetOffset] = ToByte(image.Pixels[sourceOffset + 2]);
-                bytes[targetOffset + 1] = ToByte(image.Pixels[sourceOffset + 1]);
-                bytes[targetOffset + 2] = ToByte(image.Pixels[sourceOffset]);
+                bytes[targetOffset] = ToByte(pixels[sourceOffset + 2]);
+                bytes[targetOffset + 1] = ToByte(pixels[sourceOffset + 1]);
+                bytes[targetOffset + 2] = ToByte(pixels[sourceOffset]);
                 bytes[targetOffset + 3] = 255;
             }
         });

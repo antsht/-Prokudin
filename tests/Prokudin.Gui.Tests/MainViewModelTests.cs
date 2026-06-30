@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using Avalonia.Media.Imaging;
 using FluentAssertions;
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Imaging;
@@ -157,6 +159,30 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task AutoAlign_ResultAndPreviewDisplayBitmap_AreVisible()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.ResultSlot.Result.Should().NotBeNull();
+            viewModel.ResultSlot.DisplayBitmap.Should().NotBeNull();
+            viewModel.PreviewDisplayBitmap.Should().NotBeNull();
+            MeanBitmapGray(viewModel.ResultSlot.DisplayBitmap!).Should().BeGreaterThan(15.0,
+                "RGB result bitmap should show aligned content");
+            MeanBitmapGray(viewModel.PreviewDisplayBitmap!).Should().BeGreaterThan(15.0,
+                "preview should bind to the visible result bitmap after align");
+        });
+    }
+
+    [Fact]
     public async Task AutoAlign_LargeTriptych_DoesNotCorruptResult()
     {
         var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
@@ -220,28 +246,83 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task BrushRetouch_AfterAutoAlign_UInt16_DoesNotBlackenChannel()
+    public async Task BrushRetouch_AfterAutoAlign_DisplayBitmap_IsNotBlack()
     {
         var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
         AvaloniaTestHost.Invoke(() =>
         {
-            viewModel.RedSlot.Image = SyntheticChannelUInt16();
-            viewModel.GreenSlot.Image = SyntheticChannelUInt16();
-            viewModel.BlueSlot.Image = SyntheticChannelUInt16();
+            LoadSyntheticChannels(viewModel);
             viewModel.AlignMaxTranslation = 12;
             viewModel.SelectedSlot = viewModel.GreenSlot;
             viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
         });
 
         await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+        AvaloniaTestHost.Invoke(() => viewModel.SelectedSlot = viewModel.GreenSlot);
 
         var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
         await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke))!;
 
         AvaloniaTestHost.Invoke(() =>
         {
-            MeanNormalized(viewModel.GreenSlot.Image!).Should().BeGreaterThan(0.05f);
             viewModel.GreenSlot.DisplayBitmap.Should().NotBeNull();
+            var imageMeanGray = MeanNormalized(viewModel.GreenSlot.Image!) * 255.0;
+            MeanBitmapGray(viewModel.GreenSlot.DisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5,
+                "preview bitmap should track channel pixels after heal");
+            MeanBitmapGray(viewModel.PreviewDisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5,
+                "bound preview bitmap should track channel pixels after heal");
+        });
+    }
+
+    [Fact]
+    public async Task BrushRetouch_WithoutAlign_DisplayBitmap_IsNotBlack()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var imageMeanGray = MeanNormalized(viewModel.GreenSlot.Image!) * 255.0;
+            MeanBitmapGray(viewModel.GreenSlot.DisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5);
+            MeanBitmapGray(viewModel.PreviewDisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5);
+        });
+    }
+
+    [Fact]
+    public async Task BrushRetouch_AfterAutoAlign_UInt16_DoesNotBlackenChannel()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannelsUInt16(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+        AvaloniaTestHost.Invoke(() => viewModel.SelectedSlot = viewModel.GreenSlot);
+
+        var stroke = new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 16);
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(stroke))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.GreenSlot.DisplayBitmap.Should().NotBeNull();
+            var imageMeanGray = MeanNormalized(viewModel.GreenSlot.Image!) * 255.0;
+            imageMeanGray.Should().BeGreaterThan(12.0, "heal should not blacken the channel");
+            MeanBitmapGray(viewModel.GreenSlot.DisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5,
+                "preview bitmap should track channel pixels after heal");
+            MeanBitmapGray(viewModel.PreviewDisplayBitmap!).Should().BeGreaterThan(imageMeanGray * 0.5,
+                "bound preview bitmap should track channel pixels after heal");
         });
     }
 
@@ -354,12 +435,30 @@ public sealed class MainViewModelTests
         }
     }
 
-    private static MainViewModel CreateViewModel(IFileDialogService? fileDialogService = null) =>
-        new(fileDialogService ?? new FakeFileDialogService());
+    private static MainViewModel CreateViewModel(IFileDialogService? fileDialogService = null)
+    {
+        var settingsDir = Path.Combine(Path.GetTempPath(), $"prokudin-test-settings-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(settingsDir);
+        return new MainViewModel(
+            fileDialogService ?? new FakeFileDialogService(),
+            new JsonExportSettingsStore(Path.Combine(settingsDir, "export.json")),
+            new JsonProcessingDiagnosticsSettingsStore(Path.Combine(settingsDir, "diagnostics.json")),
+            new JsonAutoCleanSettingsStore(Path.Combine(settingsDir, "auto-clean.json")));
+    }
 
     private static void LoadSyntheticChannels(MainViewModel viewModel)
     {
         var green = SyntheticChannel();
+        var red = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: 6, dy: -4).Image;
+        var blue = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: -5, dy: 7).Image;
+        viewModel.RedSlot.Image = red;
+        viewModel.GreenSlot.Image = green;
+        viewModel.BlueSlot.Image = blue;
+    }
+
+    private static void LoadSyntheticChannelsUInt16(MainViewModel viewModel)
+    {
+        var green = SyntheticChannelUInt16();
         var red = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: 6, dy: -4).Image;
         var blue = ChannelAligner.WarpTranslation(green, green.Width, green.Height, dx: -5, dy: 7).Image;
         viewModel.RedSlot.Image = red;
@@ -376,6 +475,36 @@ public sealed class MainViewModelTests
         }
 
         return sum / image.PixelCount;
+    }
+
+    private static double MeanBitmapGray(Bitmap bitmap)
+    {
+        if (bitmap is not WriteableBitmap writeable)
+        {
+            throw new InvalidOperationException("Expected WriteableBitmap.");
+        }
+
+        using var buffer = writeable.Lock();
+        var height = writeable.PixelSize.Height;
+        var width = writeable.PixelSize.Width;
+        var rowBytes = buffer.RowBytes;
+        var bytes = new byte[rowBytes * height];
+        Marshal.Copy(buffer.Address, bytes, 0, bytes.Length);
+
+        double sum = 0;
+        var count = 0;
+        for (var y = 0; y < height; y++)
+        {
+            var rowOffset = y * rowBytes;
+            for (var x = 0; x < width; x++)
+            {
+                var offset = rowOffset + (x * 4);
+                sum += bytes[offset];
+                count++;
+            }
+        }
+
+        return sum / count;
     }
 
     private static ImageBuffer SyntheticChannelUInt16()

@@ -104,12 +104,16 @@ public static class ImageMatConverter
 
     private static ImageBuffer FromUInt16Mat(Mat mat)
     {
-        using var u16 = new Mat();
-        mat.ConvertTo(u16, MatType.CV_16UC1);
         using var normalized = new Mat();
-        u16.ConvertTo(normalized, MatType.CV_32FC1, 1.0 / 65535.0);
-        var floats = new float[u16.Rows * u16.Cols];
+        var scale = mat.Type() switch
+        {
+            MatType t when t == MatType.CV_8UC1 => 1.0 / 255.0,
+            MatType t when t == MatType.CV_16UC1 => 1.0 / 65535.0,
+            _ => 1.0,
+        };
+        mat.ConvertTo(normalized, MatType.CV_32FC1, scale);
+        var floats = new float[normalized.Rows * normalized.Cols];
         Marshal.Copy(normalized.Data, floats, 0, floats.Length);
-        return ImageBuffer.FromNormalized(u16.Cols, u16.Rows, floats, PixelFormat.UInt16);
+        return ImageBuffer.FromNormalized(normalized.Cols, normalized.Rows, floats, PixelFormat.UInt16);
     }
 }

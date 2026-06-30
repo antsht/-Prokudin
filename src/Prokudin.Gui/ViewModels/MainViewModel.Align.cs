@@ -58,7 +58,7 @@ public sealed partial class MainViewModel
             autoCleanSessionCache.Clear();
             SetPreparedChannels(result.Aligned);
             SetLastAligned(result.Aligned);
-            ResultSlot.Result = result.Rgb;
+            ResultSlot.ApplyEditedResult(result.Rgb);
             SelectedSlot = ResultSlot;
             RefreshPreviewImageContext();
             Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata)}";

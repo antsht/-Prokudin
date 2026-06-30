@@ -69,7 +69,10 @@ public sealed partial class MainViewModel
             var (_, options) = CreateAutoCleanResolvedSettings(channelName);
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var progress = CreateAutoCleanProgress(progressScope);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options, progress))
+            var healTarget = image.Clone();
+            var guide1Copy = guide1?.Clone();
+            var guide2Copy = guide2?.Clone();
+            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, options, progress))
                 .ConfigureAwait(true);
             await ApplyRetouchResultAsync(channelName, result.Image);
             ClearPendingAutoCleanMask();
@@ -134,7 +137,10 @@ public sealed partial class MainViewModel
         {
             var options = CreateHealOptions();
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
-            var result = await Task.Run(() => ChannelHealer.HealChannel(image, guide1, guide2, mask, options))
+            var healTarget = image.Clone();
+            var guide1Copy = guide1?.Clone();
+            var guide2Copy = guide2?.Clone();
+            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, options))
                 .ConfigureAwait(true);
             await ApplyRetouchResultAsync(channelName, result.Image);
             var count = mask.Count(value => value > 0);
@@ -228,7 +234,7 @@ public sealed partial class MainViewModel
         }
 
         slot.Image = image;
-        RefreshPreviewImageContext();
         RefreshAlignedAfterInputEdit(channelName);
+        RefreshPreviewImageContext();
     }
 }

@@ -1938,7 +1938,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             await Task.Delay(160, cancellationToken);
-            var aligned = lastAligned;
+            var aligned = EditorSession.CloneAligned(lastAligned);
             if (aligned is null)
             {
                 return;
@@ -1954,7 +1954,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            ResultSlot.Result = result.Rgb;
+            ResultSlot.ApplyEditedResult(result.Rgb);
             RefreshPreviewBindings();
             RefreshChannelStates();
             AppendLog($"Result rebuilt from cached alignment: {result.Rgb.Width}x{result.Rgb.Height}.");

@@ -1,5 +1,5 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Prokudin.Core.Imaging;
 using Prokudin.Gui.Imaging;
 using System.Windows.Input;
@@ -105,22 +105,54 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
         RefreshDisplayBitmap();
     }
 
+    internal void ApplyEditedImage(ImageBuffer image)
+    {
+        if (!ReferenceEquals(Image, image))
+        {
+            Image = image;
+            return;
+        }
+
+        RefreshDisplayBitmap();
+    }
+
+    internal void ApplyEditedResult(RgbImageBuffer rgb)
+    {
+        if (!ReferenceEquals(Result, rgb))
+        {
+            Result = rgb;
+            return;
+        }
+
+        RefreshDisplayBitmap();
+    }
+
     private void RefreshDisplayBitmap()
     {
+        Bitmap? newDisplay;
+        Bitmap? newThumbnail;
+
         if (Result is not null)
         {
-            DisplayBitmap = AvaloniaBitmapFactory.FromRgbImageBuffer(Result);
-            ThumbnailBitmap = AvaloniaBitmapFactory.CreateThumbnail(Result);
+            newDisplay = AvaloniaBitmapFactory.FromRgbImageBuffer(Result);
+            newThumbnail = AvaloniaBitmapFactory.CreateThumbnail(Result);
         }
         else if (Image is not null)
         {
-            DisplayBitmap = AvaloniaBitmapFactory.FromImageBuffer(Image);
-            ThumbnailBitmap = AvaloniaBitmapFactory.CreateThumbnail(Image);
+            newDisplay = AvaloniaBitmapFactory.FromImageBuffer(Image);
+            newThumbnail = AvaloniaBitmapFactory.CreateThumbnail(Image);
         }
         else
         {
-            DisplayBitmap = null;
-            ThumbnailBitmap = null;
+            newDisplay = null;
+            newThumbnail = null;
         }
+
+        var previousDisplay = DisplayBitmap;
+        var previousThumbnail = ThumbnailBitmap;
+        DisplayBitmap = newDisplay;
+        ThumbnailBitmap = newThumbnail;
+        previousDisplay?.Dispose();
+        previousThumbnail?.Dispose();
     }
 }

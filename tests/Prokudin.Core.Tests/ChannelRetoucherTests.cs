@@ -21,6 +21,21 @@ public sealed class ChannelRetoucherTests
     }
 
     [Fact]
+    public void InpaintMask_UInt16_PreservesUnmaskedTone()
+    {
+        var image = ImageBuffer.Filled(9, 9, 0.5f, PixelFormat.UInt16);
+        image[4, 4] = 1.0f;
+        var mask = new byte[image.Width * image.Height];
+        mask[(4 * image.Width) + 4] = 1;
+
+        var cleaned = ChannelRetoucher.InpaintMask(image, mask, radius: 3);
+
+        cleaned.Format.Should().Be(PixelFormat.UInt16);
+        cleaned[4, 4].Should().BeLessThan(0.75f);
+        cleaned[0, 0].Should().BeApproximately(0.5f, 0.01f);
+    }
+
+    [Fact]
     public void CreateBrushMask_ClampsStrokePointsToImageBounds()
     {
         var stroke = new RetouchStroke(

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-06-30
+
+### Fixed
+
+- Healing brush and Telea auto-clean no longer blacken 16-bit channels after retouching.
+
 ## [0.13.0] - 2026-06-29
 
 ### Added
