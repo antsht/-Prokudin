@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-07-12
+
+### Added
+
+- Colour-correction glossary and ADR defining non-destructive Master/Channel Levels, white-balance sources, white-pick interaction, and correction order.
+
 ## [0.14.1] - 2026-07-12
 
 ### Added
