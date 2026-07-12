@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-07-12
+
+### Added
+
+- Repository agent-skills configuration for GitHub Issues, default triage labels, and single-context domain documentation.
+
 ## [0.14.0] - 2026-06-30
 
 ### Added

@@ -283,3 +283,17 @@ requested that workflow in the same turn.
 - In-place channel or result edits keep the same buffer reference; call `ChannelSlotViewModel.ApplyEditedImage` / `ApplyEditedResult` so preview refreshes without replacing the slot property.
 - `ImageMatConverter` UInt16 ↔ OpenCV mat round-trip must preserve normalized range; regressions blacken 16-bit channels after Telea inpaint.
 - `ChannelSlotViewModel.RefreshDisplayBitmap` builds replacement display and thumbnail bitmaps, swaps properties, then disposes the previous bitmap instances.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Uses the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout. See `docs/agents/domain.md`.
