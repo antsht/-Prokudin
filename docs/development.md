@@ -77,6 +77,7 @@ Published GUI binary name: `Prokudin` / `Prokudin.exe`.
 
 - **CI:** `.github/workflows/ci.yml` — `dotnet test` on `ubuntu-latest` and `windows-latest` for every push/PR to `main`/`master`.
 - **Release:** `.github/workflows/release.yml` — triggered by `v*` tags (or manual dispatch). Builds GUI + CLI for `win-x64` and `linux-x64`, packages installer/AppImage/portable archives, publishes GitHub Release with `SHA256SUMS.txt`.
+- **GitHub Actions runtime:** hosted-runner JavaScript actions must target **Node.js 24** (Node 20 is deprecated). Release workflows use `actions/upload-artifact@v7` and `actions/download-artifact@v8` (`runs.using: node24`). When bumping third-party actions, prefer releases that declare `node24` in `action.yml` over the transitional `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` flag.
 - Maintainer checklist: [`docs/release.md`](release.md)
 - Design spec: [`docs/superpowers/specs/2026-06-24-distribution-design.md`](superpowers/specs/2026-06-24-distribution-design.md)
 

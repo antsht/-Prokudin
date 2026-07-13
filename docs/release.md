@@ -8,6 +8,8 @@ This document describes how maintainers publish Prokudin binaries to GitHub Rele
 - Updated `<Version>` in `Directory.Build.props` and entry in `CHANGELOG.md`
 - Write access to the GitHub repository
 
+GitHub-hosted runners require JavaScript actions on **Node.js 24** (Node 20 deprecated). The release workflow pins `actions/upload-artifact@v7` and `actions/download-artifact@v8`; see [`docs/development.md`](development.md#ci-and-releases) before upgrading action versions.
+
 ## Standard release
 
 ```powershell
