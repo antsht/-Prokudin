@@ -3,7 +3,7 @@
           Condition="'$(RuntimeIdentifier)' != ''" />
 
   <PropertyGroup>
-    <Version>0.14.2</Version>
+    <Version>0.15.0</Version>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <LangVersion>14.0</LangVersion>
     <AnalysisLevel>latest</AnalysisLevel>

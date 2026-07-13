@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-13
+
+### Added
+
+- Per-channel levels (R/G/B) alongside master levels, with a scope toggle in the Color inspector.
+- White balance source selector (Auto, Off, White pick) and configurable white-pick radius.
+- White-pick quality warnings with a “Use anyway” override when the sampled area looks non-neutral.
+- White-pick overlay on the result preview during pipette mode.
+- Startup error reporter that writes failures to `%LocalAppData%/Prokudin/startup-error.log`.
+
+### Changed
+
+- Color correction pipeline applies master levels before channel levels; white balance and exposure follow the ADR order.
+- Legacy project files with pipette coordinates map to the new white-pick white balance source on load.
+
+### Fixed
+
+- Welcome screen no longer deadlocks on startup when an autosave session exists (autosave metadata now reads `project.json` only).
+
 ## [0.14.2] - 2026-07-12
 
 ### Added
