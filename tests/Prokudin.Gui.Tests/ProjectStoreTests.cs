@@ -180,7 +180,10 @@ public sealed class JsonAutosaveStoreTests
                 IsBackground = true,
                 Name = "QueuedSynchronizationContext",
             };
-            thread.SetApartmentState(ApartmentState.STA);
+            if (OperatingSystem.IsWindows())
+            {
+                thread.SetApartmentState(ApartmentState.STA);
+            }
             thread.Start();
         }
 
