@@ -58,8 +58,9 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: |
-          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-installer.exe'
-          Invoke-WebRequest -Uri 'https://jrsoftware.org/download.php/is.exe' -OutFile $installer
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          $url = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe'
+          Invoke-WebRequest -Uri $url -OutFile $installer
           Start-Process -FilePath $installer -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC not found at $iscc" }
