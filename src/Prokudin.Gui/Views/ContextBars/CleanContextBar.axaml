@@ -20,9 +20,9 @@
                               ToolTip.Tip="Clone stamp"
                               automation:AutomationProperties.Name="Clone stamp"
                               Margin="0,0,8,0" />
-    <Button Classes="IconButton"
+    <Button Classes="PrimaryAction"
             Command="{Binding AutoCleanSelectedChannelCommand}"
-            Content="{StaticResource IconClean}"
+            Content="Detect mask"
             ToolTip.Tip="Detect auto-clean mask"
             automation:AutomationProperties.Name="Detect auto-clean mask"
             Margin="0,0,4,0" />

@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Prokudin.Gui.Views"
         x:Class="Prokudin.Gui.Views.AboutDialog"
         Title="About Prokudin"
         SizeToContent="WidthAndHeight"
@@ -7,11 +8,15 @@
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
   <StackPanel Margin="24"
-              Spacing="8"
-              MinWidth="320">
-    <TextBlock Text="Prokudin"
-               FontSize="20"
-               FontWeight="SemiBold" />
+              Spacing="10"
+              MinWidth="340">
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <views:ChannelMark VerticalAlignment="Center" />
+      <TextBlock Text="Prokudin"
+                 FontSize="22"
+                 FontWeight="SemiBold"
+                 VerticalAlignment="Center" />
+    </StackPanel>
     <TextBlock Text="RGB reconstruction tool for Prokudin-Gorskii channel images."
                TextWrapping="Wrap" />
     <TextBlock x:Name="VersionTextBlock"

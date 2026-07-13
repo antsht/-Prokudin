@@ -1,18 +1,54 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="using:Avalonia.Automation"
              xmlns:bars="using:Prokudin.Gui.Views.ContextBars"
+             xmlns:views="using:Prokudin.Gui.Views"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              x:Class="Prokudin.Gui.Views.ContextCommandBar"
              x:DataType="vm:MainViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Auto"
                 VerticalScrollBarVisibility="Disabled">
-    <Panel>
-      <bars:ImportContextBar IsVisible="{Binding IsImportWorkflow}" />
-      <bars:AlignContextBar IsVisible="{Binding IsAlignWorkflow}" />
-      <bars:CropContextBar IsVisible="{Binding IsCropWorkflow}" />
-      <bars:CleanContextBar IsVisible="{Binding IsCleanWorkflow}" />
-      <bars:ColorContextBar IsVisible="{Binding IsColorWorkflow}" />
-      <bars:ExportContextBar IsVisible="{Binding IsExportWorkflow}" />
-    </Panel>
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <Border Classes="WorkflowContextTitle">
+        <TextBlock Text="{Binding SelectedWorkflowTool}"
+                   FontWeight="SemiBold"
+                   VerticalAlignment="Center" />
+      </Border>
+      <Button x:Name="ChannelDrawerButton"
+              Classes="QuietAction"
+              Content="Channels"
+              Command="{Binding ToggleChannelDrawerCommand}"
+              IsVisible="{Binding IsNarrowWorkspace}"
+              automation:AutomationProperties.Name="Show channels" />
+      <Popup IsOpen="{Binding IsChannelDrawerOpen, Mode=TwoWay}"
+             PlacementTarget="{Binding #ChannelDrawerButton}"
+             Placement="Bottom"
+             HorizontalOffset="-4"
+             VerticalOffset="8"
+             IsLightDismissEnabled="True">
+        <Border Classes="ExportSettingsPopup" Width="288">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Channels" FontWeight="SemiBold" />
+            <ListBox ItemsSource="{Binding Slots}"
+                     SelectedItem="{Binding SelectedSlot}"
+                     Background="Transparent">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:ChannelSlotViewModel">
+                  <views:ChannelSlotCard />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </StackPanel>
+        </Border>
+      </Popup>
+      <Panel VerticalAlignment="Center">
+        <bars:ImportContextBar IsVisible="{Binding IsImportWorkflow}" />
+        <bars:AlignContextBar IsVisible="{Binding IsAlignWorkflow}" />
+        <bars:CropContextBar IsVisible="{Binding IsCropWorkflow}" />
+        <bars:CleanContextBar IsVisible="{Binding IsCleanWorkflow}" />
+        <bars:ColorContextBar IsVisible="{Binding IsColorWorkflow}" />
+        <bars:ExportContextBar IsVisible="{Binding IsExportWorkflow}" />
+      </Panel>
+    </StackPanel>
   </ScrollViewer>
 </UserControl>

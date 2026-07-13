@@ -57,6 +57,14 @@ public sealed partial class WelcomeViewModel : ObservableObject
         Complete(new StartupChoice { Type = StartupChoiceType.NewProject });
 
     [RelayCommand]
+    private void OpenChannels() =>
+        Complete(new StartupChoice { Type = StartupChoiceType.OpenChannels });
+
+    [RelayCommand]
+    private void OpenTriptych() =>
+        Complete(new StartupChoice { Type = StartupChoiceType.OpenTriptych });
+
+    [RelayCommand]
     private void OpenOther() =>
         Complete(new StartupChoice { Type = StartupChoiceType.OpenOther });
 

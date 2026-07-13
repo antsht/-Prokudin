@@ -52,7 +52,9 @@ public sealed partial class MainViewModel
         SetLastAligned(baked);
         SetPreparedChannels(baked);
         ClearManualNudges(suppressRebuild: true);
-        ResultSlot.Result = ReconstructionPipeline.BuildRgb(baked, CurrentPipelineSettings(skipCrop: true)).Rgb;
+        var built = ReconstructionPipeline.BuildRgbWithLevelsHistogram(baked, CurrentPipelineSettings(skipCrop: true));
+        ResultSlot.Result = built.Rgb;
+        LevelsHistogram = built.LevelsHistogram;
         RefreshPreviewBindings();
         RefreshChannelStates();
         Status = "Alignment nudge committed to prepared channels.";

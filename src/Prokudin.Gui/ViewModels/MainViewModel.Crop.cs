@@ -32,8 +32,9 @@ public sealed partial class MainViewModel
             SetPreparedChannels(cropped);
             SetLastAligned(cropped);
             TranslateWhitePickForCrop(cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
-            var rgb = await Task.Run(() => ReconstructionPipeline.BuildRgb(cropped, CurrentPipelineSettings()).Rgb);
-            ResultSlot.Result = rgb;
+            var built = await Task.Run(() => ReconstructionPipeline.BuildRgbWithLevelsHistogram(cropped, CurrentPipelineSettings()));
+            ResultSlot.Result = built.Rgb;
+            LevelsHistogram = built.LevelsHistogram;
             SelectedSlot = ResultSlot;
             SelectionRect = ImageSelectionRect.Empty;
             Status = $"Cropped to largest overlap: {ResultSlot.Result!.Width} x {ResultSlot.Result.Height}.";
@@ -55,6 +56,7 @@ public sealed partial class MainViewModel
         if (SelectedSlot.Result is { } rgb)
         {
             ResultSlot.Result = rgb.Crop(rect.X, rect.Y, rect.Width, rect.Height);
+            LevelsHistogram = null;
             CropPreparedChannelsToResultSelection(rgb.Width, rgb.Height, rect);
             TranslateWhitePickForCrop(rect.X, rect.Y, rect.Width, rect.Height);
             AppendLog($"Cropped result to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {ResultSlot.Result.Width}x{ResultSlot.Result.Height}.");
@@ -64,6 +66,7 @@ public sealed partial class MainViewModel
         {
             SelectedSlot.Image = image.Crop(rect.X, rect.Y, rect.Width, rect.Height);
             ResultSlot.Result = null;
+            LevelsHistogram = null;
             RefreshAlignedAfterInputEdit(SelectedSlot.ChannelName!.Value);
             AppendLog($"Cropped {SelectedSlot.DisplayName} to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {SelectedSlot.Image.Width}x{SelectedSlot.Image.Height}.");
             Status = $"Cropped {SelectedSlot.DisplayName} to {SelectedSlot.Image.Width} x {SelectedSlot.Image.Height}.";

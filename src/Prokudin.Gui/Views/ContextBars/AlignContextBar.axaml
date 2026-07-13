@@ -5,9 +5,9 @@
              x:Class="Prokudin.Gui.Views.ContextBars.AlignContextBar"
              x:DataType="vm:MainViewModel">
   <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-    <Button Classes="IconButton"
+    <Button Classes="PrimaryAction"
             Command="{Binding AutoAlignCommand}"
-            Content="{StaticResource IconAlign}"
+            Content="Auto-align"
             ToolTip.Tip="Auto-align channels"
             automation:AutomationProperties.Name="Auto-align"
             Margin="0,0,10,0" />

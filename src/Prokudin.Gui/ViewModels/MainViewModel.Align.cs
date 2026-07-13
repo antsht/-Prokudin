@@ -10,6 +10,7 @@ public sealed partial class MainViewModel
     private void SetLastAligned(AlignedChannels? aligned)
     {
         lastAligned = aligned;
+        LevelsHistogram = null;
         RebuildResultCommand.NotifyCanExecuteChanged();
         CropOverlapCommand.NotifyCanExecuteChanged();
         CommitManualNudgeCommand.NotifyCanExecuteChanged();
@@ -50,8 +51,8 @@ public sealed partial class MainViewModel
                 var settings = CurrentPipelineSettings();
                 var aligned = ReconstructionPipeline.RunAutoAlign(channels, settings.Align, settings.Diagnostics);
                 var prepared = AlignedChannelCropper.CropToLargestFullOverlap(aligned);
-                var built = ReconstructionPipeline.BuildRgb(prepared.Channels, settings);
-                return (built.Rgb, built.CropInfo, Aligned: prepared.Channels);
+                var built = ReconstructionPipeline.BuildRgbWithLevelsHistogram(prepared.Channels, settings);
+                return (built.Rgb, built.CropInfo, built.LevelsHistogram, Aligned: prepared.Channels);
             });
 
             RecordSnapshotCommand("AutoAlign");
@@ -59,6 +60,7 @@ public sealed partial class MainViewModel
             SetPreparedChannels(result.Aligned);
             SetLastAligned(result.Aligned);
             ResultSlot.ApplyEditedResult(result.Rgb);
+            LevelsHistogram = result.LevelsHistogram;
             SelectedSlot = ResultSlot;
             RefreshPreviewImageContext();
             Status = $"Auto-align complete. Result is {result.Rgb.Width} x {result.Rgb.Height}. {AlignChannelMetadata.FormatStatus(result.Aligned.AlignMetadata)}";

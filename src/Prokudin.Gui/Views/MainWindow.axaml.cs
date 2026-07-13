@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -14,6 +15,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        SizeChanged += OnSizeChanged;
     }
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -34,10 +36,35 @@ public sealed partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             ApplyPanelLayout(viewModel);
+            viewModel.SetWorkspaceWidth(Bounds.Width);
             RefreshRecentProjectsMenu(viewModel);
             viewModel.RecentProjectsMenu.CollectionChanged += (_, _) => RefreshRecentProjectsMenu(viewModel);
+            viewModel.PropertyChanged += OnViewModelPropertyChanged;
             AddHandler(InputElement.GotFocusEvent, OnInputFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
             AddHandler(InputElement.LostFocusEvent, OnInputFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        }
+    }
+
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.SetWorkspaceWidth(e.NewSize.Width);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(MainViewModel.IsLeftPanelEffectivelyVisible)
+            or nameof(MainViewModel.IsRightInspectorVisible)
+            or nameof(MainViewModel.IsProcessingLogVisible))
+        {
+            ApplyPanelLayout(viewModel);
         }
     }
 
@@ -100,9 +127,24 @@ public sealed partial class MainWindow : Window
 
     private void ApplyPanelLayout(MainViewModel viewModel)
     {
-        WorkspaceGrid.ColumnDefinitions[0].Width = new GridLength(viewModel.LeftPanelWidthClamped);
-        WorkspaceGrid.ColumnDefinitions[5].Width = new GridLength(viewModel.RightInspectorWidthClamped);
-        RootGrid.RowDefinitions[4].Height = new GridLength(viewModel.ProcessingLogHeightClamped);
+        WorkspaceGrid.ColumnDefinitions[0].Width = viewModel.IsLeftPanelEffectivelyVisible
+            ? new GridLength(viewModel.LeftPanelWidthClamped)
+            : new GridLength(0);
+        WorkspaceGrid.ColumnDefinitions[1].Width = viewModel.IsLeftPanelEffectivelyVisible
+            ? new GridLength(4)
+            : new GridLength(0);
+        WorkspaceGrid.ColumnDefinitions[5].Width = viewModel.IsRightInspectorVisible
+            ? new GridLength(viewModel.RightInspectorWidthClamped)
+            : new GridLength(0);
+        WorkspaceGrid.ColumnDefinitions[4].Width = viewModel.IsRightInspectorVisible
+            ? new GridLength(4)
+            : new GridLength(0);
+        RootGrid.RowDefinitions[3].Height = viewModel.IsProcessingLogVisible
+            ? new GridLength(4)
+            : new GridLength(0);
+        RootGrid.RowDefinitions[4].Height = viewModel.IsProcessingLogVisible
+            ? new GridLength(viewModel.ProcessingLogHeightClamped)
+            : new GridLength(0);
     }
 
     private static double GetColumnWidth(Grid grid, int columnIndex)

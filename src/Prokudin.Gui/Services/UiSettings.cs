@@ -4,7 +4,7 @@ namespace Prokudin.Gui.Services;
 
 public sealed class UiSettings
 {
-    public AppThemeMode ThemeMode { get; set; } = AppThemeMode.System;
+    public AppThemeMode ThemeMode { get; set; } = AppThemeMode.Dark;
 
     public double LeftPanelWidth { get; set; } = 260;
 
@@ -12,7 +12,7 @@ public sealed class UiSettings
 
     public double ProcessingLogHeight { get; set; } = 150;
 
-    public bool IsProcessingLogVisible { get; set; } = true;
+    public bool IsProcessingLogVisible { get; set; }
 
     public bool IsRightInspectorVisible { get; set; } = true;
 

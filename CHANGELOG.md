@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-13
+
+### Added
+
+- Interactive levels histogram for the active Master/R/G/B scope, with draggable black, white, and gamma handles plus exact numeric inputs.
+- Welcome-screen routes that directly import a triptych or three separate channels.
+
+### Changed
+
+- Rebuilt the in-app GUI around the tokenized Darkroom Design System: a neutral image-led dark default, accessible cyan interaction accent, RGB channel identity, compact workflow rail, dense channel list, progressive inspectors, and unified dialogs.
+- The workspace now adapts at narrow widths by temporarily collapsing the channel list into an on-demand drawer; the processing log is collapsed by default and task feedback appears without blocking the workspace.
+
 ## [0.15.0] - 2026-07-13
 
 ### Added

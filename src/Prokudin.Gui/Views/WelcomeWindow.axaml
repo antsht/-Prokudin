@@ -1,72 +1,101 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Prokudin.Gui.ViewModels"
+        xmlns:views="using:Prokudin.Gui.Views"
         x:Class="Prokudin.Gui.Views.WelcomeWindow"
         x:DataType="vm:WelcomeViewModel"
         Title="Welcome to Prokudin"
-        Width="520"
-        Height="420"
-        MinWidth="480"
-        MinHeight="380"
+        Width="600"
+        Height="500"
+        MinWidth="540"
+        MinHeight="440"
         WindowStartupLocation="CenterScreen"
         CanResize="False">
-  <StackPanel Margin="24" Spacing="12">
-    <TextBlock Text="Welcome to Prokudin"
-               FontSize="22"
-               FontWeight="SemiBold" />
-    <TextBlock Text="Restore a session or open a saved project."
-               TextWrapping="Wrap"
-               Classes="MutedCaption" />
-
-    <Border Classes="Card"
-            Padding="12"
-            IsVisible="{Binding HasAutosave}">
-      <StackPanel Spacing="6">
-        <TextBlock Text="Recover autosave"
+  <Grid Margin="28"
+        RowDefinitions="Auto,Auto,*,Auto"
+        RowSpacing="16">
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <views:ChannelMark VerticalAlignment="Center" />
+      <StackPanel Spacing="2">
+        <TextBlock Text="Prokudin"
+                   FontSize="26"
                    FontWeight="SemiBold" />
-        <TextBlock Text="{Binding AutosaveSummary}"
+        <TextBlock Text="RGB reconstruction for Prokudin-Gorskii channel scans"
                    Classes="MutedCaption" />
-        <TextBlock Text="{Binding AutosaveLinkedProjectSummary}"
-                   IsVisible="{Binding AutosaveLinkedProjectSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                   Classes="MutedCaption"
-                   TextWrapping="Wrap" />
-        <Button Content="Recover autosave"
-                Command="{Binding RecoverAutosaveCommand}"
-                HorizontalAlignment="Left" />
       </StackPanel>
+    </StackPanel>
+
+    <Border Grid.Row="1" Classes="WelcomeHero">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Start a reconstruction" FontWeight="SemiBold" />
+          <TextBlock Text="Import a triptych or three separate grayscale channels."
+                     Classes="MutedCaption"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="Separate channels…"
+                  Command="{Binding OpenChannelsCommand}" />
+          <Button Classes="PrimaryAction"
+                  Content="Open triptych…"
+                  Command="{Binding OpenTriptychCommand}" />
+        </StackPanel>
+      </Grid>
     </Border>
 
-    <TextBlock Text="Recent projects"
-               FontWeight="SemiBold"
-               Margin="0,8,0,0" />
-    <ListBox x:Name="RecentList"
-             ItemsSource="{Binding RecentProjects}"
-             MinHeight="80"
-             SelectionChanged="RecentList_OnSelectionChanged">
-      <ListBox.ItemTemplate>
-        <DataTemplate>
-          <StackPanel>
-            <TextBlock Text="{Binding Path}" />
-            <TextBlock Text="{Binding LastOpenedAt, StringFormat='Opened {0:g}'}"
-                       Classes="MutedCaption" />
-          </StackPanel>
-        </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
-    <TextBlock Text="No recent projects yet."
-               IsVisible="{Binding !RecentProjects.Count}"
-               Classes="MutedCaption" />
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12">
+        <Border Classes="WelcomeRecovery"
+                IsVisible="{Binding HasAutosave}">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Recover autosave" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding AutosaveSummary}" Classes="MutedCaption" />
+              <TextBlock Text="{Binding AutosaveLinkedProjectSummary}"
+                         IsVisible="{Binding AutosaveLinkedProjectSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         Classes="MutedCaption"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Content="Recover"
+                    Command="{Binding RecoverAutosaveCommand}"
+                    VerticalAlignment="Center" />
+          </Grid>
+        </Border>
 
-    <StackPanel Orientation="Horizontal"
+        <TextBlock Text="Recent projects" FontWeight="SemiBold" />
+        <ListBox x:Name="RecentList"
+                 ItemsSource="{Binding RecentProjects}"
+                 MinHeight="92"
+                 SelectionChanged="RecentList_OnSelectionChanged">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="4,2">
+                <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding LastOpenedAt, StringFormat='Opened {0:g}'}"
+                           Classes="MutedCaption" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Text="No recent projects yet."
+                   IsVisible="{Binding !RecentProjects.Count}"
+                   Classes="MutedCaption" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <StackPanel Grid.Row="3"
+                Orientation="Horizontal"
                 Spacing="8"
-                Margin="0,12,0,0"
                 HorizontalAlignment="Right">
-      <Button Content="Settings"
+      <Button Classes="QuietAction"
+              Content="Settings"
               Click="Settings_OnClick" />
-      <Button Content="Open other…"
+      <Button Content="Open project…"
               Command="{Binding OpenOtherCommand}" />
-      <Button Content="New project"
+      <Button Classes="QuietAction"
+              Content="Blank project"
               Command="{Binding NewProjectCommand}" />
     </StackPanel>
-  </StackPanel>
+  </Grid>
 </Window>

@@ -3,6 +3,8 @@ namespace Prokudin.Gui.ViewModels;
 public enum StartupChoiceType
 {
     NewProject,
+    OpenChannels,
+    OpenTriptych,
     RecoverAutosave,
     OpenRecent,
     OpenOther,

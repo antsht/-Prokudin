@@ -9,6 +9,11 @@
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
   <StackPanel Margin="24" Spacing="12" MinWidth="360">
+    <StackPanel Spacing="2">
+      <TextBlock Text="Settings" FontSize="20" FontWeight="SemiBold" />
+      <TextBlock Text="Appearance, session recovery, and processing diagnostics."
+                 Classes="MutedCaption" />
+    </StackPanel>
     <TextBlock Text="Appearance" FontWeight="SemiBold" />
     <ComboBox ItemsSource="{Binding ThemeModes}"
               SelectedItem="{Binding ThemeMode}"
@@ -32,8 +37,8 @@
     <CheckBox Content="Log timings" IsChecked="{Binding LogTimings}" />
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
-      <Button Content="Cancel" Click="OnCancel" />
-      <Button Content="OK" Click="OnOk" IsDefault="True" />
+      <Button Classes="QuietAction" Content="Cancel" Click="OnCancel" />
+      <Button Classes="PrimaryAction" Content="Save settings" Click="OnOk" IsDefault="True" />
     </StackPanel>
   </StackPanel>
 </Window>

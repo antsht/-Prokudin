@@ -5,7 +5,8 @@
              x:Class="Prokudin.Gui.Views.ContextBars.ExportContextBar"
              x:DataType="vm:MainViewModel">
   <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-    <Button Content="Export result"
+    <Button Classes="PrimaryAction"
+            Content="Export result"
             Command="{Binding ExportCommand}"
             Margin="0,0,6,0"
             automation:AutomationProperties.Name="Export result" />

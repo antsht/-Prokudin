@@ -372,7 +372,14 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ActiveLevelsBlackPoint))]
     [NotifyPropertyChangedFor(nameof(ActiveLevelsWhitePoint))]
     [NotifyPropertyChangedFor(nameof(ActiveLevelsGamma))]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsHistogramBins))]
+    [NotifyPropertyChangedFor(nameof(HasActiveLevelsHistogram))]
     private LevelsScope levelsScope = LevelsScope.Master;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsHistogramBins))]
+    [NotifyPropertyChangedFor(nameof(HasActiveLevelsHistogram))]
+    private LevelsHistogramData? levelsHistogram;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsManualLevels))]
@@ -445,16 +452,23 @@ public sealed partial class MainViewModel : ObservableObject
     private double healLargeComponentConservativeScale = 0.5;
 
     [ObservableProperty]
-    private AppThemeMode appThemeMode = AppThemeMode.System;
+    private AppThemeMode appThemeMode = AppThemeMode.Dark;
 
     [ObservableProperty]
     private bool isLeftPanelVisible = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLeftPanelEffectivelyVisible))]
+    private bool isNarrowWorkspace;
+
+    [ObservableProperty]
+    private bool isChannelDrawerOpen;
+
+    [ObservableProperty]
     private bool isRightInspectorVisible = true;
 
     [ObservableProperty]
-    private bool isProcessingLogVisible = true;
+    private bool isProcessingLogVisible;
 
     [ObservableProperty]
     private double leftPanelWidth = 260;
@@ -467,11 +481,29 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsManualLevels => LevelsMode == LevelsMode.Manual;
 
+    public bool IsLeftPanelEffectivelyVisible => IsLeftPanelVisible && !IsNarrowWorkspace;
+
+    internal void SetWorkspaceWidth(double width) => IsNarrowWorkspace = width < 1120;
+
+    [RelayCommand]
+    private void ToggleChannelDrawer()
+    {
+        if (IsNarrowWorkspace && IsLeftPanelVisible)
+        {
+            IsChannelDrawerOpen = !IsChannelDrawerOpen;
+        }
+    }
+
     public bool IsMasterLevelsScope => LevelsScope == LevelsScope.Master;
 
     public bool IsChannelLevelsScope => !IsMasterLevelsScope;
 
     public bool CanEditActiveLevels => IsChannelLevelsScope || IsManualLevels;
+
+    public IReadOnlyList<double> ActiveLevelsHistogramBins =>
+        LevelsHistogram?.ForScope(LevelsScope) ?? Array.Empty<double>();
+
+    public bool HasActiveLevelsHistogram => ActiveLevelsHistogramBins.Count > 0;
 
     public LevelsMode ActiveLevelsMode
     {
@@ -2011,7 +2043,7 @@ public sealed partial class MainViewModel : ObservableObject
             var settings = CurrentPipelineSettings(skipCrop: true);
             var manual = CurrentManualNudges();
             var result = await Task.Run(
-                () => ReconstructionPipeline.BuildRgb(aligned, settings, manual.Count > 0 ? manual : null),
+                () => ReconstructionPipeline.BuildRgbWithLevelsHistogram(aligned, settings, manual.Count > 0 ? manual : null),
                 cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
@@ -2019,6 +2051,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             ResultSlot.ApplyEditedResult(result.Rgb);
+            LevelsHistogram = result.LevelsHistogram;
             RefreshPreviewBindings();
             RefreshChannelStates();
             AppendLog($"Result rebuilt from cached alignment: {result.Rgb.Width}x{result.Rgb.Height}.");
@@ -2148,7 +2181,19 @@ public sealed partial class MainViewModel : ObservableObject
         SaveUiSettings();
     }
 
-    partial void OnIsLeftPanelVisibleChanged(bool value) => SaveUiSettings();
+    partial void OnIsLeftPanelVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLeftPanelEffectivelyVisible));
+        SaveUiSettings();
+    }
+
+    partial void OnIsNarrowWorkspaceChanged(bool value)
+    {
+        if (!value)
+        {
+            IsChannelDrawerOpen = false;
+        }
+    }
 
     partial void OnIsRightInspectorVisibleChanged(bool value) => SaveUiSettings();
 

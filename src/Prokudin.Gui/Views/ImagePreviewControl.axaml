@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Prokudin.Gui.Views.ImagePreviewControl"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
+             x:DataType="vm:MainViewModel"
              Background="{DynamicResource PreviewBackgroundBrush}">
   <Grid x:Name="RootGrid">
     <ScrollViewer x:Name="ScrollViewer"
@@ -80,6 +81,27 @@
         </Canvas>
       </Grid>
     </ScrollViewer>
+    <Border Classes="TaskFeedback"
+            MaxWidth="360"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="16"
+            IsVisible="{Binding IsBusy}"
+            IsHitTestVisible="False">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding Status}"
+                   TextWrapping="Wrap"
+                   FontWeight="SemiBold" />
+        <ProgressBar Height="4"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="{Binding AutoCleanProgress}"
+                     IsVisible="{Binding IsAutoCleanProgressVisible}" />
+        <ProgressBar Height="4"
+                     IsIndeterminate="True"
+                     IsVisible="{Binding !IsAutoCleanProgressVisible}" />
+      </StackPanel>
+    </Border>
     <Border x:Name="LoupePanel"
             Width="192"
             Height="192"

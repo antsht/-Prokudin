@@ -79,8 +79,8 @@
         </Grid>
       </StackPanel>
     </z:HeaderedContainer>
-    <z:HeaderedContainer Header="Alignment metadata"
-                         Classes="InspectorSection">
+    <Expander Header="Alignment metadata"
+              Classes="InspectorExpander">
       <StackPanel Spacing="6">
         <TextBlock Text="{Binding RedAlignSummary}"
                    TextWrapping="Wrap" />
@@ -89,9 +89,9 @@
         <TextBlock Text="{Binding BlueAlignSummary}"
                    TextWrapping="Wrap" />
       </StackPanel>
-    </z:HeaderedContainer>
-    <z:HeaderedContainer Header="Manual nudge"
-                         Classes="InspectorSection">
+    </Expander>
+    <Expander Header="Manual nudge"
+              Classes="InspectorExpander">
       <StackPanel Spacing="8">
         <TextBlock Text="{StaticResource Tips.Align.ManualNudge.Short}"
                    TextWrapping="Wrap"
@@ -196,6 +196,6 @@
           </StackPanel>
         </Grid>
       </StackPanel>
-    </z:HeaderedContainer>
+    </Expander>
   </StackPanel>
 </UserControl>

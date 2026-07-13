@@ -99,6 +99,25 @@ public static class ReconstructionPipeline
         PipelineSettings settings,
         IReadOnlyDictionary<ChannelName, ManualTransform>? manual = null)
     {
+        var build = BuildRgbCore(aligned, settings, manual, captureLevelsHistogram: false);
+        return (build.Rgb, build.CropInfo);
+    }
+
+    public static RgbBuildWithHistogramResult BuildRgbWithLevelsHistogram(
+        AlignedChannels aligned,
+        PipelineSettings settings,
+        IReadOnlyDictionary<ChannelName, ManualTransform>? manual = null)
+    {
+        var build = BuildRgbCore(aligned, settings, manual, captureLevelsHistogram: true);
+        return new RgbBuildWithHistogramResult(build.Rgb, build.CropInfo, build.LevelsHistogram!);
+    }
+
+    private static (RgbImageBuffer Rgb, CropInfo CropInfo, LevelsHistogramData? LevelsHistogram) BuildRgbCore(
+        AlignedChannels aligned,
+        PipelineSettings settings,
+        IReadOnlyDictionary<ChannelName, ManualTransform>? manual,
+        bool captureLevelsHistogram)
+    {
         if (manual is not null)
         {
             aligned = ApplyManualToAligned(aligned, manual);
@@ -125,7 +144,12 @@ public static class ReconstructionPipeline
         var (cropped, cropInfo) = ApplyCrop(rgb, overlap, settings.Crop);
         var croppedOverlap = Cropper.CropMask(overlap, sourceWidth, sourceHeight, cropInfo);
         var corrected = ColorCorrection.ApplyColorSettings(cropped, settings.Color);
+        var beforeChannelLevels = corrected;
         corrected = ColorCorrection.ApplyChannelLevels(corrected, settings.ChannelLevels);
+        var beforeMasterLevels = corrected;
+        var levelsHistogram = captureLevelsHistogram
+            ? LevelsHistogramCalculator.Calculate(beforeChannelLevels, beforeMasterLevels)
+            : null;
         corrected = ColorCorrection.ApplyLevelsSettings(corrected, settings.Levels);
         corrected = Cropper.EnforceGrayscaleOutsideOverlap(corrected, croppedOverlap);
 
@@ -139,7 +163,7 @@ public static class ReconstructionPipeline
             corrected = UnsharpMask(corrected);
         }
 
-        return (corrected, cropInfo);
+        return (corrected, cropInfo, levelsHistogram);
     }
 
     public static async Task ReconstructFromPathsAsync(

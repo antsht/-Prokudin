@@ -3,6 +3,7 @@
              xmlns:automation="using:Avalonia.Automation"
              xmlns:inspector="using:Prokudin.Gui.Views.Inspector"
              xmlns:primitives="using:Avalonia.Controls.Primitives"
+             xmlns:views="using:Prokudin.Gui.Views"
              xmlns:vm="using:Prokudin.Gui.ViewModels"
              xmlns:z="using:Zafiro.Avalonia.Controls"
              x:Class="Prokudin.Gui.Views.Inspector.ColorInspector"
@@ -29,7 +30,7 @@
         <TextBlock Text="{Binding WhitePickQualityWarning}" TextWrapping="Wrap" />
         <Button Content="Use anyway" Command="{Binding UseWhitePickAnywayCommand}" HorizontalAlignment="Left" />
       </StackPanel>
-      <Grid ColumnDefinitions="28,*"
+      <Grid ColumnDefinitions="28,*,72"
             RowDefinitions="Auto,Auto,Auto"
             RowSpacing="6">
         <inspector:InspectorParameterLabel x:Name="RedExposureLabel"
@@ -42,6 +43,12 @@
                 Value="{Binding RedExposureStops}"
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=RedExposureLabel}" />
+        <NumericUpDown Grid.Column="2"
+                       Minimum="-2"
+                       Maximum="2"
+                       Increment="0.05"
+                       FormatString="F2"
+                       Value="{Binding RedExposureStops}" />
         <inspector:InspectorParameterLabel Grid.Row="1"
                                            x:Name="GreenExposureLabel"
                                            Caption="G"
@@ -54,6 +61,13 @@
                 Value="{Binding GreenExposureStops}"
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=GreenExposureLabel}" />
+        <NumericUpDown Grid.Row="1"
+                       Grid.Column="2"
+                       Minimum="-2"
+                       Maximum="2"
+                       Increment="0.05"
+                       FormatString="F2"
+                       Value="{Binding GreenExposureStops}" />
         <inspector:InspectorParameterLabel Grid.Row="2"
                                            x:Name="BlueExposureLabel"
                                            Caption="B"
@@ -66,6 +80,13 @@
                 Value="{Binding BlueExposureStops}"
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=BlueExposureLabel}" />
+        <NumericUpDown Grid.Row="2"
+                       Grid.Column="2"
+                       Minimum="-2"
+                       Maximum="2"
+                       Increment="0.05"
+                       FormatString="F2"
+                       Value="{Binding BlueExposureStops}" />
       </Grid>
       <Button Content="Reset exposure"
               Command="{Binding ResetExposureCommand}"
@@ -73,7 +94,7 @@
               automation:AutomationProperties.Name="Reset exposure"
               ToolTip.ShowDelay="400"
               ToolTip.Tip="Reset all channel exposure sliders to 0 stops." />
-      <Grid ColumnDefinitions="120,*"
+      <Grid ColumnDefinitions="120,*,72"
             RowDefinitions="Auto,Auto"
             RowSpacing="6">
         <inspector:InspectorParameterLabel x:Name="TemperatureLabel"
@@ -87,6 +108,11 @@
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=TemperatureLabel}"
                 inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Color.Temperature.Long}" />
+        <NumericUpDown Grid.Column="2"
+                       Minimum="-100"
+                       Maximum="100"
+                       Increment="1"
+                       Value="{Binding ColorTemperature}" />
         <inspector:InspectorParameterLabel Grid.Row="1"
                                            x:Name="TintLabel"
                                            Caption="Tint"
@@ -100,12 +126,34 @@
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=TintLabel}"
                 inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Color.Tint.Long}" />
+        <NumericUpDown Grid.Row="1"
+                       Grid.Column="2"
+                       Minimum="-100"
+                       Maximum="100"
+                       Increment="1"
+                       Value="{Binding ColorTint}" />
       </Grid>
       <Separator />
       <Grid ColumnDefinitions="120,*">
         <TextBlock Text="Levels scope" VerticalAlignment="Center" />
         <ComboBox Grid.Column="1" ItemsSource="{Binding LevelsScopes}" SelectedItem="{Binding LevelsScope}" />
       </Grid>
+      <views:LevelsHistogram Height="132"
+                             Margin="0,2,0,0"
+                             Bins="{Binding ActiveLevelsHistogramBins}"
+                             BlackPoint="{Binding ActiveLevelsBlackPoint, Mode=TwoWay}"
+                             WhitePoint="{Binding ActiveLevelsWhitePoint, Mode=TwoWay}"
+                             Gamma="{Binding ActiveLevelsGamma, Mode=TwoWay}"
+                             CanEdit="{Binding CanEditActiveLevels}"
+                             HistogramBrush="{DynamicResource DarkroomAccentBrush}"
+                             GridBrush="{DynamicResource DarkroomBorderBrush}"
+                             HandleBrush="{DynamicResource DarkroomFocusBrush}"
+                             IsVisible="{Binding HasActiveLevelsHistogram}"
+                             Focusable="True"
+                             automation:AutomationProperties.Name="Levels histogram" />
+      <TextBlock Text="The histogram will appear after a result is built."
+                 Classes="MutedCaption"
+                 IsVisible="{Binding !HasActiveLevelsHistogram}" />
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">

@@ -17,6 +17,14 @@ public sealed partial class MainViewModel
             case StartupChoiceType.NewProject:
                 ResetSession();
                 break;
+            case StartupChoiceType.OpenChannels:
+                ResetSession();
+                await OpenSeparateChannels();
+                break;
+            case StartupChoiceType.OpenTriptych:
+                ResetSession();
+                await OpenTriptych();
+                break;
             case StartupChoiceType.RecoverAutosave:
                 await LoadAutosaveAsync();
                 break;

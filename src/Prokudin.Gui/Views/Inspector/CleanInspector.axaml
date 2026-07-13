@@ -24,7 +24,7 @@
                                     ToolTip.Tip="Clone stamp — copy pixels from a source point"
                                     automation:AutomationProperties.Name="Clone stamp" />
         </StackPanel>
-        <Grid ColumnDefinitions="120,*"
+        <Grid ColumnDefinitions="120,*,72"
               RowDefinitions="Auto,Auto,Auto,Auto,Auto"
               RowSpacing="6">
           <inspector:InspectorParameterLabel x:Name="BrushSizeLabel"
@@ -37,6 +37,11 @@
                   Value="{Binding BrushSize}"
                   ToolTip.ShowDelay="400"
                   ToolTip.Tip="{Binding ShortTip, ElementName=BrushSizeLabel}" />
+          <NumericUpDown Grid.Column="2"
+                         Minimum="1"
+                         Maximum="64"
+                         Increment="1"
+                         Value="{Binding BrushSize}" />
           <inspector:InspectorParameterLabel Grid.Row="1"
                                              x:Name="RadiusLabel"
                                              Caption="Radius"
@@ -49,6 +54,12 @@
                   Value="{Binding AutoCleanRadius}"
                   ToolTip.ShowDelay="400"
                   ToolTip.Tip="{Binding ShortTip, ElementName=RadiusLabel}" />
+          <NumericUpDown Grid.Row="1"
+                         Grid.Column="2"
+                         Minimum="1"
+                         Maximum="12"
+                         Increment="1"
+                         Value="{Binding AutoCleanRadius}" />
           <inspector:InspectorParameterLabel Grid.Row="2"
                                              x:Name="QualityLabel"
                                              Caption="Quality"
@@ -72,6 +83,12 @@
                   Value="{Binding AutoCleanSensitivity}"
                   ToolTip.ShowDelay="400"
                   ToolTip.Tip="{Binding ShortTip, ElementName=SensitivityLabel}" />
+          <NumericUpDown Grid.Row="3"
+                         Grid.Column="2"
+                         Minimum="0"
+                         Maximum="100"
+                         Increment="1"
+                         Value="{Binding AutoCleanSensitivity}" />
           <inspector:InspectorParameterLabel Grid.Row="4"
                                              x:Name="DetectMaskLabel"
                                              Caption="Auto-clean"
@@ -103,8 +120,8 @@
       </StackPanel>
     </z:HeaderedContainer>
 
-    <z:HeaderedContainer Header="Healing model"
-                         Classes="InspectorSection">
+    <Expander Header="Healing model"
+              Classes="InspectorExpander">
       <StackPanel Spacing="6">
         <inspector:InspectorParameterCheckBox Label="Cross-channel guided healing"
                                               IsChecked="{Binding UseCrossChannelHealing}"
@@ -127,10 +144,10 @@
                                               ShortTip="{StaticResource Tips.Clean.RobustFit.Short}"
                                               LongTip="{StaticResource Tips.Clean.RobustFit.Long}" />
       </StackPanel>
-    </z:HeaderedContainer>
+    </Expander>
 
-    <z:HeaderedContainer Header="Mask preparation"
-                         Classes="InspectorSection">
+    <Expander Header="Mask preparation"
+              Classes="InspectorExpander">
       <Grid ColumnDefinitions="160,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
@@ -184,10 +201,10 @@
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=MaxComponentAreaLabel}" />
       </Grid>
-    </z:HeaderedContainer>
+    </Expander>
 
-    <z:HeaderedContainer Header="Patch search"
-                         Classes="InspectorSection">
+    <Expander Header="Patch search"
+              Classes="InspectorExpander">
       <Grid ColumnDefinitions="140,*"
             RowDefinitions="Auto,Auto,Auto,Auto,Auto"
             RowSpacing="6">
@@ -255,10 +272,10 @@
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=MinTrainingPixelsLabel}" />
       </Grid>
-    </z:HeaderedContainer>
+    </Expander>
 
-    <z:HeaderedContainer Header="Prediction blend"
-                         Classes="InspectorSection">
+    <Expander Header="Prediction blend"
+              Classes="InspectorExpander">
       <Grid ColumnDefinitions="200,*"
             RowDefinitions="Auto,Auto,Auto,Auto,Auto"
             RowSpacing="6">
@@ -331,10 +348,10 @@
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=LargeComponentScaleLabel}" />
       </Grid>
-    </z:HeaderedContainer>
+    </Expander>
 
-    <z:HeaderedContainer Header="Debug"
-                         Classes="InspectorSection">
+    <Expander Header="Debug"
+              Classes="InspectorExpander">
       <StackPanel Spacing="6">
         <inspector:InspectorParameterCheckBox Label="Debug heal output"
                                               IsChecked="{Binding DebugHealOutput}"
@@ -350,6 +367,6 @@
                                               ShortTip="{StaticResource Tips.Clean.ReviewMaskOnResult.Short}"
                                               LongTip="{StaticResource Tips.Clean.ReviewMaskOnResult.Long}" />
       </StackPanel>
-    </z:HeaderedContainer>
+    </Expander>
   </StackPanel>
 </UserControl>

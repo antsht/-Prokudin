@@ -1,9 +1,104 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:z="using:Zafiro.Avalonia.Controls">
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource DarkroomCanvasBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+    <Setter Property="Padding" Value="8,5" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceHoverBrush}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="10,5" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderStrongBrush}" />
+  </Style>
+
+  <Style Selector="Button:focus">
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomFocusBrush}" />
+  </Style>
+
+  <Style Selector="Button.PrimaryAction">
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.PrimaryAction:pointerover">
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentHoverBrush}" />
+  </Style>
+
+  <Style Selector="Button.QuietAction">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextMutedBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton:checked">
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentBrush}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+  </Style>
+
+  <Style Selector="NumericUpDown">
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
   <Style Selector="Border.ChromeBar">
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
-    <Setter Property="Padding" Value="8" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
+    <Setter Property="Padding" Value="8,6" />
   </Style>
 
   <Style Selector="Border.ChromeBar.top">
@@ -20,15 +115,15 @@
   </Style>
 
   <Style Selector="HeaderedContainer.Sidebar">
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
     <Setter Property="BorderThickness" Value="0,0,1,0" />
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
   </Style>
 
   <Style Selector="HeaderedContainer.LogPanel">
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
     <Setter Property="BorderThickness" Value="0,1,0,0" />
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
     <Setter Property="ContentPadding" Value="8" />
   </Style>
 
@@ -40,36 +135,36 @@
 
   <Style Selector="TextBlock.MutedCaption">
     <Setter Property="FontSize" Value="12" />
-    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextMutedBrush}" />
   </Style>
 
   <Style Selector="Button.IconButton">
-    <Setter Property="MinWidth" Value="32" />
-    <Setter Property="Width" Value="32" />
-    <Setter Property="Height" Value="32" />
-    <Setter Property="Padding" Value="6" />
+    <Setter Property="MinWidth" Value="30" />
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="5" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="IconOptions.Size" Value="16" />
-    <Setter Property="IconOptions.Fill" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="IconOptions.Size" Value="15" />
+    <Setter Property="IconOptions.Fill" Value="{DynamicResource DarkroomTextBrush}" />
   </Style>
 
   <Style Selector="ToggleButton.IconButton">
-    <Setter Property="MinWidth" Value="32" />
-    <Setter Property="Width" Value="32" />
-    <Setter Property="Height" Value="32" />
-    <Setter Property="Padding" Value="6" />
+    <Setter Property="MinWidth" Value="30" />
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="5" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="IconOptions.Size" Value="16" />
-    <Setter Property="IconOptions.Fill" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="IconOptions.Size" Value="15" />
+    <Setter Property="IconOptions.Fill" Value="{DynamicResource DarkroomTextBrush}" />
   </Style>
 
   <Style Selector="ToggleButton.IconButton:checked">
-    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentBrush}" />
   </Style>
 
   <Style Selector="Button.SlotIconButton">
@@ -81,43 +176,46 @@
   </Style>
 
   <Style Selector="Button.WorkflowToolButton">
-    <Setter Property="MinHeight" Value="56" />
-    <Setter Property="Padding" Value="6,8" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="Padding" Value="4" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="CornerRadius" Value="5" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="IconOptions.Size" Value="18" />
-    <Setter Property="IconOptions.Fill" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    <Setter Property="IconOptions.Size" Value="17" />
+    <Setter Property="IconOptions.Fill" Value="{DynamicResource DarkroomTextMutedBrush}" />
   </Style>
 
   <Style Selector="Button.WorkflowToolButton.selected">
-    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentBrush}" />
+    <Setter Property="IconOptions.Fill" Value="{DynamicResource DarkroomAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style Selector="Border.ExportSettingsPopup">
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeHighBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="12" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="8" />
     <Setter Property="BoxShadow" Value="0 8 24 0 #55000000" />
   </Style>
 
   <Style Selector="Border.InspectorHeader">
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
   </Style>
 
   <Style Selector="Border.InspectorPanel">
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
     <Setter Property="BorderThickness" Value="1,0,0,0" />
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceBrush}" />
   </Style>
 
   <Style Selector="HeaderedContainer.InspectorSection">
@@ -125,22 +223,27 @@
     <Setter Property="ContentPadding" Value="0,4,0,0" />
   </Style>
 
+  <Style Selector="Expander.InspectorExpander">
+    <Setter Property="Margin" Value="0,0,0,8" />
+    <Setter Property="Padding" Value="0,4" />
+  </Style>
+
   <Style Selector="Border.ChannelStateBadge">
-    <Setter Property="Padding" Value="4,2" />
-    <Setter Property="CornerRadius" Value="3" />
-    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight2}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorLight1}" />
+    <Setter Property="Padding" Value="5,2" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomAccentBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <Style Selector="Border.ChannelStateBadge TextBlock">
     <Setter Property="FontSize" Value="10" />
-    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
   </Style>
 
   <Style Selector="HeaderedContainer.Sidebar ListBoxItem:selected">
-    <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight3}" />
-    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="CornerRadius" Value="5" />
   </Style>
 
   <Style Selector="Button.HelpIconButton">
@@ -154,15 +257,82 @@
     <Setter Property="CornerRadius" Value="12" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderStrongBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextMutedBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
   <Style Selector="Button.HelpIconButton:pointerover">
-    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource DarkroomTextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.TaskFeedback">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="BoxShadow" Value="0 10 24 0 #66000000" />
+  </Style>
+
+  <Style Selector="Border.WelcomeHero">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="16" />
+  </Style>
+
+  <Style Selector="Border.WelcomeRecovery">
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12" />
+  </Style>
+
+  <Style Selector="Border.WorkflowContextTitle">
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,1,0" />
+    <Setter Property="Padding" Value="4,0,12,0" />
+  </Style>
+
+  <Style Selector="Border.ChannelStateBadge.red">
+    <Setter Property="BorderBrush" Value="{DynamicResource ChannelRedBrush}" />
+  </Style>
+
+  <Style Selector="Border.ChannelStateBadge.green">
+    <Setter Property="BorderBrush" Value="{DynamicResource ChannelGreenBrush}" />
+  </Style>
+
+  <Style Selector="Border.ChannelStateBadge.blue">
+    <Setter Property="BorderBrush" Value="{DynamicResource ChannelBlueBrush}" />
+  </Style>
+
+  <Style Selector="Border.ChannelColourStrip">
+    <Setter Property="Background" Value="{DynamicResource DarkroomAccentBrush}" />
+    <Setter Property="CornerRadius" Value="3,0,0,3" />
+  </Style>
+
+  <Style Selector="Border.ChannelColourStrip.red">
+    <Setter Property="Background" Value="{DynamicResource ChannelRedBrush}" />
+  </Style>
+
+  <Style Selector="Border.ChannelColourStrip.green">
+    <Setter Property="Background" Value="{DynamicResource ChannelGreenBrush}" />
+  </Style>
+
+  <Style Selector="Border.ChannelColourStrip.blue">
+    <Setter Property="Background" Value="{DynamicResource ChannelBlueBrush}" />
+  </Style>
+
+  <Style Selector="z|Card.SlotCard">
+    <Setter Property="Background" Value="{DynamicResource DarkroomSurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DarkroomBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
 </Styles>

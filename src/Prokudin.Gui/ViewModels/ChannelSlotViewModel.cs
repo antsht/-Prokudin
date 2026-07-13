@@ -24,6 +24,12 @@ public sealed partial class ChannelSlotViewModel : ObservableObject, IDisposable
 
     public bool IsResultSlot => ChannelName is null;
 
+    public bool IsRedChannel => ChannelName == Prokudin.Core.Imaging.ChannelName.Red;
+
+    public bool IsGreenChannel => ChannelName == Prokudin.Core.Imaging.ChannelName.Green;
+
+    public bool IsBlueChannel => ChannelName == Prokudin.Core.Imaging.ChannelName.Blue;
+
     public ICommand? OpenCommand { get; set; }
 
     public ICommand? ExportCommand { get; set; }

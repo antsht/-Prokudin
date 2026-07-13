@@ -17,7 +17,8 @@
             Command="{Binding OpenBlueCommand}"
             Margin="0,0,6,0"
             automation:AutomationProperties.Name="Open blue channel" />
-    <Button Content="Open Triptych"
+    <Button Classes="PrimaryAction"
+            Content="Open Triptych"
             Command="{Binding OpenTriptychCommand}"
             Margin="0,0,10,0"
             automation:AutomationProperties.Name="Open triptych" />

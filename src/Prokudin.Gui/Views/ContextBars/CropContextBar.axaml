@@ -19,7 +19,8 @@
             ToolTip.Tip="Crop to selection"
             automation:AutomationProperties.Name="Crop to selection"
             Margin="0,0,6,0" />
-    <Button Content="Crop overlap"
+    <Button Classes="PrimaryAction"
+            Content="Crop overlap"
             Command="{Binding CropOverlapCommand}"
             ToolTip.Tip="Crop aligned channels to largest full overlap"
             automation:AutomationProperties.Name="Crop overlap"

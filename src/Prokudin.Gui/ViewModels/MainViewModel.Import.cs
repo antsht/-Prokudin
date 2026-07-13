@@ -58,6 +58,23 @@ public sealed partial class MainViewModel
         });
     }
 
+    private async Task OpenSeparateChannels()
+    {
+        await OpenChannel(ChannelName.Red);
+        if (RedSlot.Image is null)
+        {
+            return;
+        }
+
+        await OpenChannel(ChannelName.Green);
+        if (GreenSlot.Image is null)
+        {
+            return;
+        }
+
+        await OpenChannel(ChannelName.Blue);
+    }
+
     public void SwapSlots(ChannelSlotViewModel source, ChannelSlotViewModel target)
     {
         if (source == target || !source.CanSwap || !target.CanSwap)

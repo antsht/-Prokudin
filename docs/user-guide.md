@@ -42,7 +42,7 @@ dotnet run --project src\Prokudin.Gui\Prokudin.Gui.csproj
 
 ### Basic workflow
 
-1. On startup, choose **New project**, **Recover autosave**, a **recent project**, or **Open other…**.
+1. On startup, use **Separate channels…** or **Open triptych…** to begin reconstruction. **Recover autosave**, a recent project, and **Open project…** remain available for existing work.
 2. Open R, G, and B channel files, or open a triptych and choose `RGB` or `BGR`.
 3. Use the left sidebar channel cards (with thumbnails) to inspect and select channels.
 4. Drag one R/G/B card onto another to swap channel assignments.
@@ -78,11 +78,11 @@ When you exit or start **New Project** with unsaved changes to a named project, 
 
 **Edit → Settings** (also available from the welcome screen) configures:
 
-- **Theme** (Light / Dark / System)
+- **Theme** (Dark by default; Light / Dark / System remain available)
 - **Autosave** enable and interval (1–60 minutes)
 - **Processing diagnostics** log categories
 
-Panel layout, theme workflow selection, export defaults, and auto-clean presets still persist separately under `%LocalAppData%\Prokudin\` (`ui-settings.json`, `export-settings.json`, `auto-clean-settings.json`, `diagnostics-settings.json`).
+Panel layout, theme workflow selection, export defaults, and auto-clean presets still persist separately under `%LocalAppData%\Prokudin\` (`ui-settings.json`, `export-settings.json`, `auto-clean-settings.json`, `diagnostics-settings.json`). On narrow windows the channel list temporarily moves into a **Channels** drawer; the Processing log is collapsed by default and can be opened from **View**.
 
 ### Keyboard shortcuts (project)
 
@@ -160,6 +160,10 @@ stay aligned.
 Per-channel **R**, **G**, and **B** sliders adjust exposure in stops (−2…+2).
 **Auto WB** applies automatic white balance when rebuilding the RGB result.
 **Reset exposure** restores all sliders to zero.
+
+### Levels histogram
+
+In the **Color** inspector, select **Master**, **Red**, **Green**, or **Blue** as the Levels scope. The histogram shows that scope's input distribution; drag its black, gamma, and white handles for a visual adjustment or enter exact values in the fields below. The histogram appears after a result has been built.
 
 ### Export settings
 

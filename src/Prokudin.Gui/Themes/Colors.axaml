@@ -2,20 +2,52 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ResourceDictionary.ThemeDictionaries>
     <ResourceDictionary x:Key="Light">
-      <Color x:Key="PreviewBackgroundColor">#F0F0F0</Color>
-      <Color x:Key="ThumbnailPlaceholderColor">#D8D8D8</Color>
-      <Color x:Key="SelectionStrokeColor">#0288D1</Color>
-      <Color x:Key="SelectionFillColor">#330288D1</Color>
-      <Color x:Key="RetouchCursorStrokeColor">#F57C00</Color>
-      <Color x:Key="RetouchCursorRadiusStrokeColor">#CCF57C00</Color>
-      <Color x:Key="RetouchCursorFillColor">#24F57C00</Color>
-      <Color x:Key="RetouchStrokePreviewColor">#3DF57C00</Color>
+      <Color x:Key="DarkroomCanvasColor">#EDF2F5</Color>
+      <Color x:Key="DarkroomSurfaceColor">#FFFFFF</Color>
+      <Color x:Key="DarkroomSurfaceRaisedColor">#F8FAFC</Color>
+      <Color x:Key="DarkroomSurfaceHoverColor">#EEF5F8</Color>
+      <Color x:Key="DarkroomBorderColor">#D4DFE6</Color>
+      <Color x:Key="DarkroomBorderStrongColor">#AFC2CE</Color>
+      <Color x:Key="DarkroomTextColor">#18242D</Color>
+      <Color x:Key="DarkroomTextMutedColor">#627481</Color>
+      <Color x:Key="DarkroomAccentColor">#006F9F</Color>
+      <Color x:Key="DarkroomAccentHoverColor">#005D85</Color>
+      <Color x:Key="DarkroomAccentSoftColor">#D7F0FA</Color>
+      <Color x:Key="DarkroomFocusColor">#008DCA</Color>
+      <Color x:Key="DarkroomOnAccentColor">#FFFFFF</Color>
+      <Color x:Key="ChannelRedColor">#B42332</Color>
+      <Color x:Key="ChannelGreenColor">#18794E</Color>
+      <Color x:Key="ChannelBlueColor">#235DB8</Color>
+      <Color x:Key="PreviewBackgroundColor">#E6EBEE</Color>
+      <Color x:Key="ThumbnailPlaceholderColor">#D7E0E5</Color>
+      <Color x:Key="SelectionStrokeColor">#007CAC</Color>
+      <Color x:Key="SelectionFillColor">#26007CAC</Color>
+      <Color x:Key="RetouchCursorStrokeColor">#B45309</Color>
+      <Color x:Key="RetouchCursorRadiusStrokeColor">#CCB45309</Color>
+      <Color x:Key="RetouchCursorFillColor">#24B45309</Color>
+      <Color x:Key="RetouchStrokePreviewColor">#3DB45309</Color>
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
-      <Color x:Key="PreviewBackgroundColor">#141414</Color>
-      <Color x:Key="ThumbnailPlaceholderColor">#202020</Color>
-      <Color x:Key="SelectionStrokeColor">#4FC3F7</Color>
-      <Color x:Key="SelectionFillColor">#334FC3F7</Color>
+      <Color x:Key="DarkroomCanvasColor">#101518</Color>
+      <Color x:Key="DarkroomSurfaceColor">#171E23</Color>
+      <Color x:Key="DarkroomSurfaceRaisedColor">#202930</Color>
+      <Color x:Key="DarkroomSurfaceHoverColor">#29353E</Color>
+      <Color x:Key="DarkroomBorderColor">#2B3943</Color>
+      <Color x:Key="DarkroomBorderStrongColor">#3D5361</Color>
+      <Color x:Key="DarkroomTextColor">#F2F6F8</Color>
+      <Color x:Key="DarkroomTextMutedColor">#A8B7C2</Color>
+      <Color x:Key="DarkroomAccentColor">#57C7F2</Color>
+      <Color x:Key="DarkroomAccentHoverColor">#8CDAFA</Color>
+      <Color x:Key="DarkroomAccentSoftColor">#173F50</Color>
+      <Color x:Key="DarkroomFocusColor">#8CDAFA</Color>
+      <Color x:Key="DarkroomOnAccentColor">#071318</Color>
+      <Color x:Key="ChannelRedColor">#FF8890</Color>
+      <Color x:Key="ChannelGreenColor">#68D99B</Color>
+      <Color x:Key="ChannelBlueColor">#8DB7FF</Color>
+      <Color x:Key="PreviewBackgroundColor">#0B0F12</Color>
+      <Color x:Key="ThumbnailPlaceholderColor">#202A30</Color>
+      <Color x:Key="SelectionStrokeColor">#63D1F5</Color>
+      <Color x:Key="SelectionFillColor">#3363D1F5</Color>
       <Color x:Key="RetouchCursorStrokeColor">#FFB74D</Color>
       <Color x:Key="RetouchCursorRadiusStrokeColor">#CCFFB74D</Color>
       <Color x:Key="RetouchCursorFillColor">#24FFB74D</Color>
@@ -23,6 +55,22 @@
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 
+  <SolidColorBrush x:Key="DarkroomCanvasBrush" Color="{DynamicResource DarkroomCanvasColor}" />
+  <SolidColorBrush x:Key="DarkroomSurfaceBrush" Color="{DynamicResource DarkroomSurfaceColor}" />
+  <SolidColorBrush x:Key="DarkroomSurfaceRaisedBrush" Color="{DynamicResource DarkroomSurfaceRaisedColor}" />
+  <SolidColorBrush x:Key="DarkroomSurfaceHoverBrush" Color="{DynamicResource DarkroomSurfaceHoverColor}" />
+  <SolidColorBrush x:Key="DarkroomBorderBrush" Color="{DynamicResource DarkroomBorderColor}" />
+  <SolidColorBrush x:Key="DarkroomBorderStrongBrush" Color="{DynamicResource DarkroomBorderStrongColor}" />
+  <SolidColorBrush x:Key="DarkroomTextBrush" Color="{DynamicResource DarkroomTextColor}" />
+  <SolidColorBrush x:Key="DarkroomTextMutedBrush" Color="{DynamicResource DarkroomTextMutedColor}" />
+  <SolidColorBrush x:Key="DarkroomAccentBrush" Color="{DynamicResource DarkroomAccentColor}" />
+  <SolidColorBrush x:Key="DarkroomAccentHoverBrush" Color="{DynamicResource DarkroomAccentHoverColor}" />
+  <SolidColorBrush x:Key="DarkroomAccentSoftBrush" Color="{DynamicResource DarkroomAccentSoftColor}" />
+  <SolidColorBrush x:Key="DarkroomFocusBrush" Color="{DynamicResource DarkroomFocusColor}" />
+  <SolidColorBrush x:Key="DarkroomOnAccentBrush" Color="{DynamicResource DarkroomOnAccentColor}" />
+  <SolidColorBrush x:Key="ChannelRedBrush" Color="{DynamicResource ChannelRedColor}" />
+  <SolidColorBrush x:Key="ChannelGreenBrush" Color="{DynamicResource ChannelGreenColor}" />
+  <SolidColorBrush x:Key="ChannelBlueBrush" Color="{DynamicResource ChannelBlueColor}" />
   <SolidColorBrush x:Key="PreviewBackgroundBrush" Color="{DynamicResource PreviewBackgroundColor}" />
   <SolidColorBrush x:Key="ThumbnailPlaceholderBrush" Color="{DynamicResource ThumbnailPlaceholderColor}" />
   <SolidColorBrush x:Key="SelectionStrokeBrush" Color="{DynamicResource SelectionStrokeColor}" />

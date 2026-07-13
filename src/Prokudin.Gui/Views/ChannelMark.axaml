@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Prokudin.Gui.Views.ChannelMark"
+             Width="34"
+             Height="26"
+             IsHitTestVisible="False">
+  <Canvas Width="34" Height="26">
+    <Border Canvas.Left="2"
+            Canvas.Top="7"
+            Width="20"
+            Height="15"
+            BorderBrush="{DynamicResource ChannelRedBrush}"
+            BorderThickness="2"
+            CornerRadius="3" />
+    <Border Canvas.Left="7"
+            Canvas.Top="4"
+            Width="20"
+            Height="15"
+            BorderBrush="{DynamicResource ChannelGreenBrush}"
+            BorderThickness="2"
+            CornerRadius="3" />
+    <Border Canvas.Left="12"
+            Canvas.Top="1"
+            Width="20"
+            Height="15"
+            BorderBrush="{DynamicResource ChannelBlueBrush}"
+            BorderThickness="2"
+            CornerRadius="3" />
+  </Canvas>
+</UserControl>
