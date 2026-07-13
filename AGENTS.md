@@ -276,6 +276,10 @@ requested that workflow in the same turn.
   behavior when changing Core.
 - Do not commit build outputs from `bin/` or `obj/`.
 
+## Learned User Preferences
+
+- Communicates in English and Russian; either language may carry requirements or release approval.
+
 ## Learned Workspace Facts
 
 - `AvaloniaBitmapFactory` clones the source buffer and snapshots normalized pixels (`Clone` + `CopyNormalizedTo`) before parallel BGRA conversion; do not read a live `ImageBuffer` from `PixelParallel` while retouch or align may still be writing.
@@ -283,6 +287,11 @@ requested that workflow in the same turn.
 - In-place channel or result edits keep the same buffer reference; call `ChannelSlotViewModel.ApplyEditedImage` / `ApplyEditedResult` so preview refreshes without replacing the slot property.
 - `ImageMatConverter` UInt16 ↔ OpenCV mat round-trip must preserve normalized range; regressions blacken 16-bit channels after Telea inpaint.
 - `ChannelSlotViewModel.RefreshDisplayBitmap` builds replacement display and thumbnail bitmaps, swaps properties, then disposes the previous bitmap instances.
+- `JsonAutosaveStore.GetInfo()` reads `project.json` metadata only; never block the UI thread with `LoadAsync().GetAwaiter().GetResult()` — Avalonia sync-context deadlock when autosave exists.
+- Startup failures log to `%LocalAppData%/Prokudin/startup-error.log` via `StartupExceptionReporter`.
+- `.cursor/hooks/state/` is gitignored Cursor IDE state; do not commit continual-learning or hook state files.
+- `ImageComputeBackendFactory` caches CUDA/ILGPU/CPU leaf backends as process singletons; `CreateBest` returns non-owning `FallbackImageComputeBackend` wrappers (`ownsBackends: false`).
+- Color correction order (0.15+): master levels → per-channel levels → white balance → exposure; white balance sources are Auto/Off/White pick with pipette quality warnings.
 
 ## Agent skills
 
