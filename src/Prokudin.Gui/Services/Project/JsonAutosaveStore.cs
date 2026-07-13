@@ -1,7 +1,16 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Prokudin.Gui.Services.Project;
 
 public sealed class JsonAutosaveStore : IAutosaveStore
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        Converters = { new JsonStringEnumConverter() },
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     private readonly JsonProjectStore projectStore = new();
 
     public JsonAutosaveStore()
@@ -26,13 +35,19 @@ public sealed class JsonAutosaveStore : IAutosaveStore
 
         try
         {
-            var package = projectStore.LoadAsync(FolderPath).GetAwaiter().GetResult();
+            var json = File.ReadAllText(manifestPath);
+            var document = JsonSerializer.Deserialize<ProjectDocument>(json, SerializerOptions);
+            if (document is null)
+            {
+                return new AutosaveInfo { Exists = false };
+            }
+
             return new AutosaveInfo
             {
                 Exists = true,
-                SavedAt = package.Document.SavedAt,
-                LinkedProjectPath = package.Document.LinkedProjectPath,
-                DisplayName = package.Document.DisplayName,
+                SavedAt = document.SavedAt,
+                LinkedProjectPath = document.LinkedProjectPath,
+                DisplayName = document.DisplayName,
             };
         }
         catch

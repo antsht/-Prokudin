@@ -86,6 +86,12 @@ public sealed class ProjectColorSettings
 {
     public bool AutoWhiteBalance { get; set; } = true;
 
+    public WhiteBalanceSource? WhiteBalanceSource { get; set; }
+
+    public int WhitePickRadius { get; set; } = 3;
+
+    public bool WhitePickWarningAcknowledged { get; set; }
+
     public double RedExposureStops { get; set; }
 
     public double GreenExposureStops { get; set; }
@@ -99,6 +105,24 @@ public sealed class ProjectColorSettings
     public double LevelsWhitePoint { get; set; } = 1.0;
 
     public double LevelsGamma { get; set; } = 1.0;
+
+    public double RedLevelsBlackPoint { get; set; }
+
+    public double RedLevelsWhitePoint { get; set; } = 1.0;
+
+    public double RedLevelsGamma { get; set; } = 1.0;
+
+    public double GreenLevelsBlackPoint { get; set; }
+
+    public double GreenLevelsWhitePoint { get; set; } = 1.0;
+
+    public double GreenLevelsGamma { get; set; } = 1.0;
+
+    public double BlueLevelsBlackPoint { get; set; }
+
+    public double BlueLevelsWhitePoint { get; set; } = 1.0;
+
+    public double BlueLevelsGamma { get; set; } = 1.0;
 
     public int Temperature { get; set; }
 

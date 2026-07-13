@@ -26,4 +26,16 @@ public sealed record EditorCaptureState(
     double LevelsGamma,
     int ColorTemperature,
     int ColorTint,
-    string? SelectedSlotDisplayName);
+    string? SelectedSlotDisplayName,
+    WhiteBalanceSource WhiteBalanceSource = WhiteBalanceSource.Auto,
+    int WhitePickRadius = 3,
+    bool WhitePickWarningAcknowledged = false,
+    double RedLevelsBlackPoint = 0,
+    double RedLevelsWhitePoint = 1,
+    double RedLevelsGamma = 1,
+    double GreenLevelsBlackPoint = 0,
+    double GreenLevelsWhitePoint = 1,
+    double GreenLevelsGamma = 1,
+    double BlueLevelsBlackPoint = 0,
+    double BlueLevelsWhitePoint = 1,
+    double BlueLevelsGamma = 1);

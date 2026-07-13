@@ -23,15 +23,16 @@ public sealed partial class MainViewModel
         await RunOperation(async () =>
         {
             RecordSnapshotCommand("CropOverlap");
-            var (cropped, rgb, cropInfo) = await Task.Run(() =>
+            var (cropped, cropInfo) = await Task.Run(() =>
             {
                 var (aligned, info) = AlignedChannelCropper.CropToLargestFullOverlap(lastAligned);
-                var built = ReconstructionPipeline.BuildRgb(aligned, CurrentPipelineSettings());
-                return (aligned, built.Rgb, info);
+                return (aligned, info);
             });
 
             SetPreparedChannels(cropped);
             SetLastAligned(cropped);
+            TranslateWhitePickForCrop(cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
+            var rgb = await Task.Run(() => ReconstructionPipeline.BuildRgb(cropped, CurrentPipelineSettings()).Rgb);
             ResultSlot.Result = rgb;
             SelectedSlot = ResultSlot;
             SelectionRect = ImageSelectionRect.Empty;
@@ -55,6 +56,7 @@ public sealed partial class MainViewModel
         {
             ResultSlot.Result = rgb.Crop(rect.X, rect.Y, rect.Width, rect.Height);
             CropPreparedChannelsToResultSelection(rgb.Width, rgb.Height, rect);
+            TranslateWhitePickForCrop(rect.X, rect.Y, rect.Width, rect.Height);
             AppendLog($"Cropped result to {rect.X},{rect.Y} {rect.Width}x{rect.Height} -> {ResultSlot.Result.Width}x{ResultSlot.Result.Height}.");
             Status = $"Cropped result to {ResultSlot.Result.Width} x {ResultSlot.Result.Height}.";
         }
@@ -73,6 +75,32 @@ public sealed partial class MainViewModel
     }
 
     private bool CanCropOverlap() => !IsBusy && lastAligned is not null;
+
+    private void TranslateWhitePickForCrop(int x, int y, int width, int height)
+    {
+        if (!HasPipetteWhiteBalance)
+        {
+            return;
+        }
+
+        var relativeX = whiteBalancePipetteX - x;
+        var relativeY = whiteBalancePipetteY - y;
+        if (relativeX < 0 || relativeX >= width || relativeY < 0 || relativeY >= height)
+        {
+            whiteBalancePipetteX = -1;
+            whiteBalancePipetteY = -1;
+        }
+        else
+        {
+            whiteBalancePipetteX = relativeX;
+            whiteBalancePipetteY = relativeY;
+        }
+
+        OnPropertyChanged(nameof(WhitePickX));
+        OnPropertyChanged(nameof(WhitePickY));
+        OnPropertyChanged(nameof(ShowWhitePick));
+        OnPropertyChanged(nameof(WhitePickQualityWarning));
+    }
 
     private bool CanCropToSelection()
     {

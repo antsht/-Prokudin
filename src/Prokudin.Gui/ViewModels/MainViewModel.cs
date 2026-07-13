@@ -26,7 +26,7 @@ namespace Prokudin.Gui.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private const int WhiteBalancePipetteRadius = 3;
+    private const int DefaultWhitePickRadius = 3;
     private const int MaxProcessingLogCharacters = 120_000;
     private readonly IFileDialogService fileDialogService;
     private readonly IExportSettingsStore exportSettingsStore;
@@ -243,6 +243,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     public IReadOnlyList<LevelsMode> LevelsModes { get; } = Enum.GetValues<LevelsMode>();
 
+    public IReadOnlyList<WhiteBalanceSource> WhiteBalanceSources { get; } = Enum.GetValues<WhiteBalanceSource>();
+
+    public IReadOnlyList<LevelsScope> LevelsScopes { get; } = Enum.GetValues<LevelsScope>();
+
+    public bool AutoWhiteBalance
+    {
+        get => WhiteBalanceSource == global::Prokudin.Core.Color.WhiteBalanceSource.Auto;
+        set => WhiteBalanceSource = value
+            ? global::Prokudin.Core.Color.WhiteBalanceSource.Auto
+            : global::Prokudin.Core.Color.WhiteBalanceSource.Off;
+    }
+
     public IReadOnlyList<RgbExportFormat> ExportFormats { get; } =
         [RgbExportFormat.Png, RgbExportFormat.Jpeg, RgbExportFormat.Tiff];
 
@@ -354,6 +366,15 @@ public sealed partial class MainViewModel : ObservableObject
     private LevelsMode levelsMode = LevelsMode.AutoPercentile;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMasterLevelsScope))]
+    [NotifyPropertyChangedFor(nameof(IsChannelLevelsScope))]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsMode))]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsBlackPoint))]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsWhitePoint))]
+    [NotifyPropertyChangedFor(nameof(ActiveLevelsGamma))]
+    private LevelsScope levelsScope = LevelsScope.Master;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsManualLevels))]
     private double levelsBlackPoint;
 
@@ -364,6 +385,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsManualLevels))]
     private double levelsGamma = 1.0;
+
+    [ObservableProperty] private double redLevelsBlackPoint;
+    [ObservableProperty] private double redLevelsWhitePoint = 1.0;
+    [ObservableProperty] private double redLevelsGamma = 1.0;
+    [ObservableProperty] private double greenLevelsBlackPoint;
+    [ObservableProperty] private double greenLevelsWhitePoint = 1.0;
+    [ObservableProperty] private double greenLevelsGamma = 1.0;
+    [ObservableProperty] private double blueLevelsBlackPoint;
+    [ObservableProperty] private double blueLevelsWhitePoint = 1.0;
+    [ObservableProperty] private double blueLevelsGamma = 1.0;
 
     [ObservableProperty]
     private bool openOutputFolderAfterExport;
@@ -435,6 +466,24 @@ public sealed partial class MainViewModel : ObservableObject
     private double processingLogHeight = 150;
 
     public bool IsManualLevels => LevelsMode == LevelsMode.Manual;
+
+    public bool IsMasterLevelsScope => LevelsScope == LevelsScope.Master;
+
+    public bool IsChannelLevelsScope => !IsMasterLevelsScope;
+
+    public bool CanEditActiveLevels => IsChannelLevelsScope || IsManualLevels;
+
+    public LevelsMode ActiveLevelsMode
+    {
+        get => IsMasterLevelsScope ? LevelsMode : LevelsMode.Manual;
+        set
+        {
+            if (IsMasterLevelsScope)
+            {
+                LevelsMode = value;
+            }
+        }
+    }
 
     public string InspectorChannelLabel => SelectedSlot?.DisplayName ?? "—";
 
@@ -609,7 +658,13 @@ public sealed partial class MainViewModel : ObservableObject
     private bool showAutoCleanResultPreview;
 
     [ObservableProperty]
-    private bool autoWhiteBalance = true;
+    private WhiteBalanceSource whiteBalanceSource = WhiteBalanceSource.Auto;
+
+    [ObservableProperty]
+    private int whitePickRadius = DefaultWhitePickRadius;
+
+    [ObservableProperty]
+    private bool whitePickWarningAcknowledged;
 
     [ObservableProperty]
     private double redExposureStops;
@@ -1644,13 +1699,12 @@ public sealed partial class MainViewModel : ObservableObject
                 TrimBorders: TrimDarkBorders,
                 CoarseAlignmentMaxSide: AlignCoarseMaxSide),
             Color = new ColorSettings(
-                AutoWhiteBalance: AutoWhiteBalance,
+                Source: WhiteBalanceSource,
                 Temperature: ColorTemperature,
                 Tint: ColorTint,
-                PipetteActive: HasPipetteWhiteBalance && !AutoWhiteBalance,
-                PipetteX: whiteBalancePipetteX,
-                PipetteY: whiteBalancePipetteY,
-                PipetteRadius: WhiteBalancePipetteRadius),
+                WhitePick: HasPipetteWhiteBalance
+                    ? new WhitePick(whiteBalancePipetteX, whiteBalancePipetteY, WhitePickRadius)
+                    : null),
             Exposure = new ChannelExposureSettings(
                 (float)RedExposureStops,
                 (float)GreenExposureStops,
@@ -1660,6 +1714,10 @@ public sealed partial class MainViewModel : ObservableObject
                 BlackPoint: (float)LevelsBlackPoint,
                 WhitePoint: (float)LevelsWhitePoint,
                 Gamma: (float)LevelsGamma),
+            ChannelLevels = new ChannelLevelsSettings(
+                Red: new ChannelLevelSettings((float)RedLevelsBlackPoint, (float)RedLevelsWhitePoint, (float)RedLevelsGamma),
+                Green: new ChannelLevelSettings((float)GreenLevelsBlackPoint, (float)GreenLevelsWhitePoint, (float)GreenLevelsGamma),
+                Blue: new ChannelLevelSettings((float)BlueLevelsBlackPoint, (float)BlueLevelsWhitePoint, (float)BlueLevelsGamma)),
             Crop = new CropSettings { SkipCrop = skipCrop },
             Diagnostics = CreateDiagnostics(),
         };
@@ -1871,6 +1929,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool HasPipetteWhiteBalance => whiteBalancePipetteX >= 0 && whiteBalancePipetteY >= 0;
 
+    public int WhitePickX => whiteBalancePipetteX;
+
+    public int WhitePickY => whiteBalancePipetteY;
+
+    public bool ShowWhitePick => HasPipetteWhiteBalance && SelectedSlot == ResultSlot;
+
     private void RefreshAlignedAfterInputEdit(ChannelName channelName)
     {
         if (lastAligned is not { } aligned)
@@ -2035,6 +2099,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSelectedSlotChanged(ChannelSlotViewModel? value)
     {
+        OnPropertyChanged(nameof(ShowWhitePick));
         if (ToolMode == EditorToolMode.WhiteBalancePicker && value != ResultSlot)
         {
             ToolMode = EditorToolMode.Select;

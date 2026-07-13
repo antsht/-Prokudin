@@ -235,6 +235,10 @@
                                  StampStrokeCommand="{Binding ApplyStampStrokeCommand}"
                                  MaskEditCommand="{Binding EditAutoCleanMaskCommand}"
                                  WhiteBalancePickCommand="{Binding PickWhiteBalanceCommand}"
+                                 WhitePickX="{Binding WhitePickX}"
+                                 WhitePickY="{Binding WhitePickY}"
+                                 WhitePickRadius="{Binding WhitePickRadius}"
+                                 ShowWhitePick="{Binding ShowWhitePick}"
                                  IsLoupeEnabled="{Binding PreviewLoupeEnabled}" />
 
       <GridSplitter x:Name="RightColumnSplitter"

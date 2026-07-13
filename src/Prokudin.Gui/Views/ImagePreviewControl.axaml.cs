@@ -65,10 +65,23 @@ public sealed partial class ImagePreviewControl : UserControl
     public static readonly StyledProperty<bool> IsLoupeEnabledProperty =
         AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(IsLoupeEnabled));
 
+    public static readonly StyledProperty<int> WhitePickXProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(WhitePickX), -1);
+
+    public static readonly StyledProperty<int> WhitePickYProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(WhitePickY), -1);
+
+    public static readonly StyledProperty<int> WhitePickRadiusProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, int>(nameof(WhitePickRadius), 3);
+
+    public static readonly StyledProperty<bool> ShowWhitePickProperty =
+        AvaloniaProperty.Register<ImagePreviewControl, bool>(nameof(ShowWhitePick));
+
     private Point? loupeImagePoint;
     private Point? loupeCursorPoint;
     private CroppedBitmap? loupeCroppedBitmap;
     private Point? selectionStart;
+    private Point? whitePickHoverPoint;
     private bool isSelecting;
     private List<RetouchPoint>? retouchPoints;
     private List<Point>? retouchPreviewPoints;
@@ -191,6 +204,11 @@ public sealed partial class ImagePreviewControl : UserControl
         set => SetValue(IsLoupeEnabledProperty, value);
     }
 
+    public int WhitePickX { get => GetValue(WhitePickXProperty); set => SetValue(WhitePickXProperty, value); }
+    public int WhitePickY { get => GetValue(WhitePickYProperty); set => SetValue(WhitePickYProperty, value); }
+    public int WhitePickRadius { get => GetValue(WhitePickRadiusProperty); set => SetValue(WhitePickRadiusProperty, value); }
+    public bool ShowWhitePick { get => GetValue(ShowWhitePickProperty); set => SetValue(ShowWhitePickProperty, value); }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -199,7 +217,11 @@ public sealed partial class ImagePreviewControl : UserControl
             change.Property == MaskOverlayBitmapProperty ||
             change.Property == ZoomModeProperty ||
             change.Property == HasImageProperty ||
-            change.Property == SelectionRectProperty)
+            change.Property == SelectionRectProperty ||
+            change.Property == WhitePickXProperty ||
+            change.Property == WhitePickYProperty ||
+            change.Property == WhitePickRadiusProperty ||
+            change.Property == ShowWhitePickProperty)
         {
             if (change.Property == DisplayBitmapProperty)
             {
@@ -263,6 +285,8 @@ public sealed partial class ImagePreviewControl : UserControl
             ImageHost.MinHeight = 0;
             SelectionRectangle.IsVisible = false;
             MaskEditRectangle.IsVisible = false;
+            WhitePickCircle.IsVisible = false;
+            WhitePickMarker.IsVisible = false;
             MaskOverlayImage.IsVisible = false;
             ClearRetouchOverlayState();
             return;
@@ -293,6 +317,7 @@ public sealed partial class ImagePreviewControl : UserControl
             RetouchOverlay.Width = pixelSize.Width;
             RetouchOverlay.Height = pixelSize.Height;
             UpdateSelectionOverlay(1.0, 0, 0);
+            UpdateWhitePickOverlay(1.0, 0, 0);
             UpdateMaskEditPreview(1.0, 0, 0);
             UpdateRetouchOverlay(1.0, 0, 0);
         }
@@ -327,6 +352,7 @@ public sealed partial class ImagePreviewControl : UserControl
 
             var (scale, offsetX, offsetY) = GetFitTransform(pixelSize.Width, pixelSize.Height, viewport.Width, viewport.Height);
             UpdateSelectionOverlay(scale, offsetX, offsetY);
+            UpdateWhitePickOverlay(scale, offsetX, offsetY);
             UpdateMaskEditPreview(scale, offsetX, offsetY);
             UpdateRetouchOverlay(scale, offsetX, offsetY);
         }
@@ -345,6 +371,29 @@ public sealed partial class ImagePreviewControl : UserControl
         Canvas.SetTop(SelectionRectangle, offsetY + (SelectionRect.Y * scale));
         SelectionRectangle.Width = SelectionRect.Width * scale;
         SelectionRectangle.Height = SelectionRect.Height * scale;
+    }
+
+    private void UpdateWhitePickOverlay(double scale, double offsetX, double offsetY)
+    {
+        var hoverPoint = InteractionMode == PreviewInteractionMode.WhiteBalancePicker ? whitePickHoverPoint : null;
+        if (hoverPoint is null && (!ShowWhitePick || WhitePickX < 0 || WhitePickY < 0))
+        {
+            WhitePickCircle.IsVisible = false;
+            WhitePickMarker.IsVisible = false;
+            return;
+        }
+
+        var radius = Math.Clamp(WhitePickRadius, 1, 25) * scale;
+        var centerX = hoverPoint?.X ?? WhitePickX;
+        var centerY = hoverPoint?.Y ?? WhitePickY;
+        WhitePickCircle.IsVisible = true;
+        WhitePickCircle.Width = radius * 2;
+        WhitePickCircle.Height = radius * 2;
+        Canvas.SetLeft(WhitePickCircle, offsetX + (centerX * scale) - radius);
+        Canvas.SetTop(WhitePickCircle, offsetY + (centerY * scale) - radius);
+        WhitePickMarker.IsVisible = ShowWhitePick && WhitePickX >= 0 && WhitePickY >= 0;
+        Canvas.SetLeft(WhitePickMarker, offsetX + (WhitePickX * scale) - 3);
+        Canvas.SetTop(WhitePickMarker, offsetY + (WhitePickY * scale) - 3);
     }
 
     private void UpdateMaskEditPreview(double scale, double offsetX, double offsetY)
@@ -872,6 +921,19 @@ public sealed partial class ImagePreviewControl : UserControl
                 retouchPreviewPoints.Add(retouchImagePoint);
                 UpdateRetouchOverlay();
                 e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (InteractionMode == PreviewInteractionMode.WhiteBalancePicker)
+        {
+            var hoverHostPoint = e.GetPosition(ImageHost);
+            if (TryMapToImage(hoverHostPoint, out var hoverImagePoint))
+            {
+                whitePickHoverPoint = hoverImagePoint;
+                var (scale, offsetX, offsetY) = GetCurrentImageTransform();
+                UpdateWhitePickOverlay(scale, offsetX, offsetY);
             }
 
             return;

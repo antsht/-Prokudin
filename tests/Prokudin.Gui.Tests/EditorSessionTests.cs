@@ -158,4 +158,27 @@ public sealed class EditorSessionTests
         memento.LastAligned.Should().NotBeSameAs(aligned);
         memento.LastAligned!.Red.Should().NotBeSameAs(aligned.Red);
     }
+
+    [Fact]
+    public void CreateParameterMemento_PreservesWhitePickAndChannelLevels()
+    {
+        var memento = EditorSession.CreateMemento(
+            new EditorCaptureState(
+                Red: null, Green: null, Blue: null,
+                RedSourcePath: null, GreenSourcePath: null, BlueSourcePath: null,
+                Result: null, LastAligned: null,
+                RedExposureStops: 0, GreenExposureStops: 0, BlueExposureStops: 0,
+                AutoWhiteBalance: false, WhiteBalancePipetteX: 4, WhiteBalancePipetteY: 5,
+                LevelsMode: LevelsMode.AutoPercentile, LevelsBlackPoint: 0, LevelsWhitePoint: 1, LevelsGamma: 1,
+                ColorTemperature: 0, ColorTint: 0, SelectedSlotDisplayName: null,
+                WhiteBalanceSource: WhiteBalanceSource.WhitePick, WhitePickRadius: 9,
+                RedLevelsBlackPoint: 0.2, RedLevelsWhitePoint: 0.8, RedLevelsGamma: 1.1),
+            EditorMementoKind.Parameter);
+
+        memento.WhiteBalanceSource.Should().Be(WhiteBalanceSource.WhitePick);
+        memento.WhitePickRadius.Should().Be(9);
+        memento.RedLevelsBlackPoint.Should().Be(0.2);
+        memento.RedLevelsWhitePoint.Should().Be(0.8);
+        memento.RedLevelsGamma.Should().Be(1.1);
+    }
 }

@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Prokudin.Gui.Services;
@@ -19,10 +20,23 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _ = ShowWelcomeAndMainAsync(desktop);
+            _ = StartDesktopAsync(desktop);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static async Task StartDesktopAsync(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        try
+        {
+            await ShowWelcomeAndMainAsync(desktop);
+        }
+        catch (Exception exception)
+        {
+            StartupExceptionReporter.Report(exception);
+            ShowStartupError(desktop);
+        }
     }
 
     private static async Task ShowWelcomeAndMainAsync(IClassicDesktopStyleApplicationLifetime desktop)
@@ -40,6 +54,7 @@ public sealed partial class App : Application
         var welcomeWindow = new WelcomeWindow { DataContext = welcomeViewModel };
         desktop.MainWindow = welcomeWindow;
         welcomeWindow.Show();
+        welcomeWindow.Activate();
 
         var choice = await welcomeViewModel.WaitForChoiceAsync();
         if (choice is null)
@@ -66,5 +81,26 @@ public sealed partial class App : Application
         welcomeWindow.Close();
 
         await mainViewModel.CompleteStartupAsync(choice);
+    }
+
+    private static void ShowStartupError(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var errorWindow = new Window
+        {
+            Title = "Prokudin startup error",
+            Width = 580,
+            Height = 180,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            Content = new TextBlock
+            {
+                Margin = new Thickness(24),
+                Text = $"Prokudin could not start. Details were written to:{Environment.NewLine}{StartupExceptionReporter.DefaultLogPath}",
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            },
+        };
+        errorWindow.Closed += (_, _) => desktop.Shutdown();
+        desktop.MainWindow = errorWindow;
+        errorWindow.Show();
+        errorWindow.Activate();
     }
 }

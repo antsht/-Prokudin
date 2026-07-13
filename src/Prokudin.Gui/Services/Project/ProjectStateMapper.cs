@@ -40,6 +40,9 @@ public static class ProjectStateMapper
             Color = new ProjectColorSettings
             {
                 AutoWhiteBalance = capture.AutoWhiteBalance,
+                WhiteBalanceSource = capture.WhiteBalanceSource,
+                WhitePickRadius = capture.WhitePickRadius,
+                WhitePickWarningAcknowledged = capture.WhitePickWarningAcknowledged,
                 RedExposureStops = capture.RedExposureStops,
                 GreenExposureStops = capture.GreenExposureStops,
                 BlueExposureStops = capture.BlueExposureStops,
@@ -47,6 +50,15 @@ public static class ProjectStateMapper
                 LevelsBlackPoint = capture.LevelsBlackPoint,
                 LevelsWhitePoint = capture.LevelsWhitePoint,
                 LevelsGamma = capture.LevelsGamma,
+                RedLevelsBlackPoint = capture.RedLevelsBlackPoint,
+                RedLevelsWhitePoint = capture.RedLevelsWhitePoint,
+                RedLevelsGamma = capture.RedLevelsGamma,
+                GreenLevelsBlackPoint = capture.GreenLevelsBlackPoint,
+                GreenLevelsWhitePoint = capture.GreenLevelsWhitePoint,
+                GreenLevelsGamma = capture.GreenLevelsGamma,
+                BlueLevelsBlackPoint = capture.BlueLevelsBlackPoint,
+                BlueLevelsWhitePoint = capture.BlueLevelsWhitePoint,
+                BlueLevelsGamma = capture.BlueLevelsGamma,
                 PipetteX = capture.PipetteX,
                 PipetteY = capture.PipetteY,
                 Temperature = capture.ColorTemperature,
@@ -81,6 +93,9 @@ public static class ProjectStateMapper
             SelectionRect = FromSelection(document.Crop.Selection),
             LockSquareSelection = document.Crop.LockSquare,
             AutoWhiteBalance = document.Color.AutoWhiteBalance,
+            WhiteBalanceSource = ResolveWhiteBalanceSource(document.Color),
+            WhitePickRadius = Math.Clamp(document.Color.WhitePickRadius, 1, 25),
+            WhitePickWarningAcknowledged = document.Color.WhitePickWarningAcknowledged,
             RedExposureStops = document.Color.RedExposureStops,
             GreenExposureStops = document.Color.GreenExposureStops,
             BlueExposureStops = document.Color.BlueExposureStops,
@@ -88,6 +103,15 @@ public static class ProjectStateMapper
             LevelsBlackPoint = document.Color.LevelsBlackPoint,
             LevelsWhitePoint = document.Color.LevelsWhitePoint,
             LevelsGamma = document.Color.LevelsGamma,
+            RedLevelsBlackPoint = document.Color.RedLevelsBlackPoint,
+            RedLevelsWhitePoint = document.Color.RedLevelsWhitePoint,
+            RedLevelsGamma = document.Color.RedLevelsGamma,
+            GreenLevelsBlackPoint = document.Color.GreenLevelsBlackPoint,
+            GreenLevelsWhitePoint = document.Color.GreenLevelsWhitePoint,
+            GreenLevelsGamma = document.Color.GreenLevelsGamma,
+            BlueLevelsBlackPoint = document.Color.BlueLevelsBlackPoint,
+            BlueLevelsWhitePoint = document.Color.BlueLevelsWhitePoint,
+            BlueLevelsGamma = document.Color.BlueLevelsGamma,
             PipetteX = document.Color.PipetteX,
             PipetteY = document.Color.PipetteY,
             ColorTemperature = document.Color.Temperature,
@@ -99,6 +123,18 @@ public static class ProjectStateMapper
             OpenOutputFolderAfterExport = document.Session.OpenOutputFolderAfterExport,
             ExportSettings = document.Export,
         };
+
+    private static WhiteBalanceSource ResolveWhiteBalanceSource(ProjectColorSettings color)
+    {
+        if (color.WhiteBalanceSource is { } source)
+        {
+            return source;
+        }
+
+        return !color.AutoWhiteBalance && color.PipetteX >= 0 && color.PipetteY >= 0
+            ? WhiteBalanceSource.WhitePick
+            : color.AutoWhiteBalance ? WhiteBalanceSource.Auto : WhiteBalanceSource.Off;
+    }
 
     private static ProjectCleanSettings ToCleanSettings(ProjectCapture capture) =>
         new()
@@ -202,6 +238,12 @@ public sealed class ProjectCapture
 
     public bool AutoWhiteBalance { get; init; }
 
+    public WhiteBalanceSource WhiteBalanceSource { get; init; }
+
+    public int WhitePickRadius { get; init; } = 3;
+
+    public bool WhitePickWarningAcknowledged { get; init; }
+
     public double RedExposureStops { get; init; }
 
     public double GreenExposureStops { get; init; }
@@ -215,6 +257,24 @@ public sealed class ProjectCapture
     public double LevelsWhitePoint { get; init; }
 
     public double LevelsGamma { get; init; }
+
+    public double RedLevelsBlackPoint { get; init; }
+
+    public double RedLevelsWhitePoint { get; init; } = 1.0;
+
+    public double RedLevelsGamma { get; init; } = 1.0;
+
+    public double GreenLevelsBlackPoint { get; init; }
+
+    public double GreenLevelsWhitePoint { get; init; } = 1.0;
+
+    public double GreenLevelsGamma { get; init; } = 1.0;
+
+    public double BlueLevelsBlackPoint { get; init; }
+
+    public double BlueLevelsWhitePoint { get; init; } = 1.0;
+
+    public double BlueLevelsGamma { get; init; } = 1.0;
 
     public int PipetteX { get; init; }
 
@@ -315,6 +375,12 @@ public sealed class ProjectApplyState
 
     public bool AutoWhiteBalance { get; init; }
 
+    public WhiteBalanceSource WhiteBalanceSource { get; init; }
+
+    public int WhitePickRadius { get; init; } = 3;
+
+    public bool WhitePickWarningAcknowledged { get; init; }
+
     public double RedExposureStops { get; init; }
 
     public double GreenExposureStops { get; init; }
@@ -328,6 +394,24 @@ public sealed class ProjectApplyState
     public double LevelsWhitePoint { get; init; }
 
     public double LevelsGamma { get; init; }
+
+    public double RedLevelsBlackPoint { get; init; }
+
+    public double RedLevelsWhitePoint { get; init; } = 1.0;
+
+    public double RedLevelsGamma { get; init; } = 1.0;
+
+    public double GreenLevelsBlackPoint { get; init; }
+
+    public double GreenLevelsWhitePoint { get; init; } = 1.0;
+
+    public double GreenLevelsGamma { get; init; } = 1.0;
+
+    public double BlueLevelsBlackPoint { get; init; }
+
+    public double BlueLevelsWhitePoint { get; init; } = 1.0;
+
+    public double BlueLevelsGamma { get; init; } = 1.0;
 
     public int PipetteX { get; init; }
 

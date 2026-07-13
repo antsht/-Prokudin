@@ -16,6 +16,8 @@ public sealed record PipelineSettings
 
     public LevelsSettings Levels { get; init; } = new();
 
+    public ChannelLevelsSettings ChannelLevels { get; init; } = new();
+
     public bool Sharpen { get; init; } = true;
 
     public int? OutputSize { get; init; }

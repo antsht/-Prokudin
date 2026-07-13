@@ -36,6 +36,16 @@
                      StrokeThickness="1"
                      Fill="{DynamicResource SelectionFillBrush}"
                      IsVisible="False" />
+          <Ellipse x:Name="WhitePickCircle"
+                   Stroke="{DynamicResource SelectionStrokeBrush}"
+                   StrokeThickness="1.5"
+                   StrokeDashArray="3,2"
+                   IsVisible="False" />
+          <Ellipse x:Name="WhitePickMarker"
+                   Width="6"
+                   Height="6"
+                   Fill="{DynamicResource SelectionStrokeBrush}"
+                   IsVisible="False" />
         </Canvas>
         <Canvas x:Name="RetouchOverlay"
                 IsHitTestVisible="False">

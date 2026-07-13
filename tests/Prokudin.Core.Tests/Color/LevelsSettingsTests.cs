@@ -35,6 +35,42 @@ public sealed class LevelsSettingsTests
         output.Should().BeSameAs(rgb);
     }
 
+    [Fact]
+    public void AutoMasterLevels_DerivesOneLuminanceCurve_ForEveryRgbChannel()
+    {
+        var rgb = new RgbImageBuffer(
+            3,
+            1,
+            [
+                0.1f, 0.2f, 0.3f,
+                0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f,
+            ]);
+
+        var output = ColorCorrection.ApplyLevelsSettings(
+            rgb,
+            new LevelsSettings(AutoLowPercent: 0, AutoHighPercent: 100, AutoMaxGain: 2));
+
+        output[1, 0, 0].Should().BeApproximately(0.357f, 0.002f);
+        output[1, 0, 1].Should().BeApproximately(0.523f, 0.002f);
+        output[1, 0, 2].Should().BeApproximately(0.690f, 0.002f);
+    }
+
+    [Fact]
+    public void ApplyChannelLevels_OnlyChangesTheConfiguredChannel()
+    {
+        var rgb = new RgbImageBuffer(1, 1, [0.25f, 0.5f, 0.75f]);
+
+        var output = ColorCorrection.ApplyChannelLevels(
+            rgb,
+            new ChannelLevelsSettings(
+                Red: new ChannelLevelSettings(BlackPoint: 0, WhitePoint: 0.5f, Gamma: 1)));
+
+        output[0, 0, 0].Should().BeApproximately(0.5f, 0.001f);
+        output[0, 0, 1].Should().BeApproximately(0.5f, 0.001f);
+        output[0, 0, 2].Should().BeApproximately(0.75f, 0.001f);
+    }
+
     private static RgbImageBuffer TestRgbGradient(int width, int height)
     {
         var pixels = new float[width * height * 3];

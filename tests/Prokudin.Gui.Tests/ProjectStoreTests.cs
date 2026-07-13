@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Threading;
 using FluentAssertions;
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
@@ -100,6 +102,121 @@ public sealed class JsonRecentProjectsStoreTests
     }
 }
 
+public sealed class JsonAutosaveStoreTests
+{
+    [Fact]
+    public async Task GetInfo_ReadsManifestMetadataWithoutLoadingChannels()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-autosave-{Guid.NewGuid():N}");
+        var store = new JsonAutosaveStore(folder);
+        var package = new ProjectPackage
+        {
+            Document = new ProjectDocument
+            {
+                DisplayName = "Autosave session",
+                LinkedProjectPath = @"C:\Projects\demo",
+            },
+            Red = new ImageBuffer(2, 2, [0.1f, 0.2f, 0.3f, 0.4f]),
+        };
+
+        try
+        {
+            await store.SaveAsync(package);
+
+            var info = store.GetInfo();
+
+            info.Exists.Should().BeTrue();
+            info.SavedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
+            info.DisplayName.Should().Be("Autosave session");
+            info.LinkedProjectPath.Should().Be(@"C:\Projects\demo");
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetInfo_CompletesUnderCapturedSynchronizationContext()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-autosave-{Guid.NewGuid():N}");
+        var store = new JsonAutosaveStore(folder);
+        var package = new ProjectPackage
+        {
+            Document = new ProjectDocument { DisplayName = "Deadlock guard" },
+            Red = new ImageBuffer(2, 2, [0.1f, 0.2f, 0.3f, 0.4f]),
+        };
+
+        try
+        {
+            await store.SaveAsync(package);
+
+            using var context = new QueuedSynchronizationContext();
+            var info = await context.RunAsync(store.GetInfo).WaitAsync(TimeSpan.FromSeconds(2));
+
+            info.Exists.Should().BeTrue();
+            info.DisplayName.Should().Be("Deadlock guard");
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
+    private sealed class QueuedSynchronizationContext : SynchronizationContext, IDisposable
+    {
+        private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> queue = new();
+
+        public QueuedSynchronizationContext()
+        {
+            var thread = new Thread(ProcessQueue)
+            {
+                IsBackground = true,
+                Name = "QueuedSynchronizationContext",
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+
+        public override void Post(SendOrPostCallback d, object? state) => queue.Add((d, state));
+
+        public Task<T> RunAsync<T>(Func<T> func)
+        {
+            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Post(_ =>
+            {
+                try
+                {
+                    completion.SetResult(func());
+                }
+                catch (Exception exception)
+                {
+                    completion.SetException(exception);
+                }
+            }, null);
+
+            return completion.Task;
+        }
+
+        private void ProcessQueue()
+        {
+            SetSynchronizationContext(this);
+            foreach (var item in queue.GetConsumingEnumerable())
+            {
+                item.Callback(item.State);
+            }
+        }
+
+        public void Dispose() => queue.CompleteAdding();
+    }
+}
+
 public sealed class ProjectStateMapperTests
 {
     [Fact]
@@ -117,11 +234,17 @@ public sealed class ProjectStateMapperTests
             SelectionRect = new ImageSelectionRect(1, 2, 3, 4),
             LockSquareSelection = true,
             AutoWhiteBalance = false,
+            WhiteBalanceSource = WhiteBalanceSource.WhitePick,
+            WhitePickRadius = 7,
+            WhitePickWarningAcknowledged = true,
             RedExposureStops = 0.5,
             LevelsMode = LevelsMode.Manual,
             LevelsBlackPoint = 0.1,
             LevelsWhitePoint = 0.9,
             LevelsGamma = 1.2,
+            RedLevelsBlackPoint = 0.2,
+            RedLevelsWhitePoint = 0.8,
+            RedLevelsGamma = 1.1,
             PipetteX = 10,
             PipetteY = 20,
             AutoCleanSensitivity = 42,
@@ -139,8 +262,35 @@ public sealed class ProjectStateMapperTests
         state.AlignReference.Should().Be(ChannelName.Blue);
         state.SelectionRect.Should().Be(new ImageSelectionRect(1, 2, 3, 4));
         state.LevelsGamma.Should().Be(1.2);
+        state.WhiteBalanceSource.Should().Be(WhiteBalanceSource.WhitePick);
+        state.WhitePickRadius.Should().Be(7);
+        state.WhitePickWarningAcknowledged.Should().BeTrue();
+        state.RedLevelsBlackPoint.Should().Be(0.2);
+        state.RedLevelsWhitePoint.Should().Be(0.8);
+        state.RedLevelsGamma.Should().Be(1.1);
         state.Clean.Sensitivity.Should().Be(42);
         state.ToolMode.Should().Be(EditorToolMode.Heal);
         document.Export.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void ToApplyState_LegacyColourSettings_MapExistingPipetteToWhitePick()
+    {
+        var document = new ProjectDocument
+        {
+            Color = new ProjectColorSettings
+            {
+                AutoWhiteBalance = false,
+                PipetteX = 10,
+                PipetteY = 20,
+            },
+        };
+
+        var state = ProjectStateMapper.ToApplyState(document);
+
+        state.WhiteBalanceSource.Should().Be(WhiteBalanceSource.WhitePick);
+        state.PipetteX.Should().Be(10);
+        state.PipetteY.Should().Be(20);
+        state.WhitePickRadius.Should().Be(3);
     }
 }

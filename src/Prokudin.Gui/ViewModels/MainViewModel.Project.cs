@@ -319,7 +319,10 @@ public sealed partial class MainViewModel
             TrimDarkBorders = TrimDarkBorders,
             SelectionRect = SelectionRect,
             LockSquareSelection = LockSquareSelection,
-            AutoWhiteBalance = AutoWhiteBalance,
+            AutoWhiteBalance = WhiteBalanceSource == global::Prokudin.Core.Color.WhiteBalanceSource.Auto,
+            WhiteBalanceSource = WhiteBalanceSource,
+            WhitePickRadius = WhitePickRadius,
+            WhitePickWarningAcknowledged = WhitePickWarningAcknowledged,
             RedExposureStops = RedExposureStops,
             GreenExposureStops = GreenExposureStops,
             BlueExposureStops = BlueExposureStops,
@@ -327,6 +330,15 @@ public sealed partial class MainViewModel
             LevelsBlackPoint = LevelsBlackPoint,
             LevelsWhitePoint = LevelsWhitePoint,
             LevelsGamma = LevelsGamma,
+            RedLevelsBlackPoint = RedLevelsBlackPoint,
+            RedLevelsWhitePoint = RedLevelsWhitePoint,
+            RedLevelsGamma = RedLevelsGamma,
+            GreenLevelsBlackPoint = GreenLevelsBlackPoint,
+            GreenLevelsWhitePoint = GreenLevelsWhitePoint,
+            GreenLevelsGamma = GreenLevelsGamma,
+            BlueLevelsBlackPoint = BlueLevelsBlackPoint,
+            BlueLevelsWhitePoint = BlueLevelsWhitePoint,
+            BlueLevelsGamma = BlueLevelsGamma,
             PipetteX = whiteBalancePipetteX,
             PipetteY = whiteBalancePipetteY,
             ColorTemperature = ColorTemperature,
@@ -381,7 +393,9 @@ public sealed partial class MainViewModel
             TrimDarkBorders = state.TrimDarkBorders;
             SelectionRect = state.SelectionRect;
             LockSquareSelection = state.LockSquareSelection;
-            AutoWhiteBalance = state.AutoWhiteBalance;
+            WhiteBalanceSource = state.WhiteBalanceSource;
+            WhitePickRadius = state.WhitePickRadius;
+            WhitePickWarningAcknowledged = state.WhitePickWarningAcknowledged;
             RedExposureStops = state.RedExposureStops;
             GreenExposureStops = state.GreenExposureStops;
             BlueExposureStops = state.BlueExposureStops;
@@ -389,6 +403,15 @@ public sealed partial class MainViewModel
             LevelsBlackPoint = state.LevelsBlackPoint;
             LevelsWhitePoint = state.LevelsWhitePoint;
             LevelsGamma = state.LevelsGamma;
+            RedLevelsBlackPoint = state.RedLevelsBlackPoint;
+            RedLevelsWhitePoint = state.RedLevelsWhitePoint;
+            RedLevelsGamma = state.RedLevelsGamma;
+            GreenLevelsBlackPoint = state.GreenLevelsBlackPoint;
+            GreenLevelsWhitePoint = state.GreenLevelsWhitePoint;
+            GreenLevelsGamma = state.GreenLevelsGamma;
+            BlueLevelsBlackPoint = state.BlueLevelsBlackPoint;
+            BlueLevelsWhitePoint = state.BlueLevelsWhitePoint;
+            BlueLevelsGamma = state.BlueLevelsGamma;
             whiteBalancePipetteX = state.PipetteX;
             whiteBalancePipetteY = state.PipetteY;
             ColorTemperature = state.ColorTemperature;

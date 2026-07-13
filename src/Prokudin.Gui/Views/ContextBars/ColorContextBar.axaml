@@ -6,10 +6,10 @@
              x:Class="Prokudin.Gui.Views.ContextBars.ColorContextBar"
              x:DataType="vm:MainViewModel">
   <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-    <CheckBox Content="Auto WB"
-              IsChecked="{Binding AutoWhiteBalance}"
+    <ComboBox ItemsSource="{Binding WhiteBalanceSources}"
+              SelectedItem="{Binding WhiteBalanceSource}"
               IsEnabled="{Binding IsUiEnabled}"
-              VerticalAlignment="Center"
+              Width="110"
               Margin="0,0,8,0" />
     <primitives:ToggleButton Classes="IconButton"
                               IsChecked="{Binding IsWhiteBalancePickerToolMode}"

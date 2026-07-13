@@ -64,7 +64,19 @@ public sealed partial class MainViewModel
             LevelsGamma: LevelsGamma,
             ColorTemperature: ColorTemperature,
             ColorTint: ColorTint,
-            SelectedSlotDisplayName: SelectedSlot?.DisplayName);
+            SelectedSlotDisplayName: SelectedSlot?.DisplayName,
+            WhiteBalanceSource: WhiteBalanceSource,
+            WhitePickRadius: WhitePickRadius,
+            WhitePickWarningAcknowledged: WhitePickWarningAcknowledged,
+            RedLevelsBlackPoint: RedLevelsBlackPoint,
+            RedLevelsWhitePoint: RedLevelsWhitePoint,
+            RedLevelsGamma: RedLevelsGamma,
+            GreenLevelsBlackPoint: GreenLevelsBlackPoint,
+            GreenLevelsWhitePoint: GreenLevelsWhitePoint,
+            GreenLevelsGamma: GreenLevelsGamma,
+            BlueLevelsBlackPoint: BlueLevelsBlackPoint,
+            BlueLevelsWhitePoint: BlueLevelsWhitePoint,
+            BlueLevelsGamma: BlueLevelsGamma);
 
     private EditorMemento CaptureSnapshot() =>
         CaptureEditorMemento(EditorMementoKind.Snapshot);
@@ -152,12 +164,24 @@ public sealed partial class MainViewModel
         GreenExposureStops = snapshot.GreenExposureStops;
         BlueExposureStops = snapshot.BlueExposureStops;
         AutoWhiteBalance = snapshot.AutoWhiteBalance;
+        WhiteBalanceSource = snapshot.WhiteBalanceSource;
+        WhitePickRadius = snapshot.WhitePickRadius;
+        WhitePickWarningAcknowledged = snapshot.WhitePickWarningAcknowledged;
         whiteBalancePipetteX = snapshot.WhiteBalancePipetteX;
         whiteBalancePipetteY = snapshot.WhiteBalancePipetteY;
         LevelsMode = snapshot.LevelsMode;
         LevelsBlackPoint = snapshot.LevelsBlackPoint;
         LevelsWhitePoint = snapshot.LevelsWhitePoint;
         LevelsGamma = snapshot.LevelsGamma;
+        RedLevelsBlackPoint = snapshot.RedLevelsBlackPoint;
+        RedLevelsWhitePoint = snapshot.RedLevelsWhitePoint;
+        RedLevelsGamma = snapshot.RedLevelsGamma;
+        GreenLevelsBlackPoint = snapshot.GreenLevelsBlackPoint;
+        GreenLevelsWhitePoint = snapshot.GreenLevelsWhitePoint;
+        GreenLevelsGamma = snapshot.GreenLevelsGamma;
+        BlueLevelsBlackPoint = snapshot.BlueLevelsBlackPoint;
+        BlueLevelsWhitePoint = snapshot.BlueLevelsWhitePoint;
+        BlueLevelsGamma = snapshot.BlueLevelsGamma;
         ColorTemperature = snapshot.ColorTemperature;
         ColorTint = snapshot.ColorTint;
 

@@ -39,7 +39,11 @@ public static class EditorSession
             state.LevelsGamma,
             state.ColorTemperature,
             state.ColorTint,
-            SelectedSlotDisplayName: null);
+            SelectedSlotDisplayName: null,
+            state.WhiteBalanceSource, state.WhitePickRadius, state.WhitePickWarningAcknowledged,
+            state.RedLevelsBlackPoint, state.RedLevelsWhitePoint, state.RedLevelsGamma,
+            state.GreenLevelsBlackPoint, state.GreenLevelsWhitePoint, state.GreenLevelsGamma,
+            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma);
 
     private static EditorMemento CreateSnapshotMemento(in EditorCaptureState state) =>
         new(
@@ -63,7 +67,11 @@ public static class EditorSession
             state.LevelsGamma,
             state.ColorTemperature,
             state.ColorTint,
-            state.SelectedSlotDisplayName);
+            state.SelectedSlotDisplayName,
+            state.WhiteBalanceSource, state.WhitePickRadius, state.WhitePickWarningAcknowledged,
+            state.RedLevelsBlackPoint, state.RedLevelsWhitePoint, state.RedLevelsGamma,
+            state.GreenLevelsBlackPoint, state.GreenLevelsWhitePoint, state.GreenLevelsGamma,
+            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma);
 
     public static EditorMemento CloneForRestore(in EditorMemento memento) =>
         new(
@@ -87,7 +95,11 @@ public static class EditorSession
             memento.LevelsGamma,
             memento.ColorTemperature,
             memento.ColorTint,
-            memento.SelectedSlotDisplayName);
+            memento.SelectedSlotDisplayName,
+            memento.WhiteBalanceSource, memento.WhitePickRadius, memento.WhitePickWarningAcknowledged,
+            memento.RedLevelsBlackPoint, memento.RedLevelsWhitePoint, memento.RedLevelsGamma,
+            memento.GreenLevelsBlackPoint, memento.GreenLevelsWhitePoint, memento.GreenLevelsGamma,
+            memento.BlueLevelsBlackPoint, memento.BlueLevelsWhitePoint, memento.BlueLevelsGamma);
 
     internal static AlignedChannels? CloneAligned(AlignedChannels? aligned)
     {

@@ -10,11 +10,10 @@
   <z:HeaderedContainer Header="Color"
                        Classes="InspectorSection">
     <StackPanel Spacing="10">
-      <inspector:InspectorParameterCheckBox x:Name="AutoWhiteBalanceBox"
-                                            Label="Auto white balance"
-                                            IsChecked="{Binding AutoWhiteBalance}"
-                                            ShortTip="{StaticResource Tips.Color.AutoWhiteBalance.Short}"
-                                            LongTip="{StaticResource Tips.Color.AutoWhiteBalance.Long}" />
+      <Grid ColumnDefinitions="120,*">
+        <TextBlock Text="White balance" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding WhiteBalanceSources}" SelectedItem="{Binding WhiteBalanceSource}" />
+      </Grid>
       <primitives:ToggleButton Classes="IconButton"
                                 IsChecked="{Binding IsWhiteBalancePickerToolMode}"
                                 IsEnabled="{Binding CanUseWhiteBalancePicker}"
@@ -22,6 +21,14 @@
                                 ToolTip.Tip="Pick white balance from a neutral area on the result"
                                 automation:AutomationProperties.Name="White balance picker"
                                 HorizontalAlignment="Left" />
+      <Grid ColumnDefinitions="120,*">
+        <TextBlock Text="White Pick radius" VerticalAlignment="Center" />
+        <NumericUpDown Grid.Column="1" Minimum="1" Maximum="25" Increment="1" Value="{Binding WhitePickRadius}" />
+      </Grid>
+      <StackPanel IsVisible="{Binding HasWhitePickQualityWarning}" Spacing="4">
+        <TextBlock Text="{Binding WhitePickQualityWarning}" TextWrapping="Wrap" />
+        <Button Content="Use anyway" Command="{Binding UseWhitePickAnywayCommand}" HorizontalAlignment="Left" />
+      </StackPanel>
       <Grid ColumnDefinitions="28,*"
             RowDefinitions="Auto,Auto,Auto"
             RowSpacing="6">
@@ -74,8 +81,8 @@
                                            ShortTip="{StaticResource Tips.Color.Temperature.Short}"
                                            LongTip="{StaticResource Tips.Color.Temperature.Long}" />
         <Slider Grid.Column="1"
-                Minimum="-50"
-                Maximum="50"
+                Minimum="-100"
+                Maximum="100"
                 Value="{Binding ColorTemperature}"
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=TemperatureLabel}"
@@ -87,14 +94,18 @@
                                            LongTip="{StaticResource Tips.Color.Tint.Long}" />
         <Slider Grid.Row="1"
                 Grid.Column="1"
-                Minimum="-50"
-                Maximum="50"
+                Minimum="-100"
+                Maximum="100"
                 Value="{Binding ColorTint}"
                 ToolTip.ShowDelay="400"
                 ToolTip.Tip="{Binding ShortTip, ElementName=TintLabel}"
                 inspector:InspectorTipProperties.LongHelp="{StaticResource Tips.Color.Tint.Long}" />
       </Grid>
       <Separator />
+      <Grid ColumnDefinitions="120,*">
+        <TextBlock Text="Levels scope" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding LevelsScopes}" SelectedItem="{Binding LevelsScope}" />
+      </Grid>
       <Grid ColumnDefinitions="120,*"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="6">
@@ -104,7 +115,8 @@
                                            LongTip="{StaticResource Tips.Color.LevelsMode.Long}" />
         <ComboBox Grid.Column="1"
                   ItemsSource="{Binding LevelsModes}"
-                  SelectedItem="{Binding LevelsMode}"
+                  SelectedItem="{Binding ActiveLevelsMode}"
+                  IsEnabled="{Binding IsMasterLevelsScope}"
                   ToolTip.ShowDelay="400"
                   ToolTip.Tip="{Binding ShortTip, ElementName=LevelsModeLabel}" />
         <inspector:InspectorParameterLabel Grid.Row="1"
@@ -118,8 +130,8 @@
                        Maximum="1"
                        Increment="0.01"
                        FormatString="F2"
-                       Value="{Binding LevelsBlackPoint}"
-                       IsEnabled="{Binding IsManualLevels}"
+                       Value="{Binding ActiveLevelsBlackPoint}"
+                       IsEnabled="{Binding CanEditActiveLevels}"
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=LevelsBlackPointLabel}" />
         <inspector:InspectorParameterLabel Grid.Row="2"
@@ -133,8 +145,8 @@
                        Maximum="1"
                        Increment="0.01"
                        FormatString="F2"
-                       Value="{Binding LevelsWhitePoint}"
-                       IsEnabled="{Binding IsManualLevels}"
+                       Value="{Binding ActiveLevelsWhitePoint}"
+                       IsEnabled="{Binding CanEditActiveLevels}"
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=LevelsWhitePointLabel}" />
         <inspector:InspectorParameterLabel Grid.Row="3"
@@ -148,11 +160,13 @@
                        Maximum="5"
                        Increment="0.05"
                        FormatString="F2"
-                       Value="{Binding LevelsGamma}"
-                       IsEnabled="{Binding IsManualLevels}"
+                       Value="{Binding ActiveLevelsGamma}"
+                       IsEnabled="{Binding CanEditActiveLevels}"
                        ToolTip.ShowDelay="400"
                        ToolTip.Tip="{Binding ShortTip, ElementName=LevelsGammaLabel}" />
       </Grid>
+      <Button Content="Reset levels" Command="{Binding ResetLevelsCommand}" HorizontalAlignment="Left" />
+      <Button Content="Full colour reset" Command="{Binding FullColorResetCommand}" HorizontalAlignment="Left" />
     </StackPanel>
   </z:HeaderedContainer>
 </UserControl>
