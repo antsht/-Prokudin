@@ -248,14 +248,18 @@ Primary healing entry point:
 ```csharp
 HealResult result = ChannelHealer.HealChannel(
     targetChannel,
-    guideChannel1,   // nullable; required for CrossChannelGuided
-    guideChannel2,
+    guideChannel1,   // HealingGuide?; aligned image plus provenance map
+    guideChannel2,   // HealingGuide?; aligned image plus provenance map
     defectMask,
+    targetProvenance,
     options);
 ```
 
-`HealResult` contains the healed `ImageBuffer`, the mask used, optional
-`StatusMessage`, and `UsedFallback` when cross-channel mode degrades to Telea.
+`HealResult` contains the healed `ImageBuffer`, the mask used, the updated
+per-pixel provenance map, optional `GuidedHealingSummary`, `StatusMessage`,
+and `UsedFallback` when cross-channel mode degrades to a conservative local
+repair. The legacy image-only overload remains available for callers that do
+not retain provenance.
 
 ### `HealOptions`
 

@@ -63,6 +63,7 @@ For multi-day work, save the full session to a folder:
 | `project.json` | Workflow settings (align, crop, color, clean, session state); export override on explicit Save |
 | `red.tif`, `green.tif`, `blue.tif` | Current working grayscale channels (Deflate TIFF, lossless) |
 | `result.tif` | Current RGB result preview |
+| `red.provenance.bin`, `green.provenance.bin`, `blue.provenance.bin` | Per-pixel retouch provenance for Guided Healing; older projects without these files load conservatively as unknown. |
 
 Any folder containing `project.json` is a valid project. Use **File → Save Project As…** (Ctrl+Shift+S) to choose the folder, then **Save Project** (Ctrl+S) to update it.
 
@@ -210,10 +211,16 @@ grayscale channel and leaves the other channels untouched.
 
 ### Cross-channel healing
 
-When **Cross-channel** is enabled (default), heal and auto-clean apply use the
-two aligned sibling channels as guides. The algorithm fits a local linear model
-on a ring around each defect, searches for a matching patch, and blends by
-prediction confidence. See [Cross-Channel Guided Healing](cross-channel-healing.md)
+When **Cross-channel** is enabled (default), automatic Guided Healing uses the
+two aligned sibling channels to recover local structure while retaining the
+target channel's surrounding tone. It classifies compact defects and scratches
+automatically, rejects clone-stamped and low-confidence guide pixels, and only
+uses legacy-unknown pixels when both guides agree. Scratches are split at tonal
+boundaries so the repair does not smear an edge.
+
+If local evidence or guide agreement is weak, the repair stays conservative and
+the status bar reports a low-confidence result. Large missing regions are never
+used to invent scene content. See [Cross-Channel Guided Healing](cross-channel-healing.md)
 for algorithm details.
 
 If guides are unavailable, healing falls back to Telea and the status bar
@@ -256,7 +263,7 @@ Implemented in the Avalonia UI:
 - crop-to-selection on channels and result
 - align inspector: reference channel, detector, max translation, fine iterations, coarse max side
 - per-channel exposure sliders, temperature/tint, auto white balance, pipette picker, manual levels, undo/redo
-- **project save/load** (folder with `project.json` + TIFF channels/result) and **autosave**
+- **project save/load** (folder with `project.json` + TIFF channels/result + retouch-provenance sidecars) and **autosave**
 - welcome screen with autosave recovery and three recent projects
 - **Edit → Settings** for theme, autosave interval, and diagnostics
 - result preview with fit-to-window zoom

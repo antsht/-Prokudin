@@ -19,7 +19,10 @@ internal static class HealingTileMerger
             for (var x = 0; x < width; x++)
             {
                 var maskValue = softMask.At<float>(y, x);
-                if (maskValue <= 0.0f)
+                // Gaussian soft masks extend outside the component. A manual
+                // brush is strictly local; Auto-clean has already expanded its
+                // final mask before it reaches this merger.
+                if (componentMask.At<byte>(y, x) == 0 || maskValue <= 0.0f)
                 {
                     continue;
                 }

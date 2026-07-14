@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.ViewModels;
 
@@ -84,6 +85,16 @@ public sealed partial class MainViewModel
 
         ClearPendingAutoCleanMask();
         RecordSnapshotCommand("SwapChannels");
+        if (source.ChannelName is { } sourceChannel && target.ChannelName is { } targetChannel)
+        {
+            (retouchProvenance[sourceChannel], retouchProvenance[targetChannel]) =
+                (retouchProvenance.TryGetValue(targetChannel, out var targetProvenance)
+                    ? targetProvenance
+                    : new RetouchProvenanceMap(target.Image!.Width, target.Image.Height),
+                 retouchProvenance.TryGetValue(sourceChannel, out var sourceProvenance)
+                    ? sourceProvenance
+                    : new RetouchProvenanceMap(source.Image!.Width, source.Image.Height));
+        }
         (source.Image, target.Image) = (target.Image, source.Image);
         (source.SourcePath, target.SourcePath) = (target.SourcePath, source.SourcePath);
         SetLastAligned(null);

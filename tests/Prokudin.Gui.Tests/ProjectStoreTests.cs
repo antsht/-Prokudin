@@ -4,6 +4,7 @@ using FluentAssertions;
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Retouch;
 using Prokudin.Gui.Services.Project;
 using Prokudin.Gui.ViewModels;
 
@@ -11,6 +12,73 @@ namespace Prokudin.Gui.Tests;
 
 public sealed class JsonProjectStoreTests
 {
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsRetouchProvenanceSidecars()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-provenance-{Guid.NewGuid():N}");
+        try
+        {
+            var provenance = new RetouchProvenanceMap(2, 2);
+            provenance[1] = RetouchProvenance.HighConfidenceHealing;
+            provenance[3] = RetouchProvenance.CloneStamp;
+            var package = new ProjectPackage
+            {
+                Document = ProjectStateMapper.ToDocument(new ProjectCapture
+                {
+                    TriptychOrder = "BGR",
+                    AlignDetector = "sift",
+                }, includeExportOverride: false),
+                Red = ImageBuffer.Filled(2, 2, 0.4f),
+                RedProvenance = provenance,
+            };
+
+            var store = new JsonProjectStore();
+            await store.SaveAsync(folder, package);
+            var loaded = await store.LoadAsync(folder);
+
+            loaded.RedProvenance![1].Should().Be(RetouchProvenance.HighConfidenceHealing);
+            loaded.RedProvenance[3].Should().Be(RetouchProvenance.CloneStamp);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Load_WithoutProvenanceSidecar_MarksLegacyPixelsUnknown()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-legacy-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new JsonProjectStore();
+            var package = new ProjectPackage
+            {
+                Document = ProjectStateMapper.ToDocument(new ProjectCapture
+                {
+                    TriptychOrder = "BGR",
+                    AlignDetector = "sift",
+                }, includeExportOverride: false),
+                Red = ImageBuffer.Filled(2, 2, 0.4f),
+            };
+            await store.SaveAsync(folder, package);
+
+            var loaded = await store.LoadAsync(folder);
+
+            loaded.RedProvenance![0].Should().Be(RetouchProvenance.Unknown);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public async Task SaveAndLoad_RoundTripsProjectState()
     {
@@ -104,6 +172,36 @@ public sealed class JsonRecentProjectsStoreTests
 
 public sealed class JsonAutosaveStoreTests
 {
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsRetouchProvenance()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"prokudin-autosave-provenance-{Guid.NewGuid():N}");
+        var store = new JsonAutosaveStore(folder);
+        var provenance = new RetouchProvenanceMap(2, 2);
+        provenance[2] = RetouchProvenance.LowConfidenceHealing;
+        var package = new ProjectPackage
+        {
+            Document = new ProjectDocument { DisplayName = "Provenance autosave" },
+            Red = ImageBuffer.Filled(2, 2, 0.4f),
+            RedProvenance = provenance,
+        };
+
+        try
+        {
+            await store.SaveAsync(package);
+            var loaded = await store.LoadAsync();
+
+            loaded.RedProvenance![2].Should().Be(RetouchProvenance.LowConfidenceHealing);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public async Task GetInfo_ReadsManifestMetadataWithoutLoadingChannels()
     {

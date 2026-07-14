@@ -112,7 +112,9 @@ export operate on overlap-cropped working buffers without re-running alignment.
 `ThumbnailBitmap` (512 px max side). Both are disposed when replaced.
 
 Retouch strokes and auto-clean apply call `ChannelHealer.HealChannel` on
-`Task.Run`. Cross-channel mode passes the two sibling channels as guides.
+`Task.Run`. Guided Healing passes the two sibling channels together with their
+per-pixel retouch-provenance maps; the returned target map is applied atomically
+with the healed image.
 Auto-clean detection prepares the reviewed mask before apply in the fixed order
 raw auto mask -> merge nearby defects -> expand healing area -> final healing
 mask; `ChannelHealer` receives that final mask only.
@@ -180,15 +182,13 @@ flowchart TD
   auto --> prep[Merge nearby + expand healing mask]
   prep --> stroke[Heal brush or auto-clean apply]
   brush[Heal brush] --> stroke
-  stroke --> guides{Cross-channel guides available?}
-  guides -->|yes| large{Large mask?}
-  large -->|yes| bulk[Bulk CUDA/CPU prediction + Telea blend]
-  large -->|no| cc[CrossChannelPredictor + PatchHealer]
-  guides -->|no| fallback[CurrentChannelOnly Telea]
-  cc --> blend[Blend by confidence + feather]
-  bulk --> out[Healed target channel]
-  fallback --> out[Healed target channel]
-  blend --> out
+  stroke --> classify[Classify compact defect or scratch]
+  classify --> guides{Eligible provenance-aware guides?}
+  guides -->|yes| structure[Fit local structure; retain target tone]
+  guides -->|no| fallback[Conservative local fallback]
+  structure --> boundary[Segment scratch tonal boundaries]
+  boundary --> outcome[Healed target + confidence provenance]
+  fallback --> outcome
   stamp[Clone stamp] --> copy[ChannelRetoucher.Stamp]
 ```
 

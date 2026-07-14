@@ -60,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject
     private int whiteBalancePipetteX = -1;
     private int whiteBalancePipetteY = -1;
     private readonly AutoCleanSessionCache autoCleanSessionCache = new();
+    private readonly Dictionary<ChannelName, RetouchProvenanceMap> retouchProvenance = new();
     private Window? ownerWindow;
     private bool suppressProjectDirtyTracking;
     private bool isAutosavePending;
@@ -1144,16 +1145,26 @@ public sealed partial class MainViewModel : ObservableObject
         ClearPendingAutoCleanMask();
         slot.Image = image;
         slot.SourcePath = sourcePath;
+        if (slot.ChannelName is { } channelName)
+        {
+            ResetRetouchProvenance(channelName, image);
+        }
         RefreshPreviewImageContext();
         RefreshChannelStates();
     }
 
-    private void SetPreparedChannels(AlignedChannels aligned)
+    private void SetPreparedChannels(AlignedChannels aligned, bool resetProvenance = true)
     {
         ClearPendingAutoCleanMask();
         RedSlot.Image = aligned.Red;
         GreenSlot.Image = aligned.Green;
         BlueSlot.Image = aligned.Blue;
+        if (resetProvenance)
+        {
+            ResetRetouchProvenance(ChannelName.Red, aligned.Red);
+            ResetRetouchProvenance(ChannelName.Green, aligned.Green);
+            ResetRetouchProvenance(ChannelName.Blue, aligned.Blue);
+        }
         RefreshPreviewImageContext();
         RefreshChannelStates();
     }
@@ -1184,6 +1195,9 @@ public sealed partial class MainViewModel : ObservableObject
             rect.X + rect.Width,
             rect.Y + rect.Height);
 
+        CropRetouchProvenance(ChannelName.Red, rect.X, rect.Y, rect.Width, rect.Height);
+        CropRetouchProvenance(ChannelName.Green, rect.X, rect.Y, rect.Width, rect.Height);
+        CropRetouchProvenance(ChannelName.Blue, rect.X, rect.Y, rect.Width, rect.Height);
         RedSlot.Image = red.Crop(rect.X, rect.Y, rect.Width, rect.Height);
         GreenSlot.Image = green.Crop(rect.X, rect.Y, rect.Width, rect.Height);
         BlueSlot.Image = blue.Crop(rect.X, rect.Y, rect.Width, rect.Height);
@@ -1318,7 +1332,7 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
-    private bool TryGetHealingGuides(ChannelName channelName, out ImageBuffer? guide1, out ImageBuffer? guide2)
+    private bool TryGetHealingGuides(ChannelName channelName, out HealingGuide? guide1, out HealingGuide? guide2)
     {
         guide1 = null;
         guide2 = null;
@@ -1327,14 +1341,51 @@ public sealed partial class MainViewModel : ObservableObject
             return false;
         }
 
-        (guide1, guide2) = channelName switch
+        var (firstImage, secondImage, firstChannel, secondChannel) = channelName switch
         {
-            ChannelName.Red => (green, blue),
-            ChannelName.Green => (red, blue),
-            ChannelName.Blue => (red, green),
+            ChannelName.Red => (green, blue, ChannelName.Green, ChannelName.Blue),
+            ChannelName.Green => (red, blue, ChannelName.Red, ChannelName.Blue),
+            ChannelName.Blue => (red, green, ChannelName.Red, ChannelName.Green),
             _ => throw new ArgumentOutOfRangeException(nameof(channelName), channelName, null),
         };
+        guide1 = new HealingGuide(firstImage, GetRetouchProvenance(firstChannel, firstImage));
+        guide2 = new HealingGuide(secondImage, GetRetouchProvenance(secondChannel, secondImage));
         return true;
+    }
+
+    private RetouchProvenanceMap GetRetouchProvenance(ChannelName channelName, ImageBuffer image)
+    {
+        if (retouchProvenance.TryGetValue(channelName, out var provenance) &&
+            provenance.Width == image.Width &&
+            provenance.Height == image.Height)
+        {
+            return provenance;
+        }
+
+        provenance = new RetouchProvenanceMap(image.Width, image.Height);
+        retouchProvenance[channelName] = provenance;
+        return provenance;
+    }
+
+    private void ResetRetouchProvenance(ChannelName channelName, ImageBuffer image) =>
+        retouchProvenance[channelName] = new RetouchProvenanceMap(image.Width, image.Height);
+
+    private void SetRetouchProvenance(ChannelName channelName, ImageBuffer image, RetouchProvenanceMap? provenance)
+    {
+        retouchProvenance[channelName] = provenance is { Width: var width, Height: var height }
+            && width == image.Width
+            && height == image.Height
+            ? provenance.Clone()
+            : RetouchProvenanceMap.Unknown(image.Width, image.Height);
+    }
+
+    private void CropRetouchProvenance(ChannelName channelName, int x, int y, int width, int height)
+    {
+        var slot = GetSlot(channelName);
+        if (slot.Image is { } image)
+        {
+            retouchProvenance[channelName] = GetRetouchProvenance(channelName, image).Crop(x, y, width, height);
+        }
     }
 
     private void BeginAutoCleanMaskReview(ChannelName channelName, byte[] mask)

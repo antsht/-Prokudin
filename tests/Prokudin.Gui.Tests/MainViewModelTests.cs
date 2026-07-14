@@ -137,6 +137,72 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task CropAfterGuidedHealing_PreservesWorkingStateWithoutCrashing()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            LoadSyntheticChannels(viewModel);
+            viewModel.AlignMaxTranslation = 12;
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+        AvaloniaTestHost.Invoke(() => viewModel.SelectedSlot = viewModel.GreenSlot);
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(
+            new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 12)))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            viewModel.SelectedSlot = viewModel.ResultSlot;
+            viewModel.SelectionRect = new ImageSelectionRect(16, 16, 64, 64);
+            viewModel.CropToSelectionCommand.Execute(null);
+
+            viewModel.ResultSlot.Result!.Width.Should().Be(64);
+            viewModel.ResultSlot.Result.Height.Should().Be(64);
+            viewModel.UndoCommand.Execute(null);
+            viewModel.ResultSlot.Result!.Width.Should().BeGreaterThan(64);
+        });
+    }
+
+    [Fact]
+    public async Task ResultCropAfterGuidedHealing_SyncsPreparedChannelsWithoutCrashing()
+    {
+        var viewModel = AvaloniaTestHost.Invoke(() => CreateViewModel());
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var source = ImageBuffer.Filled(128, 128, 0.5f);
+            viewModel.RedSlot.Image = source.Clone();
+            viewModel.GreenSlot.Image = source.Clone();
+            viewModel.BlueSlot.Image = source.Clone();
+            viewModel.SelectedSlot = viewModel.GreenSlot;
+            viewModel.SelectedWorkflowTool = WorkflowTool.Clean;
+        });
+
+        await AvaloniaTestHost.Invoke(() => viewModel.AutoAlignCommand.ExecuteAsync(null))!;
+        await AvaloniaTestHost.Invoke(() => viewModel.ApplyRetouchStrokeCommand.ExecuteAsync(
+            new RetouchStroke([new RetouchPoint(64, 64)], BrushSize: 12)))!;
+
+        AvaloniaTestHost.Invoke(() =>
+        {
+            var result = viewModel.ResultSlot.Result!;
+            viewModel.RedSlot.Image!.Width.Should().Be(result.Width);
+            viewModel.GreenSlot.Image!.Width.Should().Be(result.Width);
+            viewModel.BlueSlot.Image!.Width.Should().Be(result.Width);
+            viewModel.SelectedSlot = viewModel.ResultSlot;
+            viewModel.SelectionRect = new ImageSelectionRect(16, 16, 64, 64);
+
+            viewModel.CropToSelectionCommand.Execute(null);
+
+            viewModel.ResultSlot.Result!.Width.Should().Be(64);
+            viewModel.RedSlot.Image!.Width.Should().Be(64);
+            viewModel.GreenSlot.Image!.Width.Should().Be(64);
+            viewModel.BlueSlot.Image!.Width.Should().Be(64);
+        });
+    }
+
+    [Fact]
     public async Task OpenRed_IsUndoable()
     {
         var path = Path.Combine(Path.GetTempPath(), $"prokudin-red-{Guid.NewGuid():N}.png");

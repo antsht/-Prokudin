@@ -161,3 +161,73 @@ _Avoid_: Invalid white pick, rejected white pick
 **Temperature and Tint**:
 Optional manual colour-balance adjustments applied after the White-Balance Source; temperature shifts warm versus cool, and tint shifts green versus magenta. Each ranges from -100 to +100 and defaults to 0.
 _Avoid_: White-Balance Source
+
+## Retouching
+
+**Plate Defect**:
+A local point or scratch in one channel scan caused by damage to its photographic plate rather than by photographed scene detail.
+_Avoid_: Scene detail, image feature
+
+**Automatic Defect Classification**:
+The healing brush's automatic choice of restoration treatment from a Plate Defect's mask geometry, distinguishing compact defects from elongated scratches without a separate operator-selected mode.
+_Avoid_: Brush mode, manual defect type
+
+**Guide Agreement**:
+The degree to which the two unaffected channel scans support the same structure at a Plate Defect. Low agreement requires a conservative restoration that does not transfer unconfirmed guide detail into the target channel.
+_Avoid_: Guide availability, guide confidence
+
+**Guide Eligibility**:
+The per-guide assessment of whether a channel scan can contribute trustworthy structure at a Plate Defect. A suspected guide is excluded rather than allowed to distort the repair.
+_Avoid_: Guide availability, all-or-nothing guidance
+
+**Healing Confidence Notice**:
+A non-blocking, actionable message that identifies a repair made with low Guide Agreement and its conservative treatment. It leaves the repair applied and reversible through Undo.
+_Avoid_: Healing error, confirmation dialog
+
+**Brush Locality**:
+The healing brush changes only the pixels in the operator-painted mask. Automatic expansion beyond that mask belongs to Auto-clean rather than manual retouching.
+_Avoid_: Automatic mask expansion, inferred repair area
+
+**Retouch Alignment**:
+The shared coordinate space of the prepared channel scans used during retouching. Healing compares channels in that space and does not perform a second local alignment.
+_Avoid_: Local guide registration, re-alignment during healing
+
+**Structural Guidance**:
+The use of eligible guide channels to establish a Plate Defect's edges and texture while deriving the repaired target-channel tone from its own surrounding samples.
+_Avoid_: Cross-channel tone copying, guide luminance transfer
+
+**Local Channel Model**:
+The robust relationship between a target channel and eligible structural guides, learned from its unmasked neighbourhood and used as the primary reconstruction for a compact Plate Defect.
+_Avoid_: Guide-tone copy, spatial blur
+
+**Boundary-Segmented Scratch**:
+An elongated Plate Defect that is treated as separate repair regions wherever it crosses a photographed-scene boundary, so structure is never borrowed across that boundary.
+_Avoid_: Whole-scratch repair, cross-edge donor
+
+**Transverse Scratch Repair**:
+The restoration of a narrow Boundary-Segmented Scratch from its immediate samples on both sides of the scratch, with Structural Guidance protecting crossed scene boundaries and texture.
+_Avoid_: Along-scratch interpolation, remote patch copying
+
+**Automatic Guided Healing**:
+The healing brush's default restoration policy, which applies defect classification, guide eligibility, and boundary protection without exposing these decisions as operator settings.
+_Avoid_: Healing-tuning controls, manual restoration profile
+
+**Guided Healing**:
+The shared restoration policy used by the healing brush and Auto-clean, which derives target-channel content from eligible aligned guide structure and the target channel's local context. Each workflow retains its own rules for creating and limiting its repair mask.
+_Avoid_: Brush-only healing, Auto-clean-only healing
+
+**Evidence-Bounded Healing**:
+Restoration that is limited to image content supported by the target-channel context and eligible guides. For a large or ambiguous Plate Defect, it does not invent unverified scene detail and instead communicates low confidence.
+_Avoid_: Generative restoration, scene completion
+
+**Retouch Provenance**:
+The per-pixel record that distinguishes high-confidence repairs, uncertain repairs, and clone-stamped pixels in a working channel. It determines whether a prior repair is eligible to guide later cross-channel healing; clone-stamped pixels are never guide data. It follows the channel through crop, resets on reimport or new alignment, restores atomically with Undo or Redo, and persists in project saves and autosaves.
+_Avoid_: Pixel history, unqualified working pixel
+
+**Unknown Provenance**:
+The provenance assigned to pixels loaded from a project that predates Retouch Provenance. Such pixels can guide healing only when both guide channels agree, never as a sole guide.
+_Avoid_: Original pixel, trusted repair
+
+**Native-Precision Healing**:
+Guided Healing that preserves the source channel's native sample precision and dynamic range, including 16-bit TIFF data, without an intermediate 8-bit reduction or extra clipping.
+_Avoid_: 8-bit healing, tone clipping

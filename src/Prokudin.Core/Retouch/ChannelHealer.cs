@@ -8,6 +8,44 @@ namespace Prokudin.Core.Retouch;
 
 public static class ChannelHealer
 {
+    /// <summary>
+    /// Provenance-aware Guided Healing entry point. New callers should use this
+    /// overload so mutable working channels cannot silently propagate a clone
+    /// stamp or an uncertain prior repair as structural evidence.
+    /// </summary>
+    public static HealResult HealChannel(
+        ImageBuffer targetChannel,
+        HealingGuide? guideChannel1,
+        HealingGuide? guideChannel2,
+        byte[] defectMask,
+        RetouchProvenanceMap targetProvenance,
+        HealOptions options,
+        IProgress<double>? progress = null)
+    {
+        ReportProgress(progress, 0);
+        ValidateMask(defectMask, targetChannel);
+        if (targetProvenance.PixelCount != targetChannel.PixelCount)
+        {
+            throw new ArgumentException("Target provenance must match the target channel.", nameof(targetProvenance));
+        }
+
+        if (!defectMask.Any(value => value > 0))
+        {
+            ReportProgress(progress, 100);
+            return new HealResult(targetChannel.Clone(), defectMask, Provenance: targetProvenance.Clone());
+        }
+
+        if (options.Mode == HealingMode.CrossChannelGuided && guideChannel1 is not null && guideChannel2 is not null)
+        {
+            return GuidedHealingEngine.Heal(targetChannel, guideChannel1, guideChannel2, defectMask, targetProvenance, options, progress);
+        }
+
+        var status = options.Mode == HealingMode.CrossChannelGuided
+            ? "Cross-channel evidence is unavailable; used conservative local repair. Undo to revise."
+            : "Used conservative local repair. Undo to revise.";
+        return HealConservativeNative(targetChannel, defectMask, targetProvenance, status, progress);
+    }
+
     public static HealResult HealChannel(
         ImageBuffer targetChannel,
         ImageBuffer? guideChannel1,
@@ -45,6 +83,79 @@ public static class ChannelHealer
         }
 
         return HealCurrentChannelOnly(targetChannel, defectMask, options, progress: progress);
+    }
+
+    private static HealResult HealConservativeNative(
+        ImageBuffer targetChannel,
+        byte[] defectMask,
+        RetouchProvenanceMap targetProvenance,
+        string statusMessage,
+        IProgress<double>? progress)
+    {
+        var source = new float[targetChannel.PixelCount];
+        targetChannel.CopyNormalizedTo(source);
+        var repaired = (float[])source.Clone();
+        var width = targetChannel.Width;
+        var height = targetChannel.Height;
+        for (var index = 0; index < source.Length; index++)
+        {
+            if (defectMask[index] == 0)
+            {
+                continue;
+            }
+
+            var x = index % width;
+            var y = index / width;
+            var samples = new List<float>(4);
+            AddNearestSample(samples, x, y, -1, 0, source, defectMask, width, height);
+            AddNearestSample(samples, x, y, 1, 0, source, defectMask, width, height);
+            AddNearestSample(samples, x, y, 0, -1, source, defectMask, width, height);
+            AddNearestSample(samples, x, y, 0, 1, source, defectMask, width, height);
+            if (samples.Count > 0)
+            {
+                repaired[index] = samples.Average();
+            }
+        }
+
+        var provenance = targetProvenance.Clone();
+        provenance.Mark(defectMask, RetouchProvenance.LowConfidenceHealing);
+        ReportProgress(progress, 100);
+        return new HealResult(
+            ImageBuffer.FromNormalized(width, height, repaired, targetChannel.Format),
+            defectMask,
+            UsedFallback: true,
+            StatusMessage: statusMessage,
+            Provenance: provenance,
+            GuidedSummary: new GuidedHealingSummary(0, 0, 1, 2, 0));
+    }
+
+    private static void AddNearestSample(
+        List<float> samples,
+        int x,
+        int y,
+        int dx,
+        int dy,
+        float[] source,
+        byte[] mask,
+        int width,
+        int height)
+    {
+        for (var distance = 1; distance <= 16; distance++)
+        {
+            var sampleX = x + (dx * distance);
+            var sampleY = y + (dy * distance);
+            if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height)
+            {
+                return;
+            }
+
+            var index = (sampleY * width) + sampleX;
+            if (mask[index] == 0)
+            {
+                samples.Add(source[index]);
+                return;
+            }
+        }
     }
 
     private static HealResult HealCurrentChannelOnly(
@@ -472,7 +583,7 @@ public static class ChannelHealer
             for (var x = 0; x < width; x++)
             {
                 var maskValue = softMask.At<float>(y, x);
-                if (maskValue <= 0.0f)
+                if (mask[(y * width) + x] == 0 || maskValue <= 0.0f)
                 {
                     continue;
                 }

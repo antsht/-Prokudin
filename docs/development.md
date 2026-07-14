@@ -163,9 +163,9 @@ The same toggles are editable under **Edit → Settings** in the GUI.
 | `auto-clean-settings.json` | Auto-clean / heal preset defaults |
 | `diagnostics-settings.json` | Processing log category toggles |
 | `recent-projects.json` | Last three opened/saved project folders |
-| `autosave/` | Single autosave slot (`project.json` + TIFF files) |
+| `autosave/` | Single autosave slot (`project.json` + TIFF files + provenance sidecars) |
 
-Project **Save** writes a user-chosen folder with the same manifest + TIFF layout.
+Project **Save** writes a user-chosen folder with the same manifest, TIFF, and provenance-sidecar layout.
 See `docs/superpowers/specs/2026-06-26-project-save-design.md`.
 
 ## Inspector parameter tooltips

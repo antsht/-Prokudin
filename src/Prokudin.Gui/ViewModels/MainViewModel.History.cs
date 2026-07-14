@@ -76,7 +76,10 @@ public sealed partial class MainViewModel
             GreenLevelsGamma: GreenLevelsGamma,
             BlueLevelsBlackPoint: BlueLevelsBlackPoint,
             BlueLevelsWhitePoint: BlueLevelsWhitePoint,
-            BlueLevelsGamma: BlueLevelsGamma);
+            BlueLevelsGamma: BlueLevelsGamma,
+            RedProvenance: RedSlot.Image is { } red ? GetRetouchProvenance(ChannelName.Red, red) : null,
+            GreenProvenance: GreenSlot.Image is { } green ? GetRetouchProvenance(ChannelName.Green, green) : null,
+            BlueProvenance: BlueSlot.Image is { } blue ? GetRetouchProvenance(ChannelName.Blue, blue) : null);
 
     private EditorMemento CaptureSnapshot() =>
         CaptureEditorMemento(EditorMementoKind.Snapshot);
@@ -157,6 +160,20 @@ public sealed partial class MainViewModel
             RedSlot.SourcePath = snapshot.RedSourcePath;
             GreenSlot.SourcePath = snapshot.GreenSourcePath;
             BlueSlot.SourcePath = snapshot.BlueSourcePath;
+            if (snapshot.Red is { } red)
+            {
+                SetRetouchProvenance(ChannelName.Red, red, snapshot.RedProvenance);
+            }
+
+            if (snapshot.Green is { } green)
+            {
+                SetRetouchProvenance(ChannelName.Green, green, snapshot.GreenProvenance);
+            }
+
+            if (snapshot.Blue is { } blue)
+            {
+                SetRetouchProvenance(ChannelName.Blue, blue, snapshot.BlueProvenance);
+            }
             SetLastAligned(snapshot.LastAligned);
         }
 

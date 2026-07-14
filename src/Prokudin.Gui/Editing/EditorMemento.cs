@@ -2,6 +2,7 @@ using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.Editing;
 
@@ -44,13 +45,19 @@ public sealed record EditorMemento(
     double GreenLevelsGamma = 1,
     double BlueLevelsBlackPoint = 0,
     double BlueLevelsWhitePoint = 1,
-    double BlueLevelsGamma = 1)
+    double BlueLevelsGamma = 1,
+    RetouchProvenanceMap? RedProvenance = null,
+    RetouchProvenanceMap? GreenProvenance = null,
+    RetouchProvenanceMap? BlueProvenance = null)
 {
     public long ApproximateBytes =>
         EstimateImageBytes(Red) +
         EstimateImageBytes(Green) +
-        EstimateImageBytes(Blue) +
-        EstimateAlignedBytes(LastAligned);
+            EstimateImageBytes(Blue) +
+            EstimateAlignedBytes(LastAligned) +
+            (RedProvenance?.PixelCount ?? 0) +
+            (GreenProvenance?.PixelCount ?? 0) +
+            (BlueProvenance?.PixelCount ?? 0);
 
     private static long EstimateAlignedBytes(AlignedChannels? aligned)
     {

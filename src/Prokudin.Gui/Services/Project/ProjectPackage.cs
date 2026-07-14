@@ -1,4 +1,5 @@
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.Services.Project;
 
@@ -13,6 +14,12 @@ public sealed class ProjectPackage
     public ImageBuffer? Blue { get; init; }
 
     public RgbImageBuffer? Result { get; init; }
+
+    public RetouchProvenanceMap? RedProvenance { get; init; }
+
+    public RetouchProvenanceMap? GreenProvenance { get; init; }
+
+    public RetouchProvenanceMap? BlueProvenance { get; init; }
 }
 
 public sealed class AutosaveInfo

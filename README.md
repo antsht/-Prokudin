@@ -79,9 +79,9 @@ The desktop app supports:
 - drag/drop swap between R, G, B slots
 - auto-align with alignment metadata in the status bar
 - heal brush and clone stamp on aligned channels
-- cross-channel guided healing (default on) and per-channel auto-clean masks
+- provenance-aware Guided Healing (default on) and per-channel auto-clean masks
 - crop-to-selection, per-channel exposure, auto white balance, undo/redo
-- **save/load projects** (folder with `project.json` and TIFF channels/result) and **autosave**
+- **save/load projects** (folder with `project.json`, TIFF channels/result, and retouch-provenance sidecars) and **autosave**
 - interactive Master/R/G/B levels histogram with draggable controls and exact values
 - result preview and PNG/JPEG/TIFF export with saved export settings
 - export prepared aligned channels after auto-align

@@ -8,4 +8,9 @@ public sealed record HealResult(
     float AverageConfidence = 0.0f,
     bool UsedCrossChannel = false,
     bool UsedFallback = false,
-    string? StatusMessage = null);
+    string? StatusMessage = null,
+    RetouchProvenanceMap? Provenance = null,
+    GuidedHealingSummary? GuidedSummary = null)
+{
+    public bool IsLowConfidence => GuidedSummary?.HasLowConfidence ?? false;
+}

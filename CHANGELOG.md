@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-13
+
+### Added
+
+- Automatic provenance-aware Guided Healing for the heal brush and auto-clean: compact defects and scratches are classified automatically, guide data is selected conservatively, and guide structure is transferred without copying its tone.
+- Per-pixel retouch provenance for original data, high- and low-confidence healing, clone stamps, and legacy-unknown samples. It follows undo/redo and crops, and is stored in projects and autosaves.
+- Focused Core and GUI regression coverage for guide eligibility, scratch-boundary protection, native 16-bit repair, provenance persistence, and result crop after healing.
+
+### Changed
+
+- Guided Healing segments scratches at tonal boundaries, avoids speculative completion of large damaged regions, and reports low-confidence results in the status bar.
+
+## [0.16.1] - 2026-07-13
+
+### Changed
+
+- Documented the accepted Guided Healing design, terminology, and retouch-provenance decision.
+
 ## [0.16.0] - 2026-07-13
 
 ### Added

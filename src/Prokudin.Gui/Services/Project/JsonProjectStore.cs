@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Prokudin.Core.Imaging;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.Services.Project;
 
@@ -43,6 +44,9 @@ public sealed class JsonProjectStore : IProjectStore
         ImageBuffer? green = File.Exists(greenPath) ? await ImageLoader.LoadGrayscaleAsync(greenPath, cancellationToken) : null;
         ImageBuffer? blue = File.Exists(bluePath) ? await ImageLoader.LoadGrayscaleAsync(bluePath, cancellationToken) : null;
         RgbImageBuffer? result = await LoadResultAsync(resultPath, cancellationToken);
+        var redProvenance = await LoadProvenanceAsync(Path.Combine(folderPath, ProjectFileNames.RedProvenance), red, cancellationToken);
+        var greenProvenance = await LoadProvenanceAsync(Path.Combine(folderPath, ProjectFileNames.GreenProvenance), green, cancellationToken);
+        var blueProvenance = await LoadProvenanceAsync(Path.Combine(folderPath, ProjectFileNames.BlueProvenance), blue, cancellationToken);
 
         return new ProjectPackage
         {
@@ -51,6 +55,9 @@ public sealed class JsonProjectStore : IProjectStore
             Green = green,
             Blue = blue,
             Result = result,
+            RedProvenance = redProvenance,
+            GreenProvenance = greenProvenance,
+            BlueProvenance = blueProvenance,
         };
     }
 
@@ -86,6 +93,9 @@ public sealed class JsonProjectStore : IProjectStore
             await SaveChannelAsync(tempFolder, ProjectFileNames.GreenChannel, package.Green, cancellationToken);
             await SaveChannelAsync(tempFolder, ProjectFileNames.BlueChannel, package.Blue, cancellationToken);
             await SaveResultAsync(tempFolder, ProjectFileNames.Result, package.Result, cancellationToken);
+            await SaveProvenanceAsync(tempFolder, ProjectFileNames.RedProvenance, package.RedProvenance, cancellationToken);
+            await SaveProvenanceAsync(tempFolder, ProjectFileNames.GreenProvenance, package.GreenProvenance, cancellationToken);
+            await SaveProvenanceAsync(tempFolder, ProjectFileNames.BlueProvenance, package.BlueProvenance, cancellationToken);
 
             CommitTempFolder(folderPath, tempFolder);
         }
@@ -157,6 +167,37 @@ public sealed class JsonProjectStore : IProjectStore
         };
 
         await ImageLoader.SaveRgbAsync(Path.Combine(folder, fileName), result, settings, cancellationToken);
+    }
+
+    private static Task SaveProvenanceAsync(
+        string folder,
+        string fileName,
+        RetouchProvenanceMap? provenance,
+        CancellationToken cancellationToken) =>
+        provenance is null
+            ? Task.CompletedTask
+            : File.WriteAllBytesAsync(Path.Combine(folder, fileName), provenance.ToArray(), cancellationToken);
+
+    private static async Task<RetouchProvenanceMap?> LoadProvenanceAsync(
+        string path,
+        ImageBuffer? image,
+        CancellationToken cancellationToken)
+    {
+        if (image is null)
+        {
+            return null;
+        }
+
+        if (!File.Exists(path))
+        {
+            // Optional sidecars keep the v1 project format backward compatible.
+            return RetouchProvenanceMap.Unknown(image.Width, image.Height);
+        }
+
+        var values = await File.ReadAllBytesAsync(path, cancellationToken);
+        return values.Length == image.PixelCount
+            ? new RetouchProvenanceMap(image.Width, image.Height, values)
+            : RetouchProvenanceMap.Unknown(image.Width, image.Height);
     }
 
     private static async Task<RgbImageBuffer?> LoadResultAsync(string path, CancellationToken cancellationToken)

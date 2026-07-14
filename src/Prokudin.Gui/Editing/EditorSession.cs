@@ -1,6 +1,7 @@
 using Prokudin.Core.Alignment;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.Editing;
 
@@ -43,7 +44,8 @@ public static class EditorSession
             state.WhiteBalanceSource, state.WhitePickRadius, state.WhitePickWarningAcknowledged,
             state.RedLevelsBlackPoint, state.RedLevelsWhitePoint, state.RedLevelsGamma,
             state.GreenLevelsBlackPoint, state.GreenLevelsWhitePoint, state.GreenLevelsGamma,
-            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma);
+            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma,
+            RedProvenance: null, GreenProvenance: null, BlueProvenance: null);
 
     private static EditorMemento CreateSnapshotMemento(in EditorCaptureState state) =>
         new(
@@ -71,7 +73,8 @@ public static class EditorSession
             state.WhiteBalanceSource, state.WhitePickRadius, state.WhitePickWarningAcknowledged,
             state.RedLevelsBlackPoint, state.RedLevelsWhitePoint, state.RedLevelsGamma,
             state.GreenLevelsBlackPoint, state.GreenLevelsWhitePoint, state.GreenLevelsGamma,
-            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma);
+            state.BlueLevelsBlackPoint, state.BlueLevelsWhitePoint, state.BlueLevelsGamma,
+            state.RedProvenance?.Clone(), state.GreenProvenance?.Clone(), state.BlueProvenance?.Clone());
 
     public static EditorMemento CloneForRestore(in EditorMemento memento) =>
         new(
@@ -99,7 +102,8 @@ public static class EditorSession
             memento.WhiteBalanceSource, memento.WhitePickRadius, memento.WhitePickWarningAcknowledged,
             memento.RedLevelsBlackPoint, memento.RedLevelsWhitePoint, memento.RedLevelsGamma,
             memento.GreenLevelsBlackPoint, memento.GreenLevelsWhitePoint, memento.GreenLevelsGamma,
-            memento.BlueLevelsBlackPoint, memento.BlueLevelsWhitePoint, memento.BlueLevelsGamma);
+            memento.BlueLevelsBlackPoint, memento.BlueLevelsWhitePoint, memento.BlueLevelsGamma,
+            memento.RedProvenance?.Clone(), memento.GreenProvenance?.Clone(), memento.BlueProvenance?.Clone());
 
     internal static AlignedChannels? CloneAligned(AlignedChannels? aligned)
     {

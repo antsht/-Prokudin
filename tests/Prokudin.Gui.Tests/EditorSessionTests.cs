@@ -3,6 +3,7 @@ using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
+using Prokudin.Core.Retouch;
 using Prokudin.Gui.Editing;
 
 namespace Prokudin.Gui.Tests;
@@ -117,6 +118,41 @@ public sealed class EditorSessionTests
         restored.Should().NotBeSameAs(memento);
         restored.Red.Should().NotBeSameAs(memento.Red);
         restored.Red![0, 0].Should().BeApproximately(0.5f, 1e-6f);
+    }
+
+    [Fact]
+    public void CreateAndRestoreMemento_ClonesRetouchProvenanceAtomicallyWithImage()
+    {
+        var map = new RetouchProvenanceMap(2, 2);
+        map[3] = RetouchProvenance.CloneStamp;
+        var memento = EditorSession.CreateMemento(new EditorCaptureState(
+            Red: ImageBuffer.Filled(2, 2, 0.5f),
+            Green: null,
+            Blue: null,
+            RedSourcePath: null,
+            GreenSourcePath: null,
+            BlueSourcePath: null,
+            Result: null,
+            LastAligned: null,
+            RedExposureStops: 0,
+            GreenExposureStops: 0,
+            BlueExposureStops: 0,
+            AutoWhiteBalance: false,
+            WhiteBalancePipetteX: -1,
+            WhiteBalancePipetteY: -1,
+            LevelsMode: LevelsMode.AutoPercentile,
+            LevelsBlackPoint: 0,
+            LevelsWhitePoint: 1,
+            LevelsGamma: 1,
+            ColorTemperature: 0,
+            ColorTint: 0,
+            SelectedSlotDisplayName: "Red",
+            RedProvenance: map));
+
+        var restored = EditorSession.CloneForRestore(memento);
+
+        restored.RedProvenance.Should().NotBeSameAs(map);
+        restored.RedProvenance![3].Should().Be(RetouchProvenance.CloneStamp);
     }
 
     [Fact]

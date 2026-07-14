@@ -1,277 +1,100 @@
-# Cross-Channel Guided Healing — Design
+# Provenance-aware Guided Healing
 
-Status: **implemented** (Core `ChannelHealer`, GUI heal brush and auto-clean apply, 2026-06)
+Status: **implemented** in 0.17.0 (Core `ChannelHealer` / `GuidedHealingEngine`, GUI heal brush and auto-clean apply).
 
-See also: [User Guide](user-guide.md#cross-channel-healing), [Core API](core-api.md#retouch).
+See also: [retouch-provenance ADR](adr/0003-retouch-provenance-for-guided-healing.md), [User Guide](user-guide.md#cross-channel-healing), and [Core API](core-api.md#retouch).
 
-## Understanding Summary
+## Goal and boundaries
 
-- **Goal:** `CrossChannelGuidedHealing` restores a defective grayscale channel using two aligned guide channels via local linear prediction + guided patch healing, blended by prediction confidence.
-- **Why:** Single-channel defects (dust, spots, scratches) become color artifacts after RGB merge; guides carry scene structure the damaged channel lacks under the mask.
-- **Users:** Prokudin GUI operators working with aligned R/G/B LoC scans; Core API for automated tests.
-- **Constraints:** Modify only target pixels inside mask; guides untouched; no neural generation; no global blur; mandatory async in GUI; quality over speed.
-- **Prerequisite:** Stage 0 typed pixel pipeline migration across all of Core before healing work begins.
-- **Non-goals:** CLI in v1; persisted healing settings; neural inpaint; automatic repair of large low-confidence regions.
+Guided Healing repairs dust, compact defects, and scratches in one aligned
+grayscale channel using evidence from the local target context and its two
+aligned siblings. It is reconstruction, not generative restoration:
 
-## Assumptions
+- only pixels in the supplied healing mask may change;
+- guide channels are never modified;
+- guide structure may inform a repair, but guide tone is never copied into the
+  target channel;
+- a large region with insufficient local evidence is left conservative rather
+  than completed as invented scene content;
+- heal brush and auto-clean run off the Avalonia UI thread.
 
-1. Algorithm defaults from the original spec (radii, weights, `maxComponentArea = 5000`, `alphaMin/Max`, robust LS) are exposed via `HealOptions`.
-2. Processing is per connected component of the defect mask.
-3. Internal `CrossChannelGuided` fallback → **Patch**; external fallback (guides unavailable) → **Telea**.
-4. Conservative mode for components > 5000 px: capped alpha, Patch-heavy — no separate UI warning (status bar only when guides unavailable).
-5. Debug output → `debug/heal/{timestamp}/` relative to cwd; directory listed in `.gitignore`.
-6. Auto-clean detection prepares a final healing mask before review/apply:
-   raw auto mask -> merge nearby defects -> expand healing area -> final healing mask.
-   Mask preparation never mutates source image channels.
-7. Patch donor selection v1: **one best donor per connected component** (not per-pixel sliding).
+The selected channel uses the other two channels as guides: `R <- G,B`,
+`G <- R,B`, and `B <- R,G`.
 
-## Decision Log
+## Provenance and guide eligibility
 
-| # | Decision | Alternatives | Rationale |
-|---|----------|--------------|-----------|
-| 1 | `CurrentChannelOnly` = Telea + Patch sub-modes | Telea only; Patch only | Preserve legacy Telea; add patch as explicit option |
-| 2 | `CrossChannelGuided` in GUI Heal + Auto-clean Apply | Core only; Heal only; + CLI | Primary workflows benefit immediately |
-| 3 | Cross-channel **ON by default** | Opt-in; per-tool defaults | Maximum benefit out of the box |
-| 4 | Guides unavailable → Telea + status bar indicator | Silent fallback; block; 2-channel model | Operation succeeds; user is informed |
-| 5 | Internal CrossChannelGuided fallback → **Patch** | Telea; per-reason; configurable | Aligns with spec patch logic |
-| 6 | Cross-channel OFF → GUI Telea/Patch choice, default **Patch** | Telea default | Unified patch-first experience |
-| 7 | Quality > speed; async mandatory | Hard SLA limits | Correctness and responsive UI |
-| 8 | Debug → `debug/heal/{timestamp}/` | Export dir; temp; configurable | Predictable local comparison |
-| 9 | `ImageBuffer` supports uint8 / float / uint16 | Float only; convert on the fly | Matches archival bit depths |
-| 10 | Typed model across **entire Core pipeline** | Retouch only; retouch + I/O | End-to-end consistency |
-| 11 | **Stage 0 pipeline first**, then healing | Parallel; incremental wrapper | Avoid double work |
-| 12 | Healing GUI settings **not persisted** | Save all; save toggle only | Simple predictable defaults |
-| 13 | Large component conservative mode — no extra UI warning | Dedicated warning | Status bar sufficient |
-| 14 | Architecture: phased typed Core + separate `ChannelHealer` | Monolithic class; strategy interfaces | Maintainable, testable, YAGNI |
-| 15 | Donor selection: one best patch per component (v1) | Per-pixel sliding window | Faster; sufficient for small defects |
+Each prepared R/G/B pixel has one byte of provenance:
 
-## Architecture
+| Provenance | Can guide a repair? |
+| --- | --- |
+| `Original` | Yes |
+| `HighConfidenceHealing` | Yes |
+| `LowConfidenceHealing` | No |
+| `CloneStamp` | No |
+| `Unknown` (project predates provenance) | Only when both guides are usable and agree |
 
-### Stage 0 — Typed `ImageBuffer`
+Eligibility is checked for every sampled guide pixel, rather than only once for
+a component. This prevents a clone-stamped or uncertain guide sample from being
+propagated through a neighbouring repair.
 
-```
-Prokudin.Core.Imaging/
-  PixelFormat.cs          // UInt8, Float32, UInt16
-  ImageBuffer.cs            // Format + dimensions + typed storage
-  ImageBufferFactory.cs
-  ImageMatConverter.cs      // ToMat / FromMat per format
-```
+Every newly healed masked pixel is marked high- or low-confidence. Clone stamp
+marks the stamped mask as `CloneStamp`.
 
-Migrate modules in order: **Imaging → Alignment → Pipeline → Color → Retouch**. All existing tests must pass after each module.
+## Repair procedure
 
-| Format | Storage | Range |
-|--------|---------|-------|
-| Float32 | `float[]` | 0..1 |
-| UInt8 | `byte[]` | 0..255 |
-| UInt16 | `ushort[]` | 0..65535 |
+1. Find connected components in the reviewed brush or auto-clean mask.
+2. Classify each component as compact or scratch from its aspect ratio and
+   principal axis.
+3. For a compact component, fit a robust local structural relationship from
+   unmasked context. The guide contribution is expressed as a local contrast or
+   delta, retaining the target's local tone.
+4. For a scratch, group pixels along the long axis and split it where transverse
+   target tone shows a boundary. Each segment has a separate local repair,
+   protecting dark/light and other tonal edges crossed by the scratch.
+5. Require per-guide evidence and agreement. When agreement or local context is
+   weak, apply a conservative local fallback and mark the result low confidence.
+6. For a large component, disable scene-completing prediction. With no suitable
+   local evidence, samples remain unchanged rather than synthesizing detail.
 
-I/O (ImageSharp) preserves source bit depth on load; export unchanged.
+The output is rebuilt with the target's original `ImageBuffer` pixel format.
+This preserves native 16-bit values instead of routing them through 8-bit
+inpaint quantization.
 
-### Stage 1+ — Healing module
+## State lifecycle
 
-```
-Prokudin.Core.Retouch/
-  HealingMode.cs            // CurrentChannelOnly, CrossChannelGuided
-  HealingSubMode.cs           // Telea, Patch
-  HealOptions.cs
-  HealResult.cs
-  ChannelHealer.cs            // HealChannel(...) entry point
-  CrossChannelPredictor.cs
-  PatchHealer.cs
-  HealingMaskUtils.cs
-  HealingDebugWriter.cs
-```
+The GUI holds one `RetouchProvenanceMap` beside each prepared channel. A map is
+deep-cloned in snapshot undo/redo state and restored atomically with its channel.
+It is cropped in the same operation as channel/result crop, swapped with its
+channel, and reset when a channel is imported or a new alignment creates new
+prepared data.
 
-`ChannelRetoucher` remains facade for `InpaintMask`, `DetectSingleChannelDefects`, `Stamp`.
-
-### Data flow
-
-```mermaid
-flowchart TD
-  IN[target + guide1 + guide2 + mask + options]
-  IN --> COMP[For each connected component]
-  COMP --> MODE{HealingMode?}
-  MODE -->|CrossChannelGuided| PRED[CrossChannelPredictor]
-  MODE -->|CurrentChannelOnly| SUB{SubMode?}
-  SUB -->|Telea| TEL[OpenCV Inpaint]
-  SUB -->|Patch| PATCH[PatchHealer single-channel]
-  PRED --> PATCHG[Guided PatchHealer]
-  PRED --> BLEND[Blend by alpha]
-  PATCHG --> BLEND
-  BLEND --> FEATHER[Gaussian feather softMask]
-  TEL --> FEATHER
-  PATCH --> FEATHER
-  FEATHER --> OUT[healed target clone]
-```
-
-## Algorithm
-
-### Auto-clean mask preparation
-
-Automatic defect detection returns a prepared healing mask in this fixed order:
+Explicit project saves and autosaves write:
 
 ```text
-raw auto mask -> merge nearby defects -> expand healing area -> final healing mask
+red.provenance.bin
+green.provenance.bin
+blue.provenance.bin
 ```
 
-After raw detection and existing small-component filtering, nearby defects are
-merged with morphological close when `AutoMergeNearbyDefects` is enabled and
-`AutoMergeDistancePx > 0`. The healing area is then expanded with dilation by
-`AutoExpandHealingAreaPx`.
+These sidecars are optional for backwards compatibility. A missing or malformed
+sidecar loads as an `Unknown` map, which can never act as the sole guide.
 
-If a prepared component exceeds `MaxAutoExpandedComponentArea`, preparation
-retries with smaller merge/expand radii until the component fits or both radii
-reach zero. `ChannelHealer` receives only the final healing mask, and pixels
-outside that mask remain unchanged.
+## User feedback and diagnostics
 
-### A. Local Cross-Channel Prediction
+The GUI reports a concise status-bar notice when healing had to be conservative
+or low-confidence. `Debug heal` continues to write the final healed channel and
+debug mask output under `debug/heal/`; it is useful for manual visual validation
+of edge and scratch repairs.
 
-Per connected component:
+## Validation coverage
 
-1. `ring = dilate(component, contextRadius) - component`, minus `globalDefectMask`.
-2. If valid ring pixels < `minTrainingPixels`: retry with `contextRadius = 32`; else skip prediction.
-3. Robust LS on ring: fit `C ≈ k1*A + k2*B + k3`; drop residuals > p90; refit.
-4. Predict inside component; clamp by `PixelFormat`.
-5. `predictionConfidence = 1 - clamp(MAE / maxAllowedError, 0, 1)`.
+Focused tests cover:
 
-Large component (> `maxComponentArea`): apply `conservativeScale` (e.g. 0.5) to alpha.
-
-Reuse `FitLinearModel` / `Solve3x3` patterns from `ChannelRetoucher`, scoped to ring pixels.
-
-### B. Guided Patch Healing
-
-**Search area:** `dilate(component, searchRadius) - dilate(component, safetyRadius)`, excluding all defect masks. Expand `searchRadius` 48 → 96 if no candidates.
-
-**Score (guided mode):**
-
-```
-score = wGuide * guideDiff + wGradient * gradDiff + wBoundary * boundaryDiff + wDistance * distPenalty
-```
-
-Defaults: `wGuide=0.45`, `wGradient=0.25`, `wBoundary=0.25`, `wDistance=0.05`.
-
-**Transfer:** target values from donor patch; brightness offset via ring medians; clamp.
-
-**Single-channel Patch mode:** same search without guide terms (boundary + distance only).
-
-### C. Blending
-
-```
-alpha = clamp(predictionConfidence, alphaMin, alphaMax) * conservativeScale
-C_final = alpha * C_pred + (1 - alpha) * C_patch
-softMask = gaussianBlur(componentMask, featherSigma)
-C_out = C_orig * (1 - softMask) + C_final * softMask
-```
-
-Write only within component bbox + feather halo.
-
-### Fallback matrix
-
-| Condition | Action |
-|-----------|--------|
-| Guides unavailable (GUI) | `CurrentChannelOnly.Telea` + status bar |
-| Ring < minTrainingPixels | Patch single-channel only |
-| `confidence < 0.35` | alpha → alphaMin; Patch dominates |
-| No donor found | Patch; if still fails → Telea |
-| Component > 5000 px | conservative alpha cap |
-
-## API
-
-```csharp
-HealResult ChannelHealer.HealChannel(
-    ImageBuffer targetChannel,
-    ImageBuffer? guideChannel1,
-    ImageBuffer? guideChannel2,
-    byte[] defectMask,
-    HealOptions options);
-```
-
-Key `HealOptions` fields:
-
-- `Mode`: `CurrentChannelOnly` | `CrossChannelGuided`
-- `SubMode`: `Telea` | `Patch` (for `CurrentChannelOnly`)
-- `patchRadius`, `searchRadius`, `safetyRadius`, `contextRadius`, `minTrainingPixels`
-- `useLocalLinearPrediction`, `useGuidedPatchSearch`, `useRobustFit`
-- `predictionAlphaMin`, `predictionAlphaMax`
-- `wGuide`, `wGradient`, `wBoundary`, `wDistance`
-- `featherSigma`, `maxAllowedError*` per format
-- `maxComponentArea`, `largeMaskFastPathPixelThreshold`, `debugOutput`
-
-## GUI integration
-
-| Control | Default | Persist |
-|---------|---------|---------|
-| Use cross-channel healing | ON | No |
-| Healing sub-mode (Telea/Patch) | Patch | No |
-| Merge nearby defects | ON | No |
-| Auto-clean merge distance | 3 px | No |
-| Auto-clean healing expansion | 2 px | No |
-| Debug heal output | OFF | No |
-
-Guide resolution by selected channel:
-
-```
-R → guides G, B
-G → guides R, B
-B → guides R, G
-```
-
-`ApplyRetouchStroke` and `ApplyAutoCleanMask` call `ChannelHealer.HealChannel` via `Task.Run`.
-
-## Debug output
-
-When `debugOutput = true`, write to `debug/heal/{yyyyMMdd-HHmmss}/`:
-
-- `R_auto_defect_mask_raw.png`, `G_...`, `B_...`
-- `R_auto_defect_mask_merged.png`, `G_...`, `B_...`
-- `R_auto_defect_mask_expanded.png`, `G_...`, `B_...`
-- `R_final_healing_mask.png`, `G_...`, `B_...`
-- `mask_target.png`
-- `component_debug.png`
-- `prediction_channel.png`
-- `patch_heal_channel.png`
-- `final_healed_channel.png`
-- `prediction_confidence_map.png`
-- `donor_patch_debug.png`
-
-## Testing
-
-### Stage 0
-
-- `ImageBuffer` round-trip per format
-- `ToMat` / `FromMat` correctness
-- Existing Core tests green after each module migration
-
-### Healing (synthetic)
-
-1. Defect in R only — R healed, G/B unchanged, no red spot in RGB
-2. Defect in G only — same for green
-3. Saturated red object — R not averaged toward G/B
-4. Defect on luminance edge — boundary preserved
-5. Defect near image edge — fallback, no exception
-6. Guides unavailable — Telea path
-7. Pixels outside mask unchanged
-
-Regression: all `ChannelRetoucherTests` pass; `InpaintMask` behavior unchanged.
-
-## Implementation plan
-
-| Stage | Scope | Exit criteria |
-|-------|-------|---------------|
-| **0** | Typed `ImageBuffer`; migrate Imaging → Alignment → Pipeline → Color → Retouch | All Core tests green; GUI/CLI load/export all formats — **done** |
-| **1** | `HealingMode`, `HealOptions`, `ChannelHealer` skeleton; `CurrentChannelOnly.Telea` wired | Existing heal paths use new API; Telea identical — **done** |
-| **2** | `CrossChannelPredictor` | Unit tests for ring LS, robust fit, confidence — **done** |
-| **3** | Confidence + fallback logic | Fallback matrix tests — **done** |
-| **4** | `PatchHealer` (single + guided) | Donor search tests — **done** |
-| **5** | Blend prediction + patch + feather | Tests T1–T5 — **done** |
-| **6** | `HealingDebugWriter` + GUI controls/async | Manual debug verification — **done** |
-| **7** | GUI integration + acceptance tests | User-guide update; full test suite green — **done** |
-
-## Risks
-
-| Risk | Mitigation |
-|------|------------|
-| Stage 0 scope creep | Migrate one module at a time; keep float path working until cutover |
-| Patch search slow on 3000×3000 | One donor per component; optional search step in options |
-| Color flattening on saturated regions | Test T3; confidence + alpha caps |
-| Ring contaminated by edge defects | Robust LS p90 rejection; exclude global defect mask |
+- exact mask locality and native 16-bit preservation;
+- clone and low-confidence guide exclusion, high-confidence eligibility, and
+  dual-guide handling of legacy unknown samples;
+- lack of speculative completion in unresolved large masks;
+- scratch segmentation at a dark/light boundary;
+- provenance clone/crop/history/project/autosave round trips;
+- crop-to-selection on Result after Guided Healing, including synchronized
+  prepared-channel crops.

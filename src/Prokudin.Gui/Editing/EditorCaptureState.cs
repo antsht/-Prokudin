@@ -2,6 +2,7 @@ using Prokudin.Core.Alignment;
 using Prokudin.Core.Color;
 using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
+using Prokudin.Core.Retouch;
 
 namespace Prokudin.Gui.Editing;
 
@@ -38,4 +39,7 @@ public sealed record EditorCaptureState(
     double GreenLevelsGamma = 1,
     double BlueLevelsBlackPoint = 0,
     double BlueLevelsWhitePoint = 1,
-    double BlueLevelsGamma = 1);
+    double BlueLevelsGamma = 1,
+    RetouchProvenanceMap? RedProvenance = null,
+    RetouchProvenanceMap? GreenProvenance = null,
+    RetouchProvenanceMap? BlueProvenance = null);

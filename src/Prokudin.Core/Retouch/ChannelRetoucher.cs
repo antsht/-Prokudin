@@ -23,12 +23,78 @@ public static class ChannelRetoucher
             return image.Clone();
         }
 
+        // OpenCV Telea accepts only 8-bit or float source Mats in the path
+        // previously used here. Never quantize native 16-bit plate samples to
+        // 8-bit merely to enter that fallback; a local native-range repair is
+        // more conservative and preserves every unmasked sample exactly.
+        if (image.Format == PixelFormat.UInt16)
+        {
+            return InpaintMaskNative(image, mask);
+        }
+
         var format = image.Format;
         using var source = ImageMatConverter.ToUInt8MatForInpaint(image);
         using var maskMat = MaskToMat(mask, image.Width, image.Height);
         using var cleaned = new Mat();
         Cv2.Inpaint(source, maskMat, cleaned, Math.Clamp(radius, 1, 24), InpaintTypes.Telea);
         return ImageMatConverter.FromMat(cleaned, format);
+    }
+
+    private static ImageBuffer InpaintMaskNative(ImageBuffer image, byte[] mask)
+    {
+        var source = new float[image.PixelCount];
+        image.CopyNormalizedTo(source);
+        var repaired = (float[])source.Clone();
+        for (var index = 0; index < source.Length; index++)
+        {
+            if (mask[index] == 0)
+            {
+                continue;
+            }
+
+            var x = index % image.Width;
+            var y = index / image.Width;
+            var samples = new List<float>(4);
+            AddNativeSample(samples, x, y, -1, 0, source, mask, image.Width, image.Height);
+            AddNativeSample(samples, x, y, 1, 0, source, mask, image.Width, image.Height);
+            AddNativeSample(samples, x, y, 0, -1, source, mask, image.Width, image.Height);
+            AddNativeSample(samples, x, y, 0, 1, source, mask, image.Width, image.Height);
+            if (samples.Count > 0)
+            {
+                repaired[index] = samples.Average();
+            }
+        }
+
+        return ImageBuffer.FromNormalized(image.Width, image.Height, repaired, image.Format);
+    }
+
+    private static void AddNativeSample(
+        List<float> samples,
+        int x,
+        int y,
+        int dx,
+        int dy,
+        float[] source,
+        byte[] mask,
+        int width,
+        int height)
+    {
+        for (var distance = 1; distance <= 16; distance++)
+        {
+            var sampleX = x + (dx * distance);
+            var sampleY = y + (dy * distance);
+            if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height)
+            {
+                return;
+            }
+
+            var index = (sampleY * width) + sampleX;
+            if (mask[index] == 0)
+            {
+                samples.Add(source[index]);
+                return;
+            }
+        }
     }
 
     public static RetouchResult AutoClean(ImageBuffer image, AutoCleanSettings settings)

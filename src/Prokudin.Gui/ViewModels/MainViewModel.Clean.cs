@@ -70,11 +70,12 @@ public sealed partial class MainViewModel
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var progress = CreateAutoCleanProgress(progressScope);
             var healTarget = image.Clone();
-            var guide1Copy = guide1?.Clone();
-            var guide2Copy = guide2?.Clone();
-            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, options, progress))
+            var targetProvenance = GetRetouchProvenance(channelName, image).Clone();
+            var guide1Copy = guide1?.Copy();
+            var guide2Copy = guide2?.Copy();
+            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, targetProvenance, options, progress))
                 .ConfigureAwait(true);
-            await ApplyRetouchResultAsync(channelName, result.Image);
+            await ApplyRetouchResultAsync(channelName, result.Image, result.Provenance);
             ClearPendingAutoCleanMask();
             var healStatus = result.StatusMessage ??
                              $"Applied auto-clean mask to {SelectedSlot.DisplayName}: {changedPixels} masked pixels.";
@@ -138,11 +139,12 @@ public sealed partial class MainViewModel
             var options = CreateHealOptions();
             TryGetHealingGuides(channelName, out var guide1, out var guide2);
             var healTarget = image.Clone();
-            var guide1Copy = guide1?.Clone();
-            var guide2Copy = guide2?.Clone();
-            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, options))
+            var targetProvenance = GetRetouchProvenance(channelName, image).Clone();
+            var guide1Copy = guide1?.Copy();
+            var guide2Copy = guide2?.Copy();
+            var result = await Task.Run(() => ChannelHealer.HealChannel(healTarget, guide1Copy, guide2Copy, mask, targetProvenance, options))
                 .ConfigureAwait(true);
-            await ApplyRetouchResultAsync(channelName, result.Image);
+            await ApplyRetouchResultAsync(channelName, result.Image, result.Provenance);
             var count = mask.Count(value => value > 0);
             var healStatus = result.StatusMessage ?? $"Retouched {SelectedSlot!.DisplayName}: {count} masked pixels.";
             Status = healStatus;
@@ -170,7 +172,9 @@ public sealed partial class MainViewModel
         }
 
         RecordSnapshotCommand("CloneStamp");
-        ApplyRetouchResult(channelName, result.Image);
+        var provenance = GetRetouchProvenance(channelName, image).Clone();
+        provenance.Mark(result.Mask, RetouchProvenance.CloneStamp);
+        ApplyRetouchResult(channelName, result.Image, provenance);
         var count = result.Mask.Count(value => value > 0);
         Status = $"Stamped {SelectedSlot.DisplayName}: {count} blended pixels.";
         AppendLog($"Clone stamp {SelectedSlot.DisplayName}: {count} blended pixels, brush {stroke.DestinationStroke.BrushSize}, blend {Math.Clamp(stroke.BlendWidth, 1, 24)}.");
@@ -215,18 +219,18 @@ public sealed partial class MainViewModel
         return CanEditSelectedInputChannel() && stroke is { DestinationStroke.Points.Count: > 0 };
     }
 
-    private async Task ApplyRetouchResultAsync(ChannelName channelName, ImageBuffer image)
+    private async Task ApplyRetouchResultAsync(ChannelName channelName, ImageBuffer image, RetouchProvenanceMap? provenance)
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            ApplyRetouchResult(channelName, image);
+            ApplyRetouchResult(channelName, image, provenance);
             return;
         }
 
-        await Dispatcher.UIThread.InvokeAsync(() => ApplyRetouchResult(channelName, image));
+        await Dispatcher.UIThread.InvokeAsync(() => ApplyRetouchResult(channelName, image, provenance));
     }
 
-    private void ApplyRetouchResult(ChannelName channelName, ImageBuffer image)
+    private void ApplyRetouchResult(ChannelName channelName, ImageBuffer image, RetouchProvenanceMap? provenance)
     {
         if (GetSlot(channelName) is not { } slot)
         {
@@ -234,6 +238,7 @@ public sealed partial class MainViewModel
         }
 
         slot.Image = image;
+        SetRetouchProvenance(channelName, image, provenance);
         RefreshAlignedAfterInputEdit(channelName);
         RefreshPreviewImageContext();
     }

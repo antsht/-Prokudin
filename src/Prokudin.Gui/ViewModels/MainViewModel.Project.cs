@@ -275,6 +275,7 @@ public sealed partial class MainViewModel
             RedSlot.Image = null;
             GreenSlot.Image = null;
             BlueSlot.Image = null;
+            retouchProvenance.Clear();
             RedSlot.SourcePath = null;
             GreenSlot.SourcePath = null;
             BlueSlot.SourcePath = null;
@@ -307,6 +308,9 @@ public sealed partial class MainViewModel
             Green = GreenSlot.Image?.Clone(),
             Blue = BlueSlot.Image?.Clone(),
             Result = ResultSlot.Result?.Clone(),
+            RedProvenance = RedSlot.Image is { } red ? GetRetouchProvenance(ChannelName.Red, red).Clone() : null,
+            GreenProvenance = GreenSlot.Image is { } green ? GetRetouchProvenance(ChannelName.Green, green).Clone() : null,
+            BlueProvenance = BlueSlot.Image is { } blue ? GetRetouchProvenance(ChannelName.Blue, blue).Clone() : null,
         };
     }
 
@@ -439,6 +443,21 @@ public sealed partial class MainViewModel
             RedSlot.Image = package.Red?.Clone();
             GreenSlot.Image = package.Green?.Clone();
             BlueSlot.Image = package.Blue?.Clone();
+            retouchProvenance.Clear();
+            if (RedSlot.Image is { } red)
+            {
+                SetRetouchProvenance(ChannelName.Red, red, package.RedProvenance);
+            }
+
+            if (GreenSlot.Image is { } green)
+            {
+                SetRetouchProvenance(ChannelName.Green, green, package.GreenProvenance);
+            }
+
+            if (BlueSlot.Image is { } blue)
+            {
+                SetRetouchProvenance(ChannelName.Blue, blue, package.BlueProvenance);
+            }
             RedSlot.SourcePath = state.RedSourcePath;
             GreenSlot.SourcePath = state.GreenSourcePath;
             BlueSlot.SourcePath = state.BlueSourcePath;

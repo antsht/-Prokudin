@@ -88,8 +88,10 @@ Recent project paths: `recent-projects.json`. Autosave slot: `autosave/`.
 
 ### Projects
 
-- **Save Project / Save Project As** writes a folder with `project.json` plus Deflate TIFF
-  `red.tif`, `green.tif`, `blue.tif`, and `result.tif` (current working state only).
+- **Save Project / Save Project As** writes a folder with `project.json`, Deflate TIFF
+  `red.tif`, `green.tif`, `blue.tif`, and `result.tif`, plus per-channel retouch-provenance
+  sidecars (current working state only). Projects saved before provenance support load as
+  Unknown provenance.
 - **Autosave** uses the same format in `%LocalAppData%/Prokudin/autosave/` (single slot,
   default 10 min interval). Does not clear the dirty flag; explicit Save is still required.
 - **Welcome dialog** on startup: recover autosave, open one of three recent projects, or new/open.
@@ -106,8 +108,9 @@ Recent project paths: `recent-projects.json`. Autosave slot: `autosave/`.
   byte budget; memory pressure evicts oldest snapshots first while keeping at least
   one entry.
 - `EditorMemento` has `Kind` **Snapshot** or **Parameter**. Snapshot mementos store
-  native-format channels, source paths, `lastAligned`, and scalar color settings, but
-  not the derived RGB result. Parameter mementos store scalar color settings only.
+  native-format channels, their retouch-provenance maps, source paths, `lastAligned`, and
+  scalar color settings, but not the derived RGB result. Parameter mementos store scalar
+  color settings only.
 - Undo/redo restore rebuilds `Result` from `lastAligned` when available; undo history
   is not persisted in project files.
 - **SnapshotCommand:** import, align, crop, swap, heal/stamp/auto-clean apply, reset exposure.
@@ -135,7 +138,7 @@ context command bar (quick actions) and a right **inspector** (detailed paramete
 - auto white balance, pipette picker, per-channel exposure (−2…+2 stops)
 - manual levels/gamma via `LevelsSettings` in Color inspector
 - fit-to-window / 1:1 preview zoom
-- project save/load (folder + `project.json` + TIFF channels/result) and timed autosave
+- project save/load (folder + `project.json` + TIFF channels/result + provenance sidecars) and timed autosave
 - welcome screen (autosave recovery, three recent projects)
 - Edit → Settings for theme, autosave, diagnostics
 - PNG/JPEG/TIFF export with persisted settings; export prepared channels
@@ -154,9 +157,11 @@ replaced bitmaps. Thumbnails are built in `AvaloniaBitmapFactory.CreateThumbnail
 Do not reintroduce binding converters that allocate new bitmaps on every binding
 conversion.
 
-`ChannelHealer.HealChannel` is the retouch entry point. Cross-channel mode uses
-aligned sibling channels as guides; when guides are unavailable it falls back to
-Telea with a status message. Healing runs on `Task.Run` from the GUI.
+`ChannelHealer.HealChannel` is the retouch entry point. Guided Healing classifies compact
+defects and scratches, evaluates sibling guide samples by per-pixel provenance, transfers
+structure rather than guide tone, and protects scratch tonal boundaries. When eligible
+guides are unavailable it falls back conservatively with a status message. Healing runs on
+`Task.Run` from the GUI.
 
 GUI layout uses Zafiro semantic containers (`HeaderedContainer`, `EdgePanel`,
 `Card`) and shared theme resources under `src/Prokudin.Gui/Themes/`. ViewModels

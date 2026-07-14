@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
+using Prokudin.Core.Alignment;
 using Prokudin.Core.Crop;
+using Prokudin.Core.Imaging;
 using Prokudin.Core.Pipeline;
 
 namespace Prokudin.Gui.ViewModels;
@@ -29,7 +31,10 @@ public sealed partial class MainViewModel
                 return (aligned, info);
             });
 
-            SetPreparedChannels(cropped);
+            CropRetouchProvenance(ChannelName.Red, cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
+            CropRetouchProvenance(ChannelName.Green, cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
+            CropRetouchProvenance(ChannelName.Blue, cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
+            SetPreparedChannels(cropped, resetProvenance: false);
             SetLastAligned(cropped);
             TranslateWhitePickForCrop(cropInfo.X0, cropInfo.Y0, cropInfo.X1 - cropInfo.X0, cropInfo.Y1 - cropInfo.Y0);
             var built = await Task.Run(() => ReconstructionPipeline.BuildRgbWithLevelsHistogram(cropped, CurrentPipelineSettings()));
@@ -64,6 +69,7 @@ public sealed partial class MainViewModel
         }
         else if (SelectedSlot.Image is { } image)
         {
+            CropRetouchProvenance(SelectedSlot.ChannelName!.Value, rect.X, rect.Y, rect.Width, rect.Height);
             SelectedSlot.Image = image.Crop(rect.X, rect.Y, rect.Width, rect.Height);
             ResultSlot.Result = null;
             LevelsHistogram = null;
